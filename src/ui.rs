@@ -2,7 +2,7 @@ use bevy::app::{self, App, Plugin};
 use bevy::prelude::{AppExtStates, IntoSystemSetConfigs, States, SystemSet};
 
 mod camera;
-mod render;
+mod object;
 mod store;
 
 pub struct Plug;
@@ -12,12 +12,18 @@ impl Plugin for Plug {
         app.init_state::<InputState>();
 
         app.add_plugins(camera::Plug);
-        app.add_plugins(render::Plug);
+        app.add_plugins(object::Plug);
         app.add_plugins(store::Plug);
 
         app.configure_sets(app::Update, SystemSets::RenderSpawn.before(SystemSets::RenderMove));
-        app.configure_sets(app::Update, SystemSets::RenderMove.ambiguous_with(SystemSets::RenderMove));
-        app.configure_sets(app::Update, (SystemSets::RenderSpawn, SystemSets::RenderMove).in_set(SystemSets::RenderAll));
+        app.configure_sets(
+            app::Update,
+            SystemSets::RenderMove.ambiguous_with(SystemSets::RenderMove),
+        );
+        app.configure_sets(
+            app::Update,
+            (SystemSets::RenderSpawn, SystemSets::RenderMove).in_set(SystemSets::RenderAll),
+        );
     }
 }
 

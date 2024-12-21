@@ -30,6 +30,7 @@ impl Plugin for Plug {
             plane.queue(object::SpawnCommand {
                 position:     object::Position(Vec3A::new(0.0, 10., 5.)),
                 ground_speed: object::GroundSpeed(Vec3A::new(0.0, 130., 0.)),
+                display:      object::Display { name: String::from("ABC123") },
             });
             plane.queue(object::SetAirbourneCommand);
             plane.queue(plane::SpawnCommand {
@@ -42,6 +43,7 @@ impl Plugin for Plug {
             plane.queue(object::SpawnCommand {
                 position:     object::Position(Vec3A::new(10., 10., 3.)),
                 ground_speed: object::GroundSpeed(Vec3A::new(200.0, 0., 0.)),
+                display:      object::Display { name: String::from("ADE127") },
             });
             plane.queue(object::SetAirbourneCommand);
             plane.queue(plane::SpawnCommand {

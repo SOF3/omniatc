@@ -60,7 +60,7 @@ impl Default for CameraConfig {
                 base_width_ratio: 0.3,
                 height:           10.,
                 label_padding:    3.,
-                pos:              Vec2::new(-20., -20.),
+                pos:              Vec2::new(20., -20.),
             }),
             key_move_speed:   100.,
             key_zoom_speed:   1.4,

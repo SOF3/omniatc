@@ -4,14 +4,21 @@
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 use std::f32::consts::{PI, TAU};
-use std::ops;
+use std::{fmt, ops};
 
 use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 
 /// Converts nautical miles to feet.
-pub const FT_PER_NM: f32 = 6076.12;
+pub const FEET_PER_NM: f32 = 6076.12;
+/// Converts nautical miles to feet.
+pub const MILE_PER_NM: f32 = 1.15078;
+/// Converts nautical miles to meter.
+pub const METER_PER_NM: f32 = 1852.;
+/// Converts speed of sound to knots.
+pub const KT_PER_MACH: f32 = 666.739;
 
-pub const TROPOPAUSE_ALTITUDE: f32 = 36089.24 / FT_PER_NM;
+/// Altitude of the tropopause, in kilometers.
+pub const TROPOPAUSE_ALTITUDE: f32 = 36089.24 / FEET_PER_NM;
 
 /// Gravitational acceleration in kt/s.
 pub const GRAVITY_KNOT_PER_SEC: f32 = 19.06260;
@@ -19,12 +26,141 @@ pub const GRAVITY_KNOT_PER_SEC: f32 = 19.06260;
 /// Standard sea level temperature in K, used to calculate density altitude.
 pub const STANDARD_SEA_LEVEL_TEMPERATURE: f32 = 288.15;
 /// Standard lapse rate of temperature, in K/ft.
-pub const STANDARD_LAPSE_RATE: f32 = 0.0019812 * FT_PER_NM;
+pub const STANDARD_LAPSE_RATE: f32 = 0.0019812 * FEET_PER_NM;
 /// Proportional increase of true airspeed per nm above sea level.
 /// Equivalent to 2% per 1000ft.
-pub const TAS_DELTA_PER_NM: f32 = 0.02e-3 * FT_PER_NM;
+pub const TAS_DELTA_PER_NM: f32 = 0.02e-3 * FEET_PER_NM;
 /// I don't know what this constant even means... see <http://www.edwilliams.org/avform147.htm>.
 pub const PRESSURE_DENSITY_ALTITUDE_POW: f32 = 0.2349690;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnitSystem {
+    /// Units by nautical conventions.
+    Nautical,
+    /// Common metric units.
+    Metric,
+    /// Common imperial units.
+    Imperial,
+    /// Strictly SI base units only.
+    Si,
+    /// Units used in omniatc internals.
+    Debug,
+}
+
+#[allow(clippy::match_same_arms)] // prefer more explicit mappings, no point in compression
+impl UnitSystem {
+    /// Unit used for ground altitude.
+    pub fn altitude(self) -> LengthUnit {
+        match self {
+            Self::Nautical => LengthUnit::Feet,
+            Self::Metric => LengthUnit::Meter,
+            Self::Imperial => LengthUnit::Feet,
+            Self::Si => LengthUnit::Meter,
+            Self::Debug => LengthUnit::NauticalMile,
+        }
+    }
+
+    /// Unit used for pressure altitude.
+    pub fn flight_level(self) -> LengthUnit {
+        match self {
+            Self::Nautical => LengthUnit::FlightLevel,
+            Self::Metric => LengthUnit::FlightLevelMeter,
+            Self::Imperial => LengthUnit::FlightLevel,
+            Self::Si => LengthUnit::FlightLevelMeter,
+            Self::Debug => LengthUnit::NauticalMile,
+        }
+    }
+
+    /// Unit used for distance.
+    pub fn distance(self) -> LengthUnit {
+        match self {
+            Self::Nautical => LengthUnit::NauticalMile,
+            Self::Metric => LengthUnit::Kilometer,
+            Self::Imperial => LengthUnit::Mile,
+            Self::Si => LengthUnit::Meter,
+            Self::Debug => LengthUnit::NauticalMile,
+        }
+    }
+
+    /// Unit used for speed.
+    pub fn speed(self) -> SpeedUnit {
+        match self {
+            Self::Nautical => SpeedUnit::Knot,
+            Self::Metric => SpeedUnit::KilometerHour,
+            Self::Imperial => SpeedUnit::MileHour,
+            Self::Si => SpeedUnit::MeterSecond,
+            Self::Debug => SpeedUnit::Knot,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LengthUnit {
+    NauticalMile,
+    FlightLevel,
+    FlightLevelMeter,
+    Feet,
+    Mile,
+    Meter,
+    Kilometer,
+}
+
+impl LengthUnit {
+    pub fn convert(self, value: f32) -> Quantity {
+        match self {
+            Self::NauticalMile => Quantity { value, prefix: "", suffix: "nm" },
+            Self::FlightLevel => {
+                Quantity { value: value * FEET_PER_NM / 100., prefix: "FL", suffix: "" }
+            }
+            Self::FlightLevelMeter => {
+                Quantity { value: value / METER_PER_NM, prefix: "FL", suffix: "m" }
+            }
+            Self::Feet => Quantity { value: value * FEET_PER_NM, prefix: "", suffix: "ft" },
+            Self::Mile => Quantity { value: value * MILE_PER_NM, prefix: "", suffix: "mi" },
+            Self::Meter => Quantity { value: value * METER_PER_NM, prefix: "", suffix: "m" },
+            Self::Kilometer => {
+                Quantity { value: value * METER_PER_NM / 1000., prefix: "", suffix: "km" }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpeedUnit {
+    Knot,
+    KilometerHour,
+    MileHour,
+    MeterSecond,
+    Mach,
+}
+
+impl SpeedUnit {
+    pub fn convert(self, value: f32) -> Quantity {
+        match self {
+            Self::Knot => Quantity { value, prefix: "", suffix: "kt" },
+            Self::KilometerHour => {
+                Quantity { value: value * METER_PER_NM / 1000., prefix: "", suffix: "km/h" }
+            }
+            Self::MileHour => Quantity { value: value * MILE_PER_NM, prefix: "", suffix: "mph" },
+            Self::MeterSecond => {
+                Quantity { value: value * METER_PER_NM / 3600., prefix: "", suffix: "m/s" }
+            }
+            Self::Mach => Quantity { value: value / KT_PER_MACH, prefix: "Ma", suffix: "" },
+        }
+    }
+}
+
+pub struct Quantity {
+    pub value:  f32,
+    pub prefix: &'static str,
+    pub suffix: &'static str,
+}
+
+impl fmt::Display for Quantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:.0}{}", self.prefix, self.value, self.suffix)
+    }
+}
 
 /// An absolute directional bearing.
 #[derive(Debug, Clone, Copy)]
@@ -144,7 +280,7 @@ impl ops::Add<f32> for Heading {
         self.0 %= TAU;
         if self.0 > PI {
             self.0 -= TAU;
-        } else if self.0 <= PI {
+        } else if self.0 <= -PI {
             self.0 += TAU;
         }
         self

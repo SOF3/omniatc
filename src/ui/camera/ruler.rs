@@ -3,15 +3,16 @@ use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::math::{Quat, Vec2, Vec3};
 use bevy::prelude::{
-    BuildChildren, Camera, Camera2d, ChildBuild, Commands, Component, GlobalTransform, IntoSystemConfigs, Mesh, Mesh2d, Rectangle, Res, ResMut, Single, Transform, Visibility, With, Without
+    BuildChildren, Camera, Camera2d, ChildBuild, Commands, Component, GlobalTransform,
+    IntoSystemConfigs, Mesh, Mesh2d, Rectangle, Res, ResMut, Single, Transform, Visibility, With,
+    Without,
 };
 use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
 use bevy::window::Window;
 
-use crate::ui::SystemSets;
-
 use super::CameraConfig;
+use crate::ui::SystemSets;
 
 pub struct Plug;
 
@@ -161,6 +162,7 @@ fn maintain_scale_ruler_system(
 
     let sample_distance = distal_world_pos.distance(sample_world_pos);
     let log2 = sample_distance.log2();
+    #[allow(clippy::cast_possible_truncation)] // log2 output is within bounds
     let ruler_distance = if (log2 % 1. + 1.) % 1. < 0.5 {
         2f32.powi(log2.floor() as i32)
     } else {

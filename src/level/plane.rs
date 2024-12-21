@@ -141,7 +141,7 @@ impl EntityCommand for SpawnCommand {
         let mut entity_ref = world.entity_mut(entity);
 
         if let Some(airbourne) = entity_ref.get::<object::Airbourne>() {
-            let horiz_speed = airbourne.air_speed.length();
+            let horiz_speed = airbourne.airspeed.length();
 
             let dt_target =
                 VelocityTarget { yaw: YawTarget::Speed(0.), horiz_speed, vert_rate: 0. };
@@ -193,7 +193,7 @@ fn maintain_yaw(
     limits: &Limits,
     airbourne: &object::Airbourne,
 ) {
-    let current_yaw = Heading::from_vec3(airbourne.air_speed);
+    let current_yaw = Heading::from_vec3(airbourne.airspeed);
     let mut detect_crossing = None;
     let mut set_yaw_target = None;
 
@@ -252,11 +252,11 @@ fn maintain_accel(
     limits: &Limits,
     airbourne: &mut object::Airbourne,
 ) {
-    let current_speed = airbourne.air_speed.xy().length();
+    let current_speed = airbourne.airspeed.xy().length();
     if target.horiz_speed >= current_speed {
         // We want to accelerate, get the maximum possible acceleration first.
         let desired_accel =
-            limits.accel(airbourne.air_speed.z) - limits.drag_coef * current_speed.powi(2);
+            limits.accel(airbourne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
         // We cannot accelerate too quickly to avoid compressor stall.
         let actual_accel =
             desired_accel.min(control.horiz_accel + limits.accel_change_rate * time.delta_secs());
@@ -264,7 +264,7 @@ fn maintain_accel(
     } else {
         // We want to decelerate, but limited by maximum deceleration.
         let desired_decel =
-            limits.decel(airbourne.air_speed.z) - limits.drag_coef * current_speed.powi(2);
+            limits.decel(airbourne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
         // We cannot decelerate too quickly to avoid compressor stall.
         let actual_accel =
             desired_decel.max(control.horiz_accel - limits.accel_change_rate * time.delta_secs());
@@ -272,7 +272,7 @@ fn maintain_accel(
     }
 
     let new_speed = current_speed + control.horiz_accel * time.delta_secs();
-    airbourne.air_speed = (control.heading.into_dir2() * new_speed, airbourne.air_speed.z).into();
+    airbourne.airspeed = (control.heading.into_dir2() * new_speed, airbourne.airspeed.z).into();
 }
 
 fn maintain_vert(
@@ -284,10 +284,10 @@ fn maintain_vert(
     let desired_vert_rate =
         target.vert_rate.clamp(limits.exp_descent.vert_rate, limits.exp_climb.vert_rate);
     let actual_vert_rate = desired_vert_rate.clamp(
-        airbourne.air_speed.z - limits.max_vert_accel * time.delta_secs(),
-        airbourne.air_speed.z + limits.max_vert_accel * time.delta_secs(),
+        airbourne.airspeed.z - limits.max_vert_accel * time.delta_secs(),
+        airbourne.airspeed.z + limits.max_vert_accel * time.delta_secs(),
     );
-    airbourne.air_speed.z = actual_vert_rate;
+    airbourne.airspeed.z = actual_vert_rate;
 }
 
 fn rotate_object_system(mut query: Query<(&mut object::Rotation, &object::GroundSpeed, &Control)>) {

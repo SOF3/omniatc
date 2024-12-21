@@ -110,6 +110,6 @@ fn ground_heading_control_system(
 
         let signal = pid::control(&mut data.objective.pid_state, error, time.delta_secs());
         data.signal.yaw =
-            YawTarget::Heading(Heading::from_vec3(data.current_air.air_speed) + signal);
+            YawTarget::Heading(Heading::from_vec3(data.current_air.airspeed) + signal);
     });
 }

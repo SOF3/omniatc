@@ -28,6 +28,13 @@ impl Plugin for Plug {
 #[derive(Component)]
 pub struct Marker;
 
+/// Display details of an object.
+#[derive(Component)]
+pub struct Display {
+    /// Label of the object, used for identification and lookup.
+    pub name: String,
+}
+
 /// Position relative to level origin at mean sea level, in (nm, nm, nm).
 ///
 /// Altitude is not the pressure altitude.
@@ -46,12 +53,13 @@ pub struct GroundSpeed(pub Vec3A);
 #[derive(Component)]
 pub struct Airbourne {
     /// Indicated airspeed, in (kt, kt, kt).
-    pub air_speed: Vec3A,
+    pub airspeed: Vec3A,
 }
 
 pub struct SpawnCommand {
     pub position:     Position,
     pub ground_speed: GroundSpeed,
+    pub display:      Display,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -60,6 +68,7 @@ impl EntityCommand for SpawnCommand {
             self.position,
             Rotation::default(),
             self.ground_speed,
+            self.display,
             Marker,
         ));
     }
@@ -97,7 +106,7 @@ impl EntityCommand for SetAirbourneCommand {
 
         world
             .entity_mut(entity)
-            .insert(Airbourne { air_speed: ground_speed - Vec3A::from((wind, 0.)) });
+            .insert(Airbourne { airspeed: ground_speed - Vec3A::from((wind, 0.)) });
     }
 }
 
@@ -137,6 +146,6 @@ fn update_airbourne_system(
         let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude;
 
         ground_speed.0 =
-            airbourne.air_speed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
+            airbourne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
     });
 }

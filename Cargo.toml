@@ -1,0 +1,35 @@
+[package]
+name = "omniatc"
+version = "0.0.0"
+edition = "2021"
+authors = ["SOFe <sofe2038@gmail.com>"]
+repository = "https://github.com/SOF3/omniatc"
+description = "Yet another ATC simulator"
+license = "GPL-3.0"
+
+[features]
+default = ["bevy/dynamic_linking", "inspect"]
+inspect = ["dep:bevy-inspector-egui"]
+
+[dependencies]
+bevy-inspector-egui = {version = "0.28.0", optional = true}
+
+[dependencies.bevy]
+version = "0.15.0"
+features = [
+	"dynamic_linking",
+	"bevy_state",
+	"bevy_color",
+	"bevy_core_pipeline",
+	"bevy_gltf",
+	"bevy_pbr",
+	"bevy_state",
+	"bevy_render",
+	"bevy_text",
+	"bevy_ui",
+	"bevy_winit",
+	"default_font",
+	"multi_threaded",
+	"tonemapping_luts",
+	"x11",
+]

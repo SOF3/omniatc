@@ -1,4 +1,5 @@
-//! An object that may be flying.
+//! A moveable vehicle in the level,
+//! in particular, a ground vehicle or an aircraft.
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::SystemState;
@@ -32,10 +33,11 @@ pub struct Marker;
 #[derive(Component)]
 pub struct Display {
     /// Label of the object, used for identification and lookup.
-    pub name:        String,
-    pub destination: Destination,
+    pub name: String,
 }
 
+/// Objective for the flight.
+#[derive(Component)]
 pub enum Destination {
     /// An outbound flight from the aerodrome.
     Departure(aerodrome::Id),
@@ -75,6 +77,7 @@ pub struct SpawnCommand {
     pub position:     Position,
     pub ground_speed: GroundSpeed,
     pub display:      Display,
+    pub destination:  Destination,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -84,6 +87,7 @@ impl EntityCommand for SpawnCommand {
             Rotation::default(),
             self.ground_speed,
             self.display,
+            self.destination,
             Marker,
         ));
     }

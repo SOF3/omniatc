@@ -2,7 +2,7 @@ use std::fmt;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
-use bevy::color::Color;
+use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
@@ -12,7 +12,7 @@ use bevy::prelude::{
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 
-use super::{Config, LabelElement};
+use super::{ColorScheme, Config, LabelElement};
 use crate::level::{nav, object, plane};
 use crate::math::{TurnDirection, TROPOPAUSE_ALTITUDE};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -70,32 +70,50 @@ fn spawn_plane_viewable_system(
 }
 
 #[derive(QueryData)]
-struct SpriteParentQuery {
-    rotation: &'static object::Rotation,
-    position: &'static object::Position,
+#[query_data(mutable)]
+struct SpriteParentQueryData {
+    rotation:    &'static object::Rotation,
+    position:    &'static object::Position,
+    transform:   &'static mut Transform,
+    destination: &'static object::Destination,
 }
 
 fn maintain_sprite_system(
-    mut parent_query: Query<
-        (&object::Rotation, &object::Position, &mut Transform),
-        Without<SpriteViewable>,
-    >,
+    mut parent_query: Query<SpriteParentQueryData, Without<SpriteViewable>>,
     mut sprite_query: Query<(Entity, &Parent, &mut Transform, &mut Sprite), With<SpriteViewable>>,
+    config: Res<Config>,
 ) {
     sprite_query.iter_mut().for_each(|(entity, parent_ref, mut sprite_tf, mut sprite)| {
-        let Ok((rotation, position, mut parent_tf)) = parent_query.get_mut(parent_ref.get()) else {
+        let Ok(mut parent) = parent_query.get_mut(parent_ref.get()) else {
             bevy::log::warn_once!(
                 "sprite entity {entity:?} parent {parent_ref:?} is not an object"
             );
             return;
         };
 
-        parent_tf.translation = position.0.into();
-        sprite_tf.rotation = rotation.0;
+        parent.transform.translation = parent.position.0.into();
+        sprite_tf.rotation = parent.rotation.0;
 
-        // TODO by color scheme
-        sprite.color = Color::srgb((position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.), 1., 1.);
+        sprite.color = resolve_color(&parent, &config.color_scheme);
     });
+}
+
+fn resolve_color(data: &SpriteParentQueryDataItem, color_scheme: &ColorScheme) -> Color {
+    match color_scheme {
+        ColorScheme::Mixed { a, b, factor } => {
+            resolve_color(data, a).mix(&resolve_color(data, b), *factor)
+        }
+        ColorScheme::Altitude(scale) => {
+            scale.get((data.position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.))
+        }
+        ColorScheme::Destination { departure, arrival, ferry } => match data.destination {
+            object::Destination::Departure(id) => {
+                departure[(id.0 as usize).min(departure.len() - 1)]
+            }
+            object::Destination::Arrival(id) => arrival[(id.0 as usize).min(arrival.len() - 1)],
+            object::Destination::Ferry { to, .. } => ferry[(to.0 as usize).min(ferry.len() - 1)],
+        },
+    }
 }
 
 #[derive(QueryData)]

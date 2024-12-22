@@ -100,15 +100,11 @@ impl EntityCommand for SetAirborneCommand {
                 return;
             };
             let Some(&Position(position)) = entity_ref.get() else {
-                bevy::log::error!(
-                    "attempt to set airborne for entity {entity:?} without Position"
-                );
+                bevy::log::error!("attempt to set airborne for entity {entity:?} without Position");
                 return;
             };
             let Some(&GroundSpeed(ground_speed)) = entity_ref.get() else {
-                bevy::log::error!(
-                    "attempt to set airborne for entity {entity:?} without Position"
-                );
+                bevy::log::error!("attempt to set airborne for entity {entity:?} without Position");
                 return;
             };
             (position, ground_speed)
@@ -160,7 +156,6 @@ fn update_airborne_system(
 
         let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude;
 
-        ground_speed.0 =
-            airborne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
+        ground_speed.0 = airborne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
     });
 }

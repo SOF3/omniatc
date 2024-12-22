@@ -1,4 +1,3 @@
-#![feature(array_try_map)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::needless_pass_by_value, clippy::type_complexity)] // too many false positives from system params.
 #![allow(dead_code)] // TODO remove this in the future

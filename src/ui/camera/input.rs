@@ -7,7 +7,7 @@ use bevy::prelude::{
 };
 use bevy::time::Time;
 
-use super::CameraConfig;
+use super::Config;
 use crate::ui::{InputState, SystemSets};
 
 pub struct Plug;
@@ -23,7 +23,7 @@ impl Plugin for Plug {
 
 fn move_camera_system(
     time: Res<Time>,
-    config: Res<CameraConfig>,
+    config: Res<Config>,
     mut camera_query: Single<(&mut Transform, &GlobalTransform, &Camera), With<Camera2d>>,
     inputs: Res<ButtonInput<KeyCode>>,
 ) {

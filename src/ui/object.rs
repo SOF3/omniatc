@@ -10,14 +10,14 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DisplayConfig>();
+        app.init_resource::<Config>();
 
         app.add_plugins(render::Plug);
     }
 }
 
 #[derive(Resource)]
-pub struct DisplayConfig {
+pub struct Config {
     /// Size of plane sprites.
     pub plane_sprite_size: f32,
     pub color_scheme:      ColorScheme,
@@ -28,7 +28,7 @@ pub struct DisplayConfig {
     pub label_elements: Vec<LabelLine>,
 }
 
-impl Default for DisplayConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             plane_sprite_size: 1.,

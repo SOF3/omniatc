@@ -7,11 +7,12 @@ use bevy::prelude::{
     IntoSystemConfigs, Mesh, Mesh2d, Rectangle, Res, ResMut, Single, Transform, Visibility, With,
     Without,
 };
+use bevy::render::camera::ViewportConversionError;
 use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
 use bevy::window::Window;
 
-use super::CameraConfig;
+use super::Config;
 use crate::ui::{SystemSets, Zorder};
 
 pub struct Plug;
@@ -90,7 +91,7 @@ struct ScaleRulerRightText;
 struct ScaleRulerProximalEdge;
 
 fn maintain_scale_ruler_system(
-    config: Res<CameraConfig>,
+    config: Res<Config>,
     camera_query: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
     window: Single<&Window>,
     mut ruler_body: Single<
@@ -146,13 +147,14 @@ fn maintain_scale_ruler_system(
             * (ruler_config.height + ruler_config.label_padding),
     );
 
-    let [distal_world_pos, sample_world_pos, distal_world_text_pos] = match [
-        distal_window_pos,
-        distal_window_pos + ruler_width_window_offset,
-        distal_window_pos + ruler_text_height_offset,
-    ]
-    .try_map(|pos| camera.viewport_to_world_2d(camera_tf, pos))
-    {
+    let [distal_world_pos, sample_world_pos, distal_world_text_pos] = match (|| {
+        Ok::<_, ViewportConversionError>([
+            camera.viewport_to_world_2d(camera_tf, distal_window_pos)?,
+            camera
+                .viewport_to_world_2d(camera_tf, distal_window_pos + ruler_width_window_offset)?,
+            camera.viewport_to_world_2d(camera_tf, distal_window_pos + ruler_text_height_offset)?,
+        ])
+    })() {
         Ok(v) => v,
         Err(err) => {
             bevy::log::error!("get viewport scale: {err:?}");

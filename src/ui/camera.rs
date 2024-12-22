@@ -11,7 +11,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CameraConfig>();
+        app.init_resource::<Config>();
 
         app.add_systems(app::Startup, |mut commands: Commands| {
             commands.spawn((Camera2d, Transform::IDENTITY.with_scale((0.1, 0.1, 1.).into())));
@@ -23,7 +23,7 @@ impl Plugin for Plug {
 }
 
 #[derive(Resource)]
-pub struct CameraConfig {
+pub struct Config {
     /// Whethre the scale ruler is visible.
     pub ruler: Option<RulerConfig>,
 
@@ -53,7 +53,7 @@ pub struct RulerConfig {
     pub pos:              Vec2,
 }
 
-impl Default for CameraConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             ruler:            Some(RulerConfig {

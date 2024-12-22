@@ -51,7 +51,7 @@ fn spawn_waypoint_viewable_system(
                     Transform::from_translation(Vec3::ZERO.with_z(Zorder::Waypoint.to_z())),
                     billboard::MaintainScale { size: config.icon_size },
                     billboard::MaintainRotation,
-                    WaypointViewable,
+                    IconViewable,
                 ));
                 b.spawn((
                     Text2d::new(waypoint.name.clone()),
@@ -75,7 +75,7 @@ fn sprite_path_for_display_type(dt: DisplayType) -> &'static str {
 }
 
 #[derive(Component)]
-pub struct WaypointViewable;
+pub struct IconViewable;
 
 #[derive(Component)]
 struct LabelViewable;

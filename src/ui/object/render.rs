@@ -12,7 +12,7 @@ use bevy::prelude::{
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 
-use super::{DisplayConfig, LabelElement};
+use super::{Config, LabelElement};
 use crate::level::{nav, object, plane};
 use crate::math::{TurnDirection, TROPOPAUSE_ALTITUDE};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -21,19 +21,20 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DisplayConfig>();
+        app.init_resource::<Config>();
 
         app.add_systems(app::Update, spawn_plane_viewable_system.in_set(SystemSets::RenderSpawn));
         app.add_systems(
             app::Update,
-            (maintain_target_system, maintain_label_system).in_set(SystemSets::RenderMove),
+            (maintain_sprite_system, maintain_label_system).in_set(SystemSets::RenderMove),
         );
     }
 }
 
-/// Marker component indicating that the entity is the viewable entity showing a target sprite.
+/// Marker component indicating that the entity is the viewable entity showing a sprite for the
+/// object.
 #[derive(Component)]
-struct TargetViewable;
+struct SpriteViewable;
 
 /// Marker component indicating that the entity is the viewable entity showing a label text.
 #[derive(Component)]
@@ -42,7 +43,7 @@ struct LabelViewable;
 fn spawn_plane_viewable_system(
     mut commands: Commands,
     mut events: EventReader<plane::SpawnEvent>,
-    config: Res<DisplayConfig>,
+    config: Res<Config>,
     asset_server: Res<AssetServer>,
 ) {
     for &plane::SpawnEvent(entity) in events.read() {
@@ -52,7 +53,7 @@ fn spawn_plane_viewable_system(
                     Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
                     Sprite::from_image(asset_server.load("sprites/plane.png")),
                     billboard::MaintainScale { size: config.plane_sprite_size },
-                    TargetViewable,
+                    SpriteViewable,
                 ));
                 b.spawn((
                     Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
@@ -69,28 +70,28 @@ fn spawn_plane_viewable_system(
 }
 
 #[derive(QueryData)]
-struct TargetParentQuery {
+struct SpriteParentQuery {
     rotation: &'static object::Rotation,
     position: &'static object::Position,
 }
 
-fn maintain_target_system(
+fn maintain_sprite_system(
     mut parent_query: Query<
         (&object::Rotation, &object::Position, &mut Transform),
-        Without<TargetViewable>,
+        Without<SpriteViewable>,
     >,
-    mut target_query: Query<(Entity, &Parent, &mut Transform, &mut Sprite), With<TargetViewable>>,
+    mut sprite_query: Query<(Entity, &Parent, &mut Transform, &mut Sprite), With<SpriteViewable>>,
 ) {
-    target_query.iter_mut().for_each(|(entity, parent_ref, mut target_tf, mut sprite)| {
+    sprite_query.iter_mut().for_each(|(entity, parent_ref, mut sprite_tf, mut sprite)| {
         let Ok((rotation, position, mut parent_tf)) = parent_query.get_mut(parent_ref.get()) else {
             bevy::log::warn_once!(
-                "target entity {entity:?} parent {parent_ref:?} is not an object"
+                "sprite entity {entity:?} parent {parent_ref:?} is not an object"
             );
             return;
         };
 
         parent_tf.translation = position.0.into();
-        target_tf.rotation = rotation.0;
+        sprite_tf.rotation = rotation.0;
 
         // TODO by color scheme
         sprite.color = Color::srgb((position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.), 1., 1.);
@@ -246,13 +247,11 @@ impl LabelWriter<'_, '_> {
 fn maintain_label_system(
     parent_query: Query<LabelParentQuery>,
     mut label_query: Query<(Entity, &Parent, &mut Text2d), With<LabelViewable>>,
-    config: Res<DisplayConfig>,
+    config: Res<Config>,
 ) {
     label_query.iter_mut().for_each(|(entity, parent_ref, mut label)| {
         let Ok(parent) = parent_query.get(parent_ref.get()) else {
-            bevy::log::warn_once!(
-                "target entity {entity:?} parent {parent_ref:?} is not an object"
-            );
+            bevy::log::warn_once!("label entity {entity:?} parent {parent_ref:?} is not an object");
             return;
         };
 

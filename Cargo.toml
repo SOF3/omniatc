@@ -8,7 +8,8 @@ description = "Yet another ATC simulator"
 license = "GPL-3.0"
 
 [features]
-default = ["bevy/dynamic_linking", "inspect"]
+default = ["dev"]
+dev = ["inspect", "bevy/dynamic_linking"]
 inspect = ["dep:bevy-inspector-egui"]
 
 [dependencies]
@@ -32,7 +33,6 @@ features = [
 	"bevy_winit",
 	"bevy_window",
 	"default_font",
-	"dynamic_linking",
 	"multi_threaded",
 	"png",
 	"tonemapping_luts",

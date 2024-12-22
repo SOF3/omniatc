@@ -13,23 +13,28 @@ inspect = ["dep:bevy-inspector-egui"]
 
 [dependencies]
 bevy-inspector-egui = {version = "0.28.0", optional = true}
+strum = { version = "0.26.3", features = ["derive"] }
 
 [dependencies.bevy]
 version = "0.15.0"
+default-features = false
 features = [
-	"dynamic_linking",
-	"bevy_state",
+	"animation",
 	"bevy_color",
 	"bevy_core_pipeline",
 	"bevy_gltf",
 	"bevy_pbr",
-	"bevy_state",
 	"bevy_render",
+	"bevy_state",
+	"bevy_state",
 	"bevy_text",
 	"bevy_ui",
 	"bevy_winit",
+	"bevy_window",
 	"default_font",
+	"dynamic_linking",
 	"multi_threaded",
+	"png",
 	"tonemapping_luts",
 	"x11",
 ]

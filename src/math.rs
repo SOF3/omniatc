@@ -3,7 +3,7 @@
 // we don't really want to read the mathematical constants in this file.
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
-use std::f32::consts::{PI, TAU};
+use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::{fmt, ops};
 
 use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
@@ -169,6 +169,15 @@ pub struct Heading(
 );
 
 impl Heading {
+    /// Heading north.
+    pub const NORTH: Self = Self(0.);
+    /// Heading east.
+    pub const EAST: Self = Self(FRAC_PI_2);
+    /// Heading south.
+    pub const SOUTH: Self = Self(PI);
+    /// Heading west.
+    pub const WEST: Self = Self(FRAC_PI_2 * 3.);
+
     /// Returns the heading of the vector.
     pub fn from_vec2(vec: Vec2) -> Self { Self(vec.x.atan2(vec.y)) }
 

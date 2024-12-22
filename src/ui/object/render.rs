@@ -6,16 +6,16 @@ use bevy::color::Color;
 use bevy::ecs::query::QueryData;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    BuildChildren, Camera2d, ChildBuild, Commands, Component, Entity, EventReader, GlobalTransform,
-    IntoSystemConfigs, Parent, Query, Res, Single, Transform, Visibility, With,
+    BuildChildren, ChildBuild, Commands, Component, Entity, EventReader,
+    IntoSystemConfigs, Parent, Query, Res, Transform, Visibility, With, Without,
 };
-use bevy::sprite::Sprite;
+use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 
 use super::{DisplayConfig, LabelElement};
 use crate::level::{nav, object, plane};
 use crate::math::{TurnDirection, TROPOPAUSE_ALTITUDE};
-use crate::ui::SystemSets;
+use crate::ui::{billboard, SystemSets, Zorder};
 
 pub struct Plug;
 
@@ -42,38 +42,57 @@ struct LabelViewable;
 fn spawn_plane_viewable_system(
     mut commands: Commands,
     mut events: EventReader<plane::SpawnEvent>,
+    config: Res<DisplayConfig>,
     asset_server: Res<AssetServer>,
 ) {
     for &plane::SpawnEvent(entity) in events.read() {
         commands.entity(entity).insert((Transform::IDENTITY, Visibility::Visible)).with_children(
             |b| {
                 b.spawn((
-                    Sprite::from_image(asset_server.load("sprites/target.png")),
+                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
+                    Sprite::from_image(asset_server.load("sprites/plane.png")),
+                    billboard::MaintainScale { size: config.plane_sprite_size },
                     TargetViewable,
                 ));
-                b.spawn((Text2d::new(""), LabelViewable));
+                b.spawn((
+                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
+                    Text2d::new(""),
+                    billboard::MaintainScale { size: config.label_size },
+                    billboard::MaintainRotation,
+                    billboard::Label { distance: 50. },
+                    Anchor::TopRight,
+                    LabelViewable,
+                ));
             },
         );
     }
 }
 
+#[derive(QueryData)]
+struct TargetParentQuery {
+    rotation: &'static object::Rotation,
+    position: &'static object::Position,
+}
+
 fn maintain_target_system(
-    parent_query: Query<(&object::Rotation, &object::Position)>,
+    mut parent_query: Query<
+        (&object::Rotation, &object::Position, &mut Transform),
+        Without<TargetViewable>,
+    >,
     mut target_query: Query<(Entity, &Parent, &mut Transform, &mut Sprite), With<TargetViewable>>,
-    config: Res<DisplayConfig>,
-    camera_transform: Single<&GlobalTransform, With<Camera2d>>,
 ) {
-    target_query.iter_mut().for_each(|(entity, parent, mut transform, mut sprite)| {
-        let Ok((rotation, position)) = parent_query.get(parent.get()) else {
-            bevy::log::warn_once!("target entity {entity:?} parent {parent:?} is not an object");
+    target_query.iter_mut().for_each(|(entity, parent_ref, mut target_tf, mut sprite)| {
+        let Ok((rotation, position, mut parent_tf)) = parent_query.get_mut(parent_ref.get()) else {
+            bevy::log::warn_once!(
+                "target entity {entity:?} parent {parent_ref:?} is not an object"
+            );
             return;
         };
 
-        transform.translation = (position.0.xy(), 0.5).into();
-        transform.rotation = rotation.0;
-        transform.scale = Vec3::new(config.plane_sprite_size, config.plane_sprite_size, 1.)
-            * camera_transform.scale();
+        parent_tf.translation = position.0.into();
+        target_tf.rotation = rotation.0;
 
+        // TODO by color scheme
         sprite.color = Color::srgb((position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.), 1., 1.);
     });
 }
@@ -226,11 +245,10 @@ impl LabelWriter<'_, '_> {
 
 fn maintain_label_system(
     parent_query: Query<LabelParentQuery>,
-    mut label_query: Query<(Entity, &Parent, &mut Text2d, &mut Transform), With<LabelViewable>>,
+    mut label_query: Query<(Entity, &Parent, &mut Text2d), With<LabelViewable>>,
     config: Res<DisplayConfig>,
-    camera_transform: Single<&GlobalTransform, With<Camera2d>>,
 ) {
-    label_query.iter_mut().for_each(|(entity, parent_ref, mut label, mut transform)| {
+    label_query.iter_mut().for_each(|(entity, parent_ref, mut label)| {
         let Ok(parent) = parent_query.get(parent_ref.get()) else {
             bevy::log::warn_once!(
                 "target entity {entity:?} parent {parent_ref:?} is not an object"
@@ -255,9 +273,5 @@ fn maintain_label_system(
                 );
             }
         }
-
-        transform.translation = (parent.position.0.xy(), 0.5).into();
-        transform.scale =
-            Vec3::new(config.label_size, config.label_size, 1.) * camera_transform.scale();
     });
 }

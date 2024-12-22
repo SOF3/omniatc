@@ -1,4 +1,5 @@
 use bevy::app::{App, Plugin};
+use bevy::color::{Color, Mix};
 use bevy::prelude::Resource;
 
 use crate::math::{LengthUnit, SpeedUnit};
@@ -19,6 +20,7 @@ impl Plugin for Plug {
 pub struct DisplayConfig {
     /// Size of plane sprites.
     pub plane_sprite_size: f32,
+    pub color_scheme:      ColorScheme,
 
     /// Size of object labels.
     pub label_size:     f32,
@@ -30,6 +32,17 @@ impl Default for DisplayConfig {
     fn default() -> Self {
         Self {
             plane_sprite_size: 1.,
+            color_scheme:      ColorScheme::Mixed {
+                a:      Box::new(ColorScheme::Destination {
+                    departure: vec![Color::srgb(1., 0., 0.)],
+                    arrival:   vec![Color::srgb(0., 1., 0.)],
+                    ferry:     vec![Color::srgb(0., 0., 1.)],
+                }),
+                b:      Box::new(ColorScheme::Altitude(ColorScale {
+                    pieces: vec![Color::WHITE, Color::srgb(0.2, 0.2, 0.2)],
+                })),
+                factor: 0.5,
+            },
             label_size:        0.5,
             label_elements:    vec![
                 LabelLine { elements: vec![LabelElement::Name] },
@@ -56,6 +69,54 @@ impl Default for DisplayConfig {
                 },
             ],
         }
+    }
+}
+
+/// Color scheme for objects.
+pub enum ColorScheme {
+    /// Colors for departures and arrivals from/to different aerodromes have different colors.
+    Destination {
+        /// A departure from aerodrome #n uses color `departure[n.min(departure.len() - 1)]`.
+        departure: Vec<Color>,
+        /// An arrival to aerodrome #n uses color `arrival[n.min(arrival.len() - 1)]`.
+        arrival:   Vec<Color>,
+        /// A ferry to aerodrome #n uses color `ferry[n.min(ferry.len() - 1)]`.
+        ferry:     Vec<Color>,
+    },
+    /// Color changes as the altitude increases.
+    Altitude(ColorScale),
+    /// Mixes two color schemes together.
+    Mixed {
+        /// The first color scheme.
+        a:      Box<ColorScheme>,
+        /// The second color scheme.
+        b:      Box<ColorScheme>,
+        /// The mixing factor.
+        ///
+        /// `0.0` uses `a` completely,
+        /// `1.0` uses `b` completely.
+        /// `0.5` is the middle of the two.
+        factor: f32,
+    },
+}
+
+/// A linear color scale for values from 0 to 1.
+pub struct ColorScale {
+    /// Evenly separated interpolation points for the color scale.
+    /// Must have at least two elements.
+    pub pieces: Vec<Color>,
+}
+
+impl ColorScale {
+    /// Resolves the color for the given value.
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // checked: [0, 1] * [0, n-1] -> [0, n-1]
+    pub fn get(&self, value: f32) -> Color {
+        let segments = self.pieces.len() - 1;
+        #[allow(clippy::cast_precision_loss)] // assuming self.pieces is reasonably small
+        let position = value.clamp(0., 1.) * (segments as f32);
+        let left = &self.pieces[position.floor() as usize];
+        let right = &self.pieces[position.ceil() as usize];
+        left.mix(right, position.fract())
     }
 }
 

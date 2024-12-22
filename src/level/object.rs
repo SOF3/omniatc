@@ -6,7 +6,7 @@ use bevy::math::{Quat, Vec3A};
 use bevy::prelude::{Component, Entity, EntityCommand, IntoSystemConfigs, Query, Res, With, World};
 use bevy::time::{self, Time};
 
-use super::{wind, SystemSets};
+use super::{aerodrome, wind, SystemSets};
 use crate::math::{
     PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
     TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
@@ -32,7 +32,22 @@ pub struct Marker;
 #[derive(Component)]
 pub struct Display {
     /// Label of the object, used for identification and lookup.
-    pub name: String,
+    pub name:        String,
+    pub destination: Destination,
+}
+
+pub enum Destination {
+    /// An outbound flight from the aerodrome.
+    Departure(aerodrome::Id),
+    /// An inbound flight to the aerodrome.
+    Arrival(aerodrome::Id),
+    /// A local flight from `from` to `to`.
+    Ferry {
+        /// Source aerodrome.
+        from: aerodrome::Id,
+        /// Destination aerodrome.
+        to:   aerodrome::Id,
+    },
 }
 
 /// Position relative to level origin at mean sea level, in (nm, nm, nm).

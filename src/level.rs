@@ -3,9 +3,11 @@
 use bevy::app::{self, App, Plugin};
 use bevy::prelude::{IntoSystemSetConfigs, SystemSet};
 
+pub mod aerodrome;
 pub mod nav;
 pub mod object;
 pub mod plane;
+pub mod waypoint;
 pub mod wind;
 
 pub struct Plug;
@@ -30,6 +32,7 @@ impl Plugin for Plug {
         app.add_plugins(object::Plug);
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
+        app.add_plugins(waypoint::Plug);
     }
 }
 

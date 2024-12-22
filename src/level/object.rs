@@ -16,10 +16,10 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(app::Update, update_airbourne_system.in_set(SystemSets::Environ));
+        app.add_systems(app::Update, update_airborne_system.in_set(SystemSets::Environ));
         app.add_systems(
             app::Update,
-            move_object_system.after(update_airbourne_system).in_set(SystemSets::Environ),
+            move_object_system.after(update_airborne_system).in_set(SystemSets::Environ),
         );
     }
 }
@@ -66,7 +66,7 @@ pub struct Rotation(pub Quat);
 pub struct GroundSpeed(pub Vec3A);
 
 #[derive(Component)]
-pub struct Airbourne {
+pub struct Airborne {
     /// Indicated airspeed, in (kt, kt, kt).
     pub airspeed: Vec3A,
 }
@@ -89,25 +89,25 @@ impl EntityCommand for SpawnCommand {
     }
 }
 
-/// Sets an entity as airbourne.
-pub struct SetAirbourneCommand;
+/// Sets an entity as airborne.
+pub struct SetAirborneCommand;
 
-impl EntityCommand for SetAirbourneCommand {
+impl EntityCommand for SetAirborneCommand {
     fn apply(self, entity: Entity, world: &mut World) {
         let (position, ground_speed) = {
             let Ok(entity_ref) = world.get_entity(entity) else {
-                bevy::log::error!("attempt to set airbourne for nonexistent entity {entity:?}");
+                bevy::log::error!("attempt to set airborne for nonexistent entity {entity:?}");
                 return;
             };
             let Some(&Position(position)) = entity_ref.get() else {
                 bevy::log::error!(
-                    "attempt to set airbourne for entity {entity:?} without Position"
+                    "attempt to set airborne for entity {entity:?} without Position"
                 );
                 return;
             };
             let Some(&GroundSpeed(ground_speed)) = entity_ref.get() else {
                 bevy::log::error!(
-                    "attempt to set airbourne for entity {entity:?} without Position"
+                    "attempt to set airborne for entity {entity:?} without Position"
                 );
                 return;
             };
@@ -121,7 +121,7 @@ impl EntityCommand for SetAirbourneCommand {
 
         world
             .entity_mut(entity)
-            .insert(Airbourne { airspeed: ground_speed - Vec3A::from((wind, 0.)) });
+            .insert(Airborne { airspeed: ground_speed - Vec3A::from((wind, 0.)) });
     }
 }
 
@@ -138,16 +138,16 @@ fn move_object_system(
     });
 }
 
-fn update_airbourne_system(
+fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
     wind: wind::Locator,
-    mut object_query: Query<(&mut GroundSpeed, &Position, &Airbourne)>,
+    mut object_query: Query<(&mut GroundSpeed, &Position, &Airborne)>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut ground_speed, position, airbourne)| {
+    object_query.par_iter_mut().for_each(|(mut ground_speed, position, airborne)| {
         let sea_level_temperature = STANDARD_SEA_LEVEL_TEMPERATURE; // TODO do we have temperature?
         let pressure_altitude = position.0.z; // TODO calibrate by pressure
         let actual_temperature = sea_level_temperature
@@ -161,6 +161,6 @@ fn update_airbourne_system(
         let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude;
 
         ground_speed.0 =
-            airbourne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
+            airborne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
     });
 }

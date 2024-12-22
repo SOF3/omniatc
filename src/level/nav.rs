@@ -23,7 +23,7 @@ impl Plugin for Plug {
 
 /// Current target states of the airspeed vector.
 ///
-/// This optional component is omitted when the plane is not airbourne.
+/// This optional component is omitted when the plane is not airborne.
 #[derive(Component)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -78,7 +78,7 @@ fn altitude_control_system(
     });
 }
 
-/// Desired ground speed direction. Only applicable to airbourne objects.
+/// Desired ground speed direction. Only applicable to airborne objects.
 ///
 /// Optional component to control target heading.
 #[derive(Component)]
@@ -92,7 +92,7 @@ pub struct TargetGroundDirection {
 struct GroundDirectionSystemQueryData {
     objective:      &'static mut TargetGroundDirection,
     current_ground: &'static object::GroundSpeed,
-    current_air:    &'static object::Airbourne,
+    current_air:    &'static object::Airborne,
     signal:         &'static mut VelocityTarget,
 }
 

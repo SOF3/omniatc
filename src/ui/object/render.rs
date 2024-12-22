@@ -6,8 +6,8 @@ use bevy::color::Color;
 use bevy::ecs::query::QueryData;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    BuildChildren, ChildBuild, Commands, Component, Entity, EventReader,
-    IntoSystemConfigs, Parent, Query, Res, Transform, Visibility, With, Without,
+    BuildChildren, ChildBuild, Commands, Component, Entity, EventReader, IntoSystemConfigs, Parent,
+    Query, Res, Transform, Visibility, With, Without,
 };
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
@@ -102,7 +102,7 @@ struct LabelParentQuery {
     display:      &'static object::Display,
     ground_speed: &'static object::GroundSpeed,
     position:     &'static object::Position,
-    airbourne:    Option<&'static object::Airbourne>,
+    airborne:     Option<&'static object::Airborne>,
 
     plane_control: Option<&'static plane::Control>,
 
@@ -146,8 +146,8 @@ impl LabelParentQueryItem<'_> {
             }
             LabelElement::Name => out.push_str(&self.display.name),
             LabelElement::CurrentIndicatedAirspeed(unit) => {
-                if let Some(airbourne) = self.airbourne {
-                    out.push_display(&unit.convert(airbourne.airspeed.xy().length()));
+                if let Some(airborne) = self.airborne {
+                    out.push_display(&unit.convert(airborne.airspeed.xy().length()));
                 }
             }
             LabelElement::CurrentGroundSpeed(unit) => {

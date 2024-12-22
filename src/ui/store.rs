@@ -36,7 +36,7 @@ impl Plugin for Plug {
                     destination: object::Destination::Arrival(aerodrome::Id(0)),
                 },
             });
-            plane.queue(object::SetAirbourneCommand);
+            plane.queue(object::SetAirborneCommand);
             plane.queue(plane::SpawnCommand {
                 control: Some(plane::Control::stabilized(Heading::SOUTH)),
                 limits:  DEFAULT_LIMITS,
@@ -52,7 +52,7 @@ impl Plugin for Plug {
                     destination: object::Destination::Departure(aerodrome::Id(0)),
                 },
             });
-            plane.queue(object::SetAirbourneCommand);
+            plane.queue(object::SetAirborneCommand);
             plane.queue(plane::SpawnCommand {
                 control: Some(plane::Control::stabilized(Heading::EAST)),
                 limits:  DEFAULT_LIMITS,

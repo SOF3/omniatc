@@ -2,8 +2,8 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::math::Vec3;
 use bevy::prelude::{
-    BuildChildren, ChildBuild, Commands, Component, EventReader,
-    IntoSystemConfigs, Query, Res, Resource, Transform, Visibility,
+    BuildChildren, ChildBuild, Commands, Component, EventReader, IntoSystemConfigs, Query, Res,
+    Resource, Transform, Visibility,
 };
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;

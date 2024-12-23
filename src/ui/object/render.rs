@@ -4,15 +4,16 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
+use bevy::ecs::system::SystemParam;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    BuildChildren, ChildBuild, Commands, Component, Entity, EventReader, IntoSystemConfigs, Parent,
-    Query, Res, Transform, Visibility, With, Without,
+    BuildChildren, ChildBuild, Children, Commands, Component, DespawnRecursiveExt, Entity,
+    EventReader, IntoSystemConfigs, Parent, Query, Res, Transform, Visibility, With, Without,
 };
 use bevy::sprite::{Anchor, Sprite};
-use bevy::text::Text2d;
+use bevy::text::{Text2d, TextSpan};
 
-use super::{ColorScheme, Config, LabelElement};
+use super::{ColorScheme, Config, LabelElement, LabelLine};
 use crate::level::{nav, object, plane};
 use crate::math::{TurnDirection, TROPOPAUSE_ALTITUDE};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -130,94 +131,108 @@ struct LabelParentQuery {
 }
 
 impl LabelParentQueryItem<'_> {
-    fn write_label(&self, element: &LabelElement, out: &mut LabelWriter) {
+    fn write_label(&self, element: Option<&LabelElement>, writer: &mut DynamicTextWriterForEntity) {
+        let Some(element) = element else {
+            writer.set_text("");
+            return;
+        };
+
         match *element {
-            LabelElement::Const(ref str) => out.push_str(str),
+            LabelElement::Const(ref str) => writer.set_text(str),
             LabelElement::IfEmpty {
                 ref main,
                 ref prefix_if_filled,
                 ref suffix_if_filled,
                 ref if_empty,
             } => {
-                let prefix_writer = &mut |buf: &mut String| {
-                    if let Some(prefix) = prefix_if_filled {
-                        self.write_label(
-                            prefix,
-                            &mut LabelWriter { buf, before_first_write: None },
-                        );
-                    }
-                };
-                let mut out_wrapped = out.with_before_first_write(prefix_writer);
+                let mut writer = writer.with_child_count(3);
 
-                self.write_label(main, &mut out_wrapped);
+                let mut is_empty = true;
+                writer.set_child(1, |writer| {
+                    self.write_label(Some(main), writer);
+                    is_empty = writer.get_text().is_empty();
+                });
 
-                #[allow(clippy::collapsible_else_if)] // these are two symmetric cases
-                if out_wrapped.before_first_write.is_some() {
-                    // empty
-                    if let Some(if_empty) = if_empty {
-                        self.write_label(if_empty, out);
-                    }
+                if is_empty {
+                    writer.set_child(0, |writer| self.write_label(if_empty.as_deref(), writer));
                 } else {
-                    if let Some(suffix) = suffix_if_filled {
-                        self.write_label(suffix, out);
-                    }
+                    writer.set_child(0, |writer| {
+                        self.write_label(prefix_if_filled.as_deref(), writer);
+                    });
+                    writer.set_child(2, |writer| {
+                        self.write_label(suffix_if_filled.as_deref(), writer);
+                    });
                 }
             }
-            LabelElement::Name => out.push_str(&self.display.name),
+            LabelElement::Name => writer.set_text(&self.display.name),
             LabelElement::CurrentIndicatedAirspeed(unit) => {
                 if let Some(airborne) = self.airborne {
-                    out.push_display(&unit.convert(airborne.airspeed.xy().length()));
+                    writer.set_display(unit.convert(airborne.airspeed.xy().length()));
+                } else {
+                    writer.set_text("");
                 }
             }
             LabelElement::CurrentGroundSpeed(unit) => {
-                out.push_display(&unit.convert(self.ground_speed.0.xy().length()));
+                writer.set_display(unit.convert(self.ground_speed.0.xy().length()));
             }
             LabelElement::CurrentAltitude(unit) => {
-                out.push_display(&unit.convert(self.position.0.z));
+                writer.set_display(unit.convert(self.position.0.z));
             }
             LabelElement::CurrentHeading => {
                 if let Some(plane_control) = self.plane_control {
-                    out.push_display(&format_args!("{:.0}\u{b0}", plane_control.heading.degrees()));
+                    writer
+                        .set_display(format_args!("{:.0}\u{b0}", plane_control.heading.degrees()));
+                } else {
+                    writer.set_text("");
                 }
             }
             LabelElement::TargetAirspeed(unit) => {
                 if let Some(nav) = self.nav_velocity {
-                    out.push_display(&unit.convert(nav.horiz_speed));
+                    writer.set_display(unit.convert(nav.horiz_speed));
+                } else {
+                    writer.set_text("");
                 }
             }
             LabelElement::TargetAltitude(unit) => {
                 if let Some(nav) = self.nav_altitude {
-                    out.push_display(&unit.convert(nav.0));
+                    writer.set_display(unit.convert(nav.0));
+                } else {
+                    writer.set_text("");
                 }
             }
             LabelElement::TargetClimbRate(unit) => {
                 if let Some(nav) = self.nav_velocity {
-                    out.push_display(&unit.convert(nav.vert_rate));
+                    writer.set_display(unit.convert(nav.vert_rate));
+                } else {
+                    writer.set_text("");
                 }
             }
             LabelElement::TargetHeading => {
                 if let Some(nav) = self.nav_velocity {
                     match nav.yaw {
                         nav::YawTarget::Heading(heading) => {
-                            out.push_display(&format_args!("{:.0}\u{B0}", heading.degrees()));
+                            writer.set_display(format_args!("{:.0}\u{B0}", heading.degrees()));
                         }
                         nav::YawTarget::TurnHeading { heading, remaining_crosses, direction } => {
-                            out.push_display(&format_args!("({:.0}\u{B0}", heading.degrees()));
-                            out.push_char(match direction {
-                                TurnDirection::Clockwise => 'R',
-                                TurnDirection::CounterClockwise => 'L',
-                            });
-                            if remaining_crosses > 0 {
-                                out.push_display(&format_args!("\u{D7}{remaining_crosses}"));
-                            }
+                            writer.set_display(format_args!(
+                                "({degrees:.0}\u{B0}{dir}{remain}",
+                                degrees = heading.degrees(),
+                                dir = match direction {
+                                    TurnDirection::Clockwise => 'R',
+                                    TurnDirection::CounterClockwise => 'L',
+                                },
+                                remain = if remaining_crosses > 0 {
+                                    format!("\u{D7}{remaining_crosses}")
+                                } else {
+                                    String::new()
+                                },
+                            ));
                         }
-                        nav::YawTarget::Speed(speed) => {
-                            match speed {
-                                0.0 => {}
-                                0.0.. => out.push_char('R'),
-                                _ => out.push_char('L'),
-                            };
-                        }
+                        nav::YawTarget::Speed(speed) => writer.set_text(match speed {
+                            0.0 => "",
+                            0.0.. => "R",
+                            _ => "L",
+                        }),
                     }
                 }
             }
@@ -225,70 +240,128 @@ impl LabelParentQueryItem<'_> {
     }
 }
 
-struct LabelWriter<'a, 'b> {
-    buf:                &'a mut String,
-    before_first_write: Option<&'b mut dyn FnMut(&mut String)>,
+#[derive(SystemParam)]
+struct DynamicTextWriter<'w, 's> {
+    commands:        Commands<'w, 's>,
+    children_query:  Query<'w, 's, &'static Children>,
+    text_span_query: Query<'w, 's, &'static mut TextSpan>,
 }
 
-impl LabelWriter<'_, '_> {
-    fn push_char(&mut self, char: char) {
-        self.consume_before_write();
-        self.buf.push(char);
+impl<'w, 's> DynamicTextWriter<'w, 's> {
+    fn borrow_for(&mut self, entity: Entity) -> DynamicTextWriterForEntity<'_, 'w, 's> {
+        DynamicTextWriterForEntity {
+            entity,
+            commands: &mut self.commands,
+            children_query: &self.children_query,
+            text_span_query: &mut self.text_span_query,
+        }
     }
+}
 
-    fn push_str(&mut self, str: &str) {
-        self.consume_before_write();
-        self.buf.push_str(str);
-    }
+struct DynamicTextWriterForEntity<'a, 'w, 's> {
+    entity:          Entity,
+    commands:        &'a mut Commands<'w, 's>,
+    children_query:  &'a Query<'w, 's, &'static Children>,
+    text_span_query: &'a mut Query<'w, 's, &'static mut TextSpan>,
+}
 
-    fn push_display(&mut self, args: &impl fmt::Display) {
-        use fmt::Write;
+impl<'w, 's> DynamicTextWriterForEntity<'_, 'w, 's> {
+    fn set_display(&mut self, text: impl fmt::Display) { self.set_text(text.to_string()) }
 
-        self.consume_before_write();
-        write!(self.buf, "{args}").unwrap();
-    }
-
-    fn consume_before_write(&mut self) {
-        if let Some(closure) = self.before_first_write.take() {
-            closure(self.buf);
+    fn set_text(&mut self, text: impl AsRef<str>) {
+        let mut span = self
+            .text_span_query
+            .get_mut(self.entity)
+            .expect("descendent of the label entity must have TextSpan component");
+        if span.0.as_str() != text.as_ref() {
+            span.0.clear();
+            span.0.push_str(text.as_ref());
         }
     }
 
-    fn with_before_first_write<'a, 'b>(
-        &'a mut self,
-        handler: &'b mut dyn FnMut(&mut String),
-    ) -> LabelWriter<'a, 'b> {
-        LabelWriter { buf: self.buf, before_first_write: Some(handler) }
+    fn get_text(&self) -> &str {
+        let span = self
+            .text_span_query
+            .get(self.entity)
+            .expect("descendent of the label entity must have TextSpan component");
+        span.0.as_str()
+    }
+
+    fn with_child_count(&mut self, expected_children_count: usize) -> ChildWriter<'_, '_, 'w, 's> {
+        let children: &[Entity] = if let Ok(children) = self.children_query.get(self.entity) {
+            for &extra_child in children.get(expected_children_count..).into_iter().flatten() {
+                self.commands.entity(extra_child).despawn_recursive();
+            }
+            children
+        } else {
+            &[]
+        };
+
+        self.commands.entity(self.entity).with_children(|b| {
+            for _ in children.len()..expected_children_count {
+                // just wait for the next tick to populate this span for simplicity.
+                b.spawn(TextSpan::new(String::new()));
+            }
+        });
+
+        ChildWriter(
+            children,
+            DynamicTextWriterForEntity {
+                entity:          self.entity,
+                commands:        self.commands,
+                children_query:  self.children_query,
+                text_span_query: self.text_span_query,
+            },
+        )
+    }
+}
+
+struct ChildWriter<'e, 'a, 'w, 's>(&'e [Entity], DynamicTextWriterForEntity<'a, 'w, 's>);
+
+impl<'w, 's> ChildWriter<'_, '_, 'w, 's> {
+    fn set_child(
+        &mut self,
+        index: usize,
+        mut mutator: impl for<'a> FnMut(&mut DynamicTextWriterForEntity<'a, 'w, 's>),
+    ) {
+        if let Some(&entity) = self.0.get(index) {
+            self.1.entity = entity;
+            mutator(&mut self.1);
+        }
     }
 }
 
 fn maintain_label_system(
     parent_query: Query<LabelParentQuery>,
-    mut label_query: Query<(Entity, &Parent, &mut Text2d), With<LabelViewable>>,
+    mut label_query: Query<(Entity, &Parent), With<LabelViewable>>,
     config: Res<Config>,
+    mut writer: DynamicTextWriter,
 ) {
-    label_query.iter_mut().for_each(|(entity, parent_ref, mut label)| {
+    label_query.iter_mut().for_each(|(label_entity, parent_ref)| {
         let Ok(parent) = parent_query.get(parent_ref.get()) else {
-            bevy::log::warn_once!("label entity {entity:?} parent {parent_ref:?} is not an object");
+            bevy::log::warn_once!(
+                "label entity {label_entity:?} parent {parent_ref:?} is not an object"
+            );
             return;
         };
 
-        label.0.clear();
+        let mut label_writer = writer.borrow_for(label_entity);
+        let mut label_writer = label_writer.with_child_count(config.label_elements.len());
 
-        let mut last_newline = 0;
+        for (line, LabelLine { elements }) in config.label_elements.iter().enumerate() {
+            label_writer.set_child(line, |line_writer| {
+                let newline_offset = usize::from(line != 0);
+                let mut line_writer = line_writer.with_child_count(elements.len() + newline_offset);
+                if line != 0 {
+                    line_writer.set_child(0, |writer| writer.set_text("\n"));
+                }
 
-        for line in &config.label_elements {
-            if label.0.len() > last_newline {
-                label.0.push('\n');
-            }
-            last_newline = label.0.len();
-
-            for element in &line.elements {
-                parent.write_label(
-                    element,
-                    &mut LabelWriter { buf: &mut label.0, before_first_write: None },
-                );
-            }
+                for (index, element) in elements.iter().enumerate() {
+                    line_writer.set_child(index + newline_offset, |writer| {
+                        parent.write_label(Some(element), writer);
+                    });
+                }
+            });
         }
     });
 }

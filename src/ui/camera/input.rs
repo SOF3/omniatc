@@ -2,22 +2,18 @@ use bevy::app::{self, App, Plugin};
 use bevy::input::ButtonInput;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
-    in_state, Camera, Camera2d, GlobalTransform, IntoSystemConfigs, KeyCode, Res, Single,
-    Transform, With,
+    Camera, Camera2d, GlobalTransform, IntoSystemConfigs, KeyCode, Res, Single, Transform, With,
 };
 use bevy::time::Time;
 
 use super::Config;
-use crate::ui::{InputState, SystemSets};
+use crate::ui::InputState;
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            app::Update,
-            move_camera_system.in_set(SystemSets::Input).run_if(in_state(InputState::Normal)),
-        );
+        app.add_systems(app::Update, move_camera_system.in_set(InputState::Normal));
     }
 }
 

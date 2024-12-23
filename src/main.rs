@@ -2,9 +2,12 @@
 #![allow(clippy::needless_pass_by_value, clippy::type_complexity)] // too many false positives from system params.
 #![allow(dead_code)] // TODO remove this in the future
 
+use std::time::Duration;
+
 use bevy::app::{self, App};
 use bevy::ecs::schedule::{self, ScheduleBuildSettings};
 use bevy::prelude::IntoSystemSetConfigs;
+use bevy::winit::WinitSettings;
 
 mod level;
 mod math;
@@ -27,6 +30,10 @@ fn main() {
                 ambiguity_detection: schedule::LogLevel::Warn,
                 ..Default::default()
             });
+        })
+        .insert_resource(WinitSettings {
+            focused_mode:   bevy::winit::UpdateMode::reactive_low_power(Duration::from_millis(50)),
+            unfocused_mode: bevy::winit::UpdateMode::reactive_low_power(Duration::from_millis(500)),
         })
         .run();
 }

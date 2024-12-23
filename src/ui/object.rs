@@ -4,6 +4,7 @@ use bevy::prelude::Resource;
 
 use crate::math::{LengthUnit, SpeedUnit};
 
+mod input;
 mod render;
 
 pub struct Plug;
@@ -12,6 +13,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Config>();
 
+        app.add_plugins(input::Plug);
         app.add_plugins(render::Plug);
     }
 }

@@ -1,5 +1,6 @@
 use bevy::app::{self, App, Plugin};
-use bevy::prelude::{AppExtStates, IntoSystemSetConfigs, States, SystemSet};
+use bevy::prelude::{in_state, AppExtStates, IntoSystemSetConfigs, States, SystemSet};
+use strum::IntoEnumIterator;
 
 mod billboard;
 mod camera;
@@ -28,6 +29,15 @@ impl Plugin for Plug {
             app::Update,
             (SystemSets::RenderSpawn, SystemSets::RenderMove).in_set(SystemSets::RenderAll),
         );
+
+        for (i, state) in InputState::iter().enumerate() {
+            app.configure_sets(app::Update, state.in_set(SystemSets::Input));
+            app.configure_sets(app::Update, state.run_if(in_state(state)));
+
+            for other_state in InputState::iter().skip(i + 1) {
+                app.configure_sets(app::Update, state.ambiguous_with(other_state));
+            }
+        }
     }
 }
 
@@ -39,10 +49,11 @@ pub enum SystemSets {
     RenderMove,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States, SystemSet, strum::EnumIter)]
 pub enum InputState {
     #[default]
     Normal,
+    ObjectSearch,
 }
 
 /// Renderable layers.

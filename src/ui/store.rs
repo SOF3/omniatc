@@ -27,7 +27,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         // during early stage of development, just spawn dummy objects for testing
         app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut plane = commands.spawn_empty();
+            let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
             plane.queue(object::SpawnCommand {
                 position:     object::Position(Vec3A::new(0.0, 10., 5.)),
                 ground_speed: object::GroundSpeed(Vec3A::new(0.0, 130., 0.)),
@@ -41,7 +41,7 @@ impl Plugin for Plug {
             });
         });
         app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut plane = commands.spawn_empty();
+            let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
             plane.queue(object::SpawnCommand {
                 position:     object::Position(Vec3A::new(10., 0., 3.)),
                 ground_speed: object::GroundSpeed(Vec3A::new(200.0, 0., 0.)),
@@ -61,7 +61,8 @@ impl Plugin for Plug {
         });
 
         app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut waypoint = commands.spawn_empty();
+            let mut waypoint =
+                commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
             waypoint.queue(waypoint::SpawnCommand {
                 waypoint: Waypoint {
                     name:         "ORIGIN".into(),

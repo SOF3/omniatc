@@ -10,7 +10,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
     BuildChildren, ChildBuild, Children, Commands, Component, DespawnRecursiveExt, Entity,
-    EventReader, IntoSystemConfigs, Query, Res, Transform, Visibility, With, Without,
+    EventReader, IntoSystemConfigs, Parent, Query, Res, Transform, Visibility, With, Without,
 };
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
@@ -33,14 +33,21 @@ impl Plugin for Plug {
     }
 }
 
+#[derive(Component)]
+struct ObjectOwner;
+
 /// Marker component indicating that the entity is the viewable entity showing a sprite for the
 /// object.
 #[derive(Component)]
-struct SpriteViewable;
+struct SpriteViewable {
+    object: Entity,
+}
 
 /// Marker component indicating that the entity is the viewable entity showing a label text.
 #[derive(Component)]
-struct LabelViewable;
+struct LabelViewable {
+    object: Entity,
+}
 
 fn spawn_plane_viewable_system(
     mut commands: Commands,
@@ -54,21 +61,31 @@ fn spawn_plane_viewable_system(
             .insert((Transform::IDENTITY, Visibility::Visible, LastRender(None)))
             .with_children(|b| {
                 b.spawn((
-                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
-                    Sprite::from_image(asset_server.load("sprites/plane.png")),
-                    billboard::MaintainScale { size: config.plane_sprite_size },
-                    SpriteViewable,
-                ));
-                b.spawn((
-                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::ObjectLabel.to_z())),
-                    Text2d::new(""),
-                    billboard::MaintainScale { size: config.label_size },
-                    billboard::MaintainRotation,
-                    billboard::Label { distance: 50. },
-                    Anchor::TopRight,
-                    LabelViewable,
-                    LabelSpan,
-                ));
+                    bevy::core::Name::new("ObjectOwner"),
+                    ObjectOwner,
+                    Transform::IDENTITY,
+                    Visibility::Inherited,
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        bevy::core::Name::new("ObjectSprite"),
+                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
+                        Sprite::from_image(asset_server.load("sprites/plane.png")),
+                        billboard::MaintainScale { size: config.plane_sprite_size },
+                        SpriteViewable { object: entity },
+                    ));
+                    b.spawn((
+                        bevy::core::Name::new("ObjectLabel"),
+                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::ObjectLabel.to_z())),
+                        Text2d::new(""),
+                        billboard::MaintainScale { size: config.label_size },
+                        billboard::MaintainRotation,
+                        billboard::Label { distance: 50. },
+                        Anchor::TopRight,
+                        LabelViewable { object: entity },
+                        LabelSpan,
+                    ));
+                });
             });
     }
 }
@@ -78,7 +95,6 @@ fn spawn_plane_viewable_system(
 struct LastRender(Option<Duration>);
 
 #[derive(QueryData)]
-#[query_data(mutable)]
 struct ParentQueryData {
     display:      &'static object::Display,
     destination:  &'static object::Destination,
@@ -91,23 +107,28 @@ struct ParentQueryData {
 
     nav_velocity: Option<&'static nav::VelocityTarget>,
     nav_altitude: Option<&'static nav::TargetAltitude>,
-
-    transform: &'static mut Transform,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn maintain_viewable_system(
     time: Res<Time>,
-    mut parent_query: Query<
-        (&Children, &mut LastRender, ParentQueryData),
-        (Without<SpriteViewable>, Without<LabelViewable>),
+    config: Res<Config>,
+    mut parent_query: Query<(&mut LastRender, ParentQueryData)>,
+    mut owner_query: Query<
+        (&mut Transform, &Parent, &Children),
+        (With<ObjectOwner>, Without<SpriteViewable>, Without<LabelViewable>),
     >,
     mut sprite_query: Query<(&mut Transform, &mut Sprite), With<SpriteViewable>>,
     label_query: Query<&LabelViewable>,
-    config: Res<Config>,
     mut writer: DynamicTextWriter,
     write_label_params: WriteLabelParams,
 ) {
-    parent_query.iter_mut().for_each(|(children, mut last_render, mut parent)| {
+    owner_query.iter_mut().for_each(|(mut owner_tf, object_entity, owner_children)| {
+        let Ok((mut last_render, parent)) = parent_query.get_mut(object_entity.get()) else {
+            bevy::log::warn!("OwnerEntity parent is invalid");
+            return;
+        };
+
         let need_move = last_render.0.is_none_or(|last| {
             let Some(freq) = config.scan_frequency else {
                 return true;
@@ -127,43 +148,55 @@ fn maintain_viewable_system(
 
         let color = parent.resolve_color(&config.color_scheme);
 
-        children.iter().for_each(|&child_entity| {
+        owner_tf.translation = parent.position.0.into();
+
+        owner_children.iter().for_each(|&child_entity| {
             if let Ok((mut sprite_tf, mut sprite)) = sprite_query.get_mut(child_entity) {
                 if need_move {
-                    parent.transform.translation = parent.position.0.into();
                     sprite_tf.rotation = parent.rotation.0;
                 }
                 sprite.color = color;
             }
 
             if label_query.get(child_entity).is_ok() {
-                let mut label_writer = writer.borrow_for(child_entity);
-                let mut label_writer = label_writer.with_child_count(config.label_elements.len());
-
-                for (line, LabelLine { elements }) in config.label_elements.iter().enumerate() {
-                    label_writer.set_child(line, |line_writer| {
-                        let newline_offset = usize::from(line != 0);
-                        let mut line_writer =
-                            line_writer.with_child_count(elements.len() + newline_offset);
-                        if line != 0 {
-                            line_writer.set_child(0, |writer| writer.set_text("\n"));
-                        }
-
-                        for (index, element) in elements.iter().enumerate() {
-                            line_writer.set_child(index + newline_offset, |writer| {
-                                parent.write_label(
-                                    Some(element),
-                                    writer,
-                                    &write_label_params,
-                                    color,
-                                );
-                            });
-                        }
-                    });
-                }
+                maintain_label(
+                    &config,
+                    &write_label_params,
+                    &mut writer.borrow_for(child_entity),
+                    &parent,
+                    color,
+                );
             }
         });
     });
+}
+
+fn maintain_label(
+    config: &Config,
+    write_label_params: &WriteLabelParams,
+    label_writer: &mut DynamicTextWriterForEntity,
+    parent: &ParentQueryDataItem,
+    color: Color,
+) {
+    label_writer.set_color(color);
+
+    let mut label_writer = label_writer.with_child_count(config.label_elements.len());
+
+    for (line, LabelLine { elements }) in config.label_elements.iter().enumerate() {
+        label_writer.set_child(line, |line_writer| {
+            let newline_offset = usize::from(line != 0);
+            let mut line_writer = line_writer.with_child_count(elements.len() + newline_offset);
+            if line != 0 {
+                line_writer.set_child(0, |writer| writer.set_text("\n"));
+            }
+
+            for (index, element) in elements.iter().enumerate() {
+                line_writer.set_child(index + newline_offset, |writer| {
+                    parent.write_label(Some(element), writer, write_label_params, color);
+                });
+            }
+        });
+    }
 }
 
 impl ParentQueryDataItem<'_> {

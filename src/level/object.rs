@@ -1,13 +1,18 @@
 //! A moveable vehicle in the level,
 //! in particular, a ground vehicle or an aircraft.
 
+use std::collections::VecDeque;
+use std::time::Duration;
+
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::SystemState;
-use bevy::math::{Quat, Vec3A};
-use bevy::prelude::{Component, Entity, EntityCommand, IntoSystemConfigs, Query, Res, With, World};
-use bevy::time::{self, Time};
+use bevy::math::{Quat, Vec3, Vec3A};
+use bevy::prelude::{
+    Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, With, World,
+};
+use bevy::time::{self, Time, Timer, TimerMode};
 
-use super::{aerodrome, wind, SystemSets};
+use super::{aerodrome, wind, Config, SystemSets};
 use crate::math::{
     PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
     TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
@@ -17,11 +22,13 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
+        app.add_event::<SpawnEvent>();
         app.add_systems(app::Update, update_airborne_system.in_set(SystemSets::Environ));
         app.add_systems(
             app::Update,
             move_object_system.after(update_airborne_system).in_set(SystemSets::Environ),
         );
+        app.add_systems(app::Update, track_position_system.in_set(SystemSets::Reconcile));
     }
 }
 
@@ -88,10 +95,16 @@ impl EntityCommand for SpawnCommand {
             self.ground_speed,
             self.display,
             self.destination,
+            Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
             Marker,
         ));
+        world.send_event(SpawnEvent(entity));
     }
 }
+
+/// Sent when a plane entity is spawned.
+#[derive(Event)]
+pub struct SpawnEvent(pub Entity);
 
 /// Sets an entity as airborne.
 pub struct SetAirborneCommand;
@@ -161,5 +174,31 @@ fn update_airborne_system(
         let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude;
 
         ground_speed.0 = airborne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
+    });
+}
+
+#[derive(Component)]
+pub struct Track {
+    pub log: VecDeque<Vec3>,
+    timer:   Timer,
+}
+
+fn track_position_system(
+    time: Res<Time<time::Virtual>>,
+    config: Res<Config>,
+    mut query: Query<(&mut Track, &Position)>,
+) {
+    query.iter_mut().for_each(|(mut track, position)| {
+        track.timer.tick(time.delta());
+        if track.timer.finished() {
+            track.timer.set_duration(config.track_density);
+            track.timer.reset();
+
+            if track.log.len() >= config.max_track_log {
+                track.log.pop_front();
+            }
+
+            track.log.push_back(position.0.into());
+        }
     });
 }

@@ -62,8 +62,8 @@ impl Default for Config {
                 label_padding:    3.,
                 pos:              Vec2::new(20., -20.),
             }),
-            key_move_speed:   100.,
-            key_zoom_speed:   1.4,
+            key_move_speed:   150.,
+            key_zoom_speed:   1.6,
             key_rotate_speed: FRAC_PI_6,
         }
     }

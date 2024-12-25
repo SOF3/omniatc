@@ -4,7 +4,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Camera, Camera2d, GlobalTransform, IntoSystemConfigs, KeyCode, Res, Single, Transform, With,
 };
-use bevy::time::Time;
+use bevy::time::{self, Time};
 
 use super::Config;
 use crate::ui::InputState;
@@ -18,7 +18,7 @@ impl Plugin for Plug {
 }
 
 fn move_camera_system(
-    time: Res<Time>,
+    time: Res<Time<time::Real>>,
     config: Res<Config>,
     mut camera_query: Single<(&mut Transform, &GlobalTransform, &Camera), With<Camera2d>>,
     inputs: Res<ButtonInput<KeyCode>>,

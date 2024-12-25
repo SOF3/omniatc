@@ -1,7 +1,9 @@
 //! Gameplay simulation.
 
+use std::time::Duration;
+
 use bevy::app::{self, App, Plugin};
-use bevy::prelude::{IntoSystemSetConfigs, SystemSet};
+use bevy::prelude::{IntoSystemSetConfigs, Resource, SystemSet};
 
 pub mod aerodrome;
 pub mod nav;
@@ -14,6 +16,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
+        app.init_resource::<Config>();
         app.configure_sets(app::Update, SystemSets::Navigate.before(SystemSets::Pilot));
         app.configure_sets(app::Update, SystemSets::Pilot.before(SystemSets::Machine));
         app.configure_sets(app::Update, SystemSets::Machine.before(SystemSets::Environ));
@@ -50,4 +53,18 @@ pub enum SystemSets {
     Reconcile,
     /// All systems belong to this system set.
     All,
+}
+
+#[derive(Resource)]
+pub struct Config {
+    /// Number of positions tracked per object.
+    ///
+    /// The oldest positions are removed when the log exceeds the limit.
+    pub max_track_log: usize,
+    /// Duration between two points in an object track log.
+    pub track_density: Duration,
+}
+
+impl Default for Config {
+    fn default() -> Self { Self { max_track_log: 1024, track_density: Duration::from_secs(5) } }
 }

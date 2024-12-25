@@ -35,47 +35,62 @@ fn setup_scale_ruler_system(
         alpha_mode: AlphaMode2d::Opaque,
         texture:    None,
     });
-    commands.spawn((ScaleRulerBody, Transform::IDENTITY, Visibility::Visible)).with_children(|b| {
-        b.spawn((
-            Transform {
-                translation: Vec3::new(0.25, 0., 0.),
-                rotation:    Quat::IDENTITY,
-                scale:       Vec3::new(0.5, 1., 1.),
-            },
-            Mesh2d(square.clone()),
-            MeshMaterial2d(material.clone()),
-        ));
-        b.spawn((
-            Transform {
-                translation: Vec3::new(0.75, 0.5, 0.),
-                rotation:    Quat::IDENTITY,
-                scale:       Vec3::new(0.5, 0.1, 1.),
-            },
-            Mesh2d(square.clone()),
-            MeshMaterial2d(material.clone()),
-        ));
-        b.spawn((
-            Transform {
-                translation: Vec3::new(0.75, -0.5, 0.),
-                rotation:    Quat::IDENTITY,
-                scale:       Vec3::new(0.5, 0.1, 1.),
-            },
-            Mesh2d(square.clone()),
-            MeshMaterial2d(material.clone()),
-        ));
-        b.spawn((
-            Transform {
-                translation: Vec3::new(1., 0., 0.),
-                rotation:    Quat::IDENTITY,
-                scale:       Vec3::new(0.1, 1., 1.),
-            },
-            Mesh2d(square),
-            MeshMaterial2d(material),
-            ScaleRulerProximalEdge,
-        ));
-    });
-    commands.spawn((ScaleRulerLeftText, Text2d::new("0")));
-    commands.spawn((ScaleRulerRightText, Text2d::new("")));
+    commands
+        .spawn((
+            ScaleRulerBody,
+            Transform::IDENTITY,
+            Visibility::Visible,
+            bevy::core::Name::new("ScaleRulerBody"),
+        ))
+        .with_children(|b| {
+            b.spawn((
+                Transform {
+                    translation: Vec3::new(0.25, 0., 0.),
+                    rotation:    Quat::IDENTITY,
+                    scale:       Vec3::new(0.5, 1., 1.),
+                },
+                Mesh2d(square.clone()),
+                MeshMaterial2d(material.clone()),
+            ));
+            b.spawn((
+                Transform {
+                    translation: Vec3::new(0.75, 0.5, 0.),
+                    rotation:    Quat::IDENTITY,
+                    scale:       Vec3::new(0.5, 0.1, 1.),
+                },
+                Mesh2d(square.clone()),
+                MeshMaterial2d(material.clone()),
+            ));
+            b.spawn((
+                Transform {
+                    translation: Vec3::new(0.75, -0.5, 0.),
+                    rotation:    Quat::IDENTITY,
+                    scale:       Vec3::new(0.5, 0.1, 1.),
+                },
+                Mesh2d(square.clone()),
+                MeshMaterial2d(material.clone()),
+            ));
+            b.spawn((
+                Transform {
+                    translation: Vec3::new(1., 0., 0.),
+                    rotation:    Quat::IDENTITY,
+                    scale:       Vec3::new(0.1, 1., 1.),
+                },
+                Mesh2d(square),
+                MeshMaterial2d(material),
+                ScaleRulerProximalEdge,
+            ));
+        });
+    commands.spawn((
+        ScaleRulerLeftText,
+        Text2d::new("0"),
+        bevy::core::Name::new("ScaleRulerLeftText"),
+    ));
+    commands.spawn((
+        ScaleRulerRightText,
+        Text2d::new(""),
+        bevy::core::Name::new("ScaleRulerRightText"),
+    ));
 }
 
 #[derive(Component)]

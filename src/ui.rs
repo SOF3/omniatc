@@ -7,6 +7,7 @@ mod camera;
 mod clock;
 mod object;
 mod store;
+mod track;
 mod waypoint;
 
 pub struct Plug;
@@ -21,6 +22,7 @@ impl Plugin for Plug {
         app.add_plugins(object::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(store::Plug);
+        app.add_plugins(track::Plug);
 
         app.configure_sets(app::Update, SystemSets::RenderSpawn.before(SystemSets::RenderMove));
         app.configure_sets(

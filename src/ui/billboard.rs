@@ -14,7 +14,8 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             app::Update,
-            (maintain_tf_system, translate_label_system).in_set(SystemSets::RenderMove),
+            (maintain_scale_system, maintain_rot_system, translate_label_system)
+                .in_set(SystemSets::RenderMove),
         );
     }
 }
@@ -48,14 +49,24 @@ fn translate_label_system(
     });
 }
 
-fn maintain_tf_system(
+fn maintain_scale_system(
     camera: Single<&GlobalTransform, With<Camera2d>>,
     mut query: Query<(&MaintainScale, &mut Transform)>,
 ) {
     let camera = *camera;
 
     query.iter_mut().for_each(|(maintain, mut tf)| {
-        tf.rotation = camera.rotation();
         tf.scale = camera.scale() * maintain.size;
+    });
+}
+
+fn maintain_rot_system(
+    camera: Single<&GlobalTransform, With<Camera2d>>,
+    mut query: Query<(&MaintainRotation, &mut Transform)>,
+) {
+    let camera = *camera;
+
+    query.iter_mut().for_each(|(MaintainRotation, mut tf)| {
+        tf.rotation = camera.rotation();
     });
 }

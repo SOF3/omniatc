@@ -64,7 +64,7 @@ fn move_camera_system(
         }
     }
 
-    for (key, rotate_sign) in [(KeyCode::KeyQ, 1.), (KeyCode::KeyE, -1.)] {
+    for (key, rotate_sign) in [(KeyCode::KeyQ, -1.), (KeyCode::KeyE, 1.)] {
         if inputs.pressed(key) {
             camera_tf.rotate_z(rotate_sign * config.key_rotate_speed * time.delta_secs());
         }

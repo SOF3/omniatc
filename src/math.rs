@@ -220,6 +220,15 @@ impl Heading {
     /// Returns the heading in radians in the range `-PI < value <= PI`.
     pub fn radians(self) -> f32 { self.0 }
 
+    /// Returns the heading in radians in the range `0 <= value < PI*2`.
+    pub fn radians_nonnegative(self) -> f32 {
+        if self.0 < 0. {
+            self.0 + TAU
+        } else {
+            self.0
+        }
+    }
+
     /// Radians to turn from `self` to `other` in the given direction.
     /// The output is always in the range [0, TAU) for `Clockwise`,
     /// or (-TAU, 0] for `CounterClockwise`.

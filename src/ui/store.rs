@@ -5,12 +5,12 @@ use bevy::math::{Vec3, Vec3A};
 use bevy::prelude::Commands;
 
 use crate::level::waypoint::Waypoint;
-use crate::level::{aerodrome, object, plane, waypoint};
+use crate::level::{aerodrome, nav, object, plane, waypoint};
 use crate::math::Heading;
 
 pub struct Plug;
 
-pub const DEFAULT_LIMITS: plane::Limits = plane::Limits {
+pub const DEFAULT_PLANE_LIMITS: plane::Limits = plane::Limits {
     max_vert_accel:    1.,
     exp_climb:         plane::ClimbProfile { vert_rate: 20., accel: 1., decel: -5. },
     std_climb:         plane::ClimbProfile { vert_rate: 10., accel: 2., decel: -4. },
@@ -37,7 +37,7 @@ impl Plugin for Plug {
             plane.queue(object::SetAirborneCommand);
             plane.queue(plane::SpawnCommand {
                 control: Some(plane::Control::stabilized(Heading::SOUTH)),
-                limits:  DEFAULT_LIMITS,
+                limits:  DEFAULT_PLANE_LIMITS,
             });
         });
         app.add_systems(app::Startup, |mut commands: Commands| {
@@ -51,7 +51,12 @@ impl Plugin for Plug {
             plane.queue(object::SetAirborneCommand);
             plane.queue(plane::SpawnCommand {
                 control: Some(plane::Control::stabilized(Heading::EAST)),
-                limits:  DEFAULT_LIMITS,
+                limits:  DEFAULT_PLANE_LIMITS,
+            });
+            plane.insert(nav::VelocityTarget {
+                yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
+                vert_rate:   0.,
+                horiz_speed: 200.,
             });
         });
 

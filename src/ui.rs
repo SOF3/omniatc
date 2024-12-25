@@ -4,6 +4,7 @@ use strum::IntoEnumIterator;
 
 mod billboard;
 mod camera;
+mod clock;
 mod object;
 mod store;
 mod waypoint;
@@ -15,6 +16,7 @@ impl Plugin for Plug {
         app.init_state::<InputState>();
 
         app.add_plugins(camera::Plug);
+        app.add_plugins(clock::Plug);
         app.add_plugins(billboard::Plug);
         app.add_plugins(object::Plug);
         app.add_plugins(waypoint::Plug);

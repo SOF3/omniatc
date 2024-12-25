@@ -4,9 +4,10 @@
 
 use std::time::Duration;
 
-use bevy::app::{self, App};
+use bevy::app::{self, App, PluginGroup};
 use bevy::ecs::schedule::{self, ScheduleBuildSettings};
 use bevy::prelude::IntoSystemSetConfigs;
+use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
 
 mod level;
@@ -17,7 +18,10 @@ mod ui;
 fn main() {
     App::new()
         .add_plugins((
-            bevy::DefaultPlugins,
+            bevy::DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
+                ..Default::default()
+            }),
             #[cfg(feature = "inspect")]
             bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
             level::Plug,
@@ -32,7 +36,7 @@ fn main() {
             });
         })
         .insert_resource(WinitSettings {
-            focused_mode:   bevy::winit::UpdateMode::reactive_low_power(Duration::from_millis(50)),
+            focused_mode:   bevy::winit::UpdateMode::reactive_low_power(Duration::from_millis(10)),
             unfocused_mode: bevy::winit::UpdateMode::reactive_low_power(Duration::from_millis(500)),
         })
         .run();

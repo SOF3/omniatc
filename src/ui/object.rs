@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::app::{App, Plugin};
 use bevy::color::{Color, Mix};
 use bevy::prelude::Resource;
@@ -20,6 +22,9 @@ impl Plugin for Plug {
 
 #[derive(Resource)]
 pub struct Config {
+    /// Frequency of updating rendered planes, to simulate radar scan latency.
+    pub scan_frequency: Option<Duration>,
+
     /// Size of plane sprites.
     pub plane_sprite_size: f32,
     pub color_scheme:      ColorScheme,
@@ -28,13 +33,24 @@ pub struct Config {
     pub label_size:     f32,
     /// Structure of object labels.
     pub label_elements: Vec<LabelLine>,
+
+    /// Color of name characters when they are part of the match to the current search stack.
+    pub search_matched_color:   Color,
+    /// Color of name characters when they are skipped
+    /// in favor of subsequent characters to match the current search stack
+    /// or if there are no further matches behind.
+    pub search_skipped_color:   Color,
+    /// Color of name characters when they are subsequent characters
+    /// following the current search stack.
+    pub search_remaining_color: Color,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            plane_sprite_size: 1.,
-            color_scheme:      ColorScheme::Mixed {
+            scan_frequency:         Some(Duration::from_secs(1)),
+            plane_sprite_size:      1.,
+            color_scheme:           ColorScheme::Mixed {
                 a:      Box::new(ColorScheme::Destination {
                     departure: vec![Color::srgb(1., 0., 0.)],
                     arrival:   vec![Color::srgb(0., 1., 0.)],
@@ -45,8 +61,8 @@ impl Default for Config {
                 })),
                 factor: 0.5,
             },
-            label_size:        0.5,
-            label_elements:    vec![
+            label_size:             0.5,
+            label_elements:         vec![
                 LabelLine { elements: vec![LabelElement::Name] },
                 LabelLine {
                     elements: vec![
@@ -70,6 +86,9 @@ impl Default for Config {
                     ],
                 },
             ],
+            search_matched_color:   Color::srgb(1., 0.7, 0.4),
+            search_skipped_color:   Color::srgb_from_array([0.6; 3]),
+            search_remaining_color: Color::srgb(1., 1., 1.),
         }
     }
 }

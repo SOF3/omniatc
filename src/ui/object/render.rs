@@ -16,8 +16,7 @@ use bevy::sprite::{Anchor, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
 use bevy::time::Time;
 
-use super::input::SearchStack;
-use super::{ColorScheme, Config, LabelElement, LabelLine};
+use super::{select, ColorScheme, Config, LabelElement, LabelLine};
 use crate::level::{nav, object, plane};
 use crate::math::{Heading, TurnDirection, TROPOPAUSE_ALTITUDE};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -96,6 +95,8 @@ struct LastRender(Option<Duration>);
 
 #[derive(QueryData)]
 struct ParentQueryData {
+    entity: Entity,
+
     display:      &'static object::Display,
     destination:  &'static object::Destination,
     ground_speed: &'static object::GroundSpeed,
@@ -265,7 +266,10 @@ impl ParentQueryDataItem<'_> {
             LabelElement::Name => match &params.search_stack.chars {
                 None => writer.with_child_count(1).set_child(0, |writer| {
                     writer.set_text(&self.display.name);
-                    writer.set_color(color);
+                    writer.set_color(match params.selected.object_entity {
+                        Some(entity) if entity == self.entity => params.config.selected_color,
+                        _ => color,
+                    });
                 }),
                 Some(chars) => {
                     let mut chars = chars.chars().peekable();
@@ -367,8 +371,9 @@ impl ParentQueryDataItem<'_> {
 
 #[derive(SystemParam)]
 struct WriteLabelParams<'w> {
-    search_stack: Res<'w, SearchStack>,
+    search_stack: Res<'w, select::SearchStack>,
     config:       Res<'w, Config>,
+    selected:     Res<'w, select::Selected>,
 }
 
 #[derive(Component)]

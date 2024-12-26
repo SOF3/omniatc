@@ -5,6 +5,7 @@ use strum::IntoEnumIterator;
 mod billboard;
 mod camera;
 mod clock;
+mod message;
 mod object;
 mod store;
 mod track;
@@ -17,6 +18,7 @@ impl Plugin for Plug {
         app.init_state::<InputState>();
 
         app.add_plugins(camera::Plug);
+        app.add_plugins(message::Plug);
         app.add_plugins(clock::Plug);
         app.add_plugins(billboard::Plug);
         app.add_plugins(object::Plug);
@@ -55,9 +57,13 @@ pub enum SystemSets {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States, SystemSet, strum::EnumIter)]
 pub enum InputState {
+    /// Root menu.
     #[default]
-    Normal,
+    Root,
+    /// Searching objects by name.
     ObjectSearch,
+    /// Operates on a specific object.
+    ObjectAction,
 }
 
 /// Renderable layers.
@@ -73,6 +79,7 @@ pub enum Zorder {
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,
+    MessageText,
 }
 
 impl Zorder {

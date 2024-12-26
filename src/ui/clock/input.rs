@@ -12,7 +12,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             app::Update,
-            handle_input_system.run_if(in_state(InputState::Normal)).in_set(SystemSets::Input),
+            handle_input_system.run_if(in_state(InputState::Root)).in_set(SystemSets::Input),
         );
     }
 }

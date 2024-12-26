@@ -6,8 +6,8 @@ use bevy::prelude::Resource;
 
 use crate::math::{LengthUnit, SpeedUnit};
 
-mod input;
 mod render;
+mod select;
 
 pub struct Plug;
 
@@ -15,7 +15,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Config>();
 
-        app.add_plugins(input::Plug);
+        app.add_plugins(select::Plug);
         app.add_plugins(render::Plug);
     }
 }
@@ -43,6 +43,8 @@ pub struct Config {
     /// Color of name characters when they are subsequent characters
     /// following the current search stack.
     pub search_remaining_color: Color,
+    /// Color of name characters when the object is the current selected object.
+    pub selected_color:         Color,
 }
 
 impl Default for Config {
@@ -89,6 +91,7 @@ impl Default for Config {
             search_matched_color:   Color::srgb(1., 0.7, 0.4),
             search_skipped_color:   Color::srgb_from_array([0.6; 3]),
             search_remaining_color: Color::srgb(1., 1., 1.),
+            selected_color:         Color::srgb(1., 0.7, 0.4),
         }
     }
 }

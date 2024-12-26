@@ -13,7 +13,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(app::Update, move_camera_system.in_set(InputState::Normal));
+        app.add_systems(app::Update, move_camera_system.in_set(InputState::Root));
     }
 }
 

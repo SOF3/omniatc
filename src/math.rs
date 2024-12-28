@@ -263,6 +263,15 @@ impl Heading {
         }
     }
 
+    /// Rotate by `delta` radians in the direction of `dir`.
+    #[must_use]
+    pub fn add_direction(self, dir: TurnDirection, delta: f32) -> Self {
+        match dir {
+            TurnDirection::CounterClockwise => self - delta,
+            TurnDirection::Clockwise => self + delta,
+        }
+    }
+
     /// Checks whether `self` is in the non-reflex angle between `a` and `b`,
     ///
     /// The result is unspecified if `a` and `b` are exactly opposite.

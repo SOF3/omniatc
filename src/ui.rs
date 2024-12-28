@@ -66,6 +66,8 @@ pub enum InputState {
     ObjectAction,
     /// Set object speed.
     ObjectSetSpeed,
+    /// Set object heading.
+    ObjectSetHeading,
 }
 
 /// Renderable layers.

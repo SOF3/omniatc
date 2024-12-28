@@ -76,6 +76,7 @@ pub enum Zorder {
     Waypoint,
     WaypointLabel,
     Object,
+    ObjectSeparation,
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,

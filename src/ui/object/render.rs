@@ -3,16 +3,17 @@ use std::time::Duration;
 use std::{fmt, str};
 
 use bevy::app::{self, App, Plugin};
-use bevy::asset::AssetServer;
+use bevy::asset::{AssetServer, Assets, Handle};
 use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::SystemParam;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    BuildChildren, ChildBuild, Children, Commands, Component, DespawnRecursiveExt, Entity,
-    EventReader, IntoSystemConfigs, Parent, Query, Res, Transform, Visibility, With, Without,
+    Annulus, BuildChildren, Camera2d, ChildBuild, Children, Commands, Component,
+    DespawnRecursiveExt, Entity, EventReader, GlobalTransform, IntoSystemConfigs, Mesh, Mesh2d,
+    Parent, Query, Res, ResMut, Resource, Single, Transform, Visibility, With, Without,
 };
-use bevy::sprite::{Anchor, Sprite};
+use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
 use bevy::time::Time;
 
@@ -27,8 +28,17 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Config>();
 
+        app.init_resource::<SeparationAnnulusMesh>();
+        app.add_systems(
+            app::Startup,
+            |mut store: ResMut<SeparationAnnulusMesh>, mut meshes: ResMut<Assets<Mesh>>| {
+                store.0 = Some(meshes.add(Annulus::new(0., 1.5)));
+            },
+        );
+
         app.add_systems(app::Update, spawn_plane_viewable_system.in_set(SystemSets::RenderSpawn));
         app.add_systems(app::Update, maintain_viewable_system.in_set(SystemSets::RenderMove));
+        app.add_systems(app::Update, maintain_annulus_size_system.in_set(SystemSets::RenderMove));
     }
 }
 
@@ -38,23 +48,30 @@ struct ObjectOwner;
 /// Marker component indicating that the entity is the viewable entity showing a sprite for the
 /// object.
 #[derive(Component)]
-struct SpriteViewable {
-    object: Entity,
-}
+struct SpriteViewable;
 
 /// Marker component indicating that the entity is the viewable entity showing a label text.
 #[derive(Component)]
-struct LabelViewable {
-    object: Entity,
-}
+struct LabelViewable;
+
+/// Marker component indicating that the entity is the viewable entity showing the separation ring.
+#[derive(Component)]
+struct SeparationRing;
+
+#[derive(Resource, Default)]
+struct SeparationAnnulusMesh(Option<Handle<Mesh>>);
 
 fn spawn_plane_viewable_system(
     mut commands: Commands,
     mut events: EventReader<plane::SpawnEvent>,
     config: Res<Config>,
     asset_server: Res<AssetServer>,
+    separation_annulus_mesh: Res<SeparationAnnulusMesh>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for &plane::SpawnEvent(entity) in events.read() {
+        let color = materials.add(ColorMaterial { color: Color::WHITE, ..Default::default() });
+
         commands
             .entity(entity)
             .insert((Transform::IDENTITY, Visibility::Visible, LastRender(None)))
@@ -71,7 +88,16 @@ fn spawn_plane_viewable_system(
                         Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
                         Sprite::from_image(asset_server.load("sprites/plane.png")),
                         billboard::MaintainScale { size: config.plane_sprite_size },
-                        SpriteViewable { object: entity },
+                        SpriteViewable,
+                    ));
+                    b.spawn((
+                        bevy::core::Name::new("SeparationRing"),
+                        Transform::from_translation(
+                            Vec3::ZERO.with_z(Zorder::ObjectSeparation.to_z()),
+                        ),
+                        Mesh2d(separation_annulus_mesh.0.clone().unwrap()),
+                        MeshMaterial2d(color),
+                        SeparationRing,
                     ));
                     b.spawn((
                         bevy::core::Name::new("ObjectLabel"),
@@ -81,12 +107,26 @@ fn spawn_plane_viewable_system(
                         billboard::MaintainRotation,
                         billboard::Label { distance: 50. },
                         Anchor::TopRight,
-                        LabelViewable { object: entity },
+                        LabelViewable,
                         LabelSpan,
                     ));
                 });
             });
     }
+}
+
+fn maintain_annulus_size_system(
+    config: Res<Config>,
+    camera_tf: Single<&GlobalTransform, With<Camera2d>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    separation_annulus_mesh: Res<SeparationAnnulusMesh>,
+) {
+    let mesh = meshes
+        .get_mut(separation_annulus_mesh.0.as_ref().unwrap())
+        .expect("asset referenced by strong handle must exist");
+
+    let width = camera_tf.scale().x * config.separation_ring_thickness;
+    *mesh = Annulus::new(1.5 - width, 1.5).into();
 }
 
 /// Stores the last time an object has been rendered.
@@ -120,9 +160,11 @@ fn maintain_viewable_system(
         (With<ObjectOwner>, Without<SpriteViewable>, Without<LabelViewable>),
     >,
     mut sprite_query: Query<(&mut Transform, &mut Sprite), With<SpriteViewable>>,
+    separation_ring_query: Query<&MeshMaterial2d<ColorMaterial>, With<SeparationRing>>,
     label_query: Query<&LabelViewable>,
     mut writer: DynamicTextWriter,
     write_label_params: WriteLabelParams,
+    mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
     owner_query.iter_mut().for_each(|(mut owner_tf, object_entity, owner_children)| {
         let Ok((mut last_render, parent)) = parent_query.get_mut(object_entity.get()) else {
@@ -157,6 +199,13 @@ fn maintain_viewable_system(
                     sprite_tf.rotation = parent.rotation.0;
                 }
                 sprite.color = color;
+            }
+
+            if let Ok(color_handle) = separation_ring_query.get(child_entity) {
+                let material = color_materials
+                    .get_mut(color_handle)
+                    .expect("assets referenced by strong handle must exist");
+                material.color = color;
             }
 
             if label_query.get(child_entity).is_ok() {

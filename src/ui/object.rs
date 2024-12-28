@@ -45,14 +45,17 @@ pub struct Config {
     pub search_remaining_color: Color,
     /// Color of name characters when the object is the current selected object.
     pub selected_color:         Color,
+
+    /// Width of the separation ring.
+    pub separation_ring_thickness: f32,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            scan_frequency:         Some(Duration::from_secs(1)),
-            plane_sprite_size:      1.,
-            color_scheme:           ColorScheme::Mixed {
+            scan_frequency:            Some(Duration::from_secs(1)),
+            plane_sprite_size:         1.,
+            color_scheme:              ColorScheme::Mixed {
                 a:      Box::new(ColorScheme::Destination {
                     departure: vec![Color::srgb(1., 0., 0.)],
                     arrival:   vec![Color::srgb(0., 1., 0.)],
@@ -63,8 +66,8 @@ impl Default for Config {
                 })),
                 factor: 0.5,
             },
-            label_size:             0.5,
-            label_elements:         vec![
+            label_size:                0.5,
+            label_elements:            vec![
                 LabelLine { elements: vec![LabelElement::Name] },
                 LabelLine {
                     elements: vec![
@@ -88,10 +91,11 @@ impl Default for Config {
                     ],
                 },
             ],
-            search_matched_color:   Color::srgb(1., 0.7, 0.4),
-            search_skipped_color:   Color::srgb_from_array([0.6; 3]),
-            search_remaining_color: Color::srgb(1., 1., 1.),
-            selected_color:         Color::srgb(1., 0.7, 0.4),
+            search_matched_color:      Color::srgb(1., 0.7, 0.4),
+            search_skipped_color:      Color::srgb_from_array([0.6; 3]),
+            search_remaining_color:    Color::srgb(1., 1., 1.),
+            selected_color:            Color::srgb(1., 0.7, 0.4),
+            separation_ring_thickness: 0.3,
         }
     }
 }

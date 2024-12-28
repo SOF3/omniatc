@@ -64,6 +64,8 @@ pub enum InputState {
     ObjectSearch,
     /// Operates on a specific object.
     ObjectAction,
+    /// Set object speed.
+    ObjectSetSpeed,
 }
 
 /// Renderable layers.
@@ -73,6 +75,7 @@ pub enum InputState {
 #[repr(u32)]
 pub enum Zorder {
     Terrain,
+    ObjectTrack,
     Waypoint,
     WaypointLabel,
     Object,

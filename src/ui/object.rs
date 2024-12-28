@@ -6,6 +6,7 @@ use bevy::prelude::Resource;
 
 use crate::math::{LengthUnit, SpeedUnit};
 
+mod control;
 mod render;
 mod select;
 
@@ -16,6 +17,7 @@ impl Plugin for Plug {
         app.init_resource::<Config>();
 
         app.add_plugins(select::Plug);
+        app.add_plugins(control::Plug);
         app.add_plugins(render::Plug);
     }
 }
@@ -54,7 +56,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             scan_frequency:            Some(Duration::from_secs(1)),
-            plane_sprite_size:         1.,
+            plane_sprite_size:         0.7,
             color_scheme:              ColorScheme::Mixed {
                 a:      Box::new(ColorScheme::Destination {
                     departure: vec![Color::srgb(1., 0., 0.)],
@@ -95,7 +97,7 @@ impl Default for Config {
             search_skipped_color:      Color::srgb_from_array([0.6; 3]),
             search_remaining_color:    Color::srgb(1., 1., 1.),
             selected_color:            Color::srgb(1., 0.7, 0.4),
-            separation_ring_thickness: 0.3,
+            separation_ring_thickness: 0.5,
         }
     }
 }

@@ -4,13 +4,13 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::{self, Assets};
 use bevy::color::Color;
 use bevy::prelude::{
-    BuildChildren, Children, Circle, Commands, Component, DespawnRecursiveExt, Entity, EventReader,
-    IntoSystemConfigs, Mesh, Mesh2d, Parent, Query, Res, ResMut, Resource, Transform, Visibility,
-    Without,
+    BuildChildren, Children, Circle, Commands, Component, DespawnRecursiveExt, DetectChangesMut,
+    Entity, EventReader, IntoSystemConfigs, Mesh, Mesh2d, Mut, Parent, Query, Res, ResMut,
+    Resource, Transform, Visibility, Without,
 };
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 
-use super::{billboard, SystemSets};
+use super::{billboard, SystemSets, Zorder};
 use crate::level::object;
 
 pub struct Plug;
@@ -119,13 +119,14 @@ fn move_trail_point_system(
     owner_query: Query<&Parent, Without<TrailPoint>>,
     object_query: Query<&object::Track>,
 ) {
-    point_query.iter_mut().for_each(|(point, mut tf, owner_entity)| {
+    point_query.iter_mut().for_each(|(point, tf, owner_entity)| {
         if let Ok(object_entity) = owner_query.get(owner_entity.get()) {
             if let Ok(track) = object_query.get(object_entity.get()) {
                 if let Some(&position) =
                     track.log.get(track.log.len().saturating_sub(point.deque_reverse_offset + 1))
                 {
-                    tf.translation = position;
+                    Mut::map_unchanged(tf, |tf| &mut tf.translation)
+                        .set_if_neq(position.with_z(Zorder::ObjectTrack.to_z()));
                 } else {
                     bevy::log::warn!("track log is shorter than point entity list");
                 }

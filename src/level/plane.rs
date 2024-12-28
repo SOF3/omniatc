@@ -252,23 +252,81 @@ fn maintain_accel(
     limits: &Limits,
     airborne: &mut object::Airborne,
 ) {
+    enum ThrottleAction {
+        Increase,
+        Decrease,
+    }
+
     let current_speed = airborne.airspeed.xy().length();
-    if target.horiz_speed >= current_speed {
-        // We want to accelerate, get the maximum possible acceleration first.
-        let desired_accel =
-            limits.accel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
-        // We cannot accelerate too quickly to avoid compressor stall.
-        let actual_accel =
-            desired_accel.min(control.horiz_accel + limits.accel_change_rate * time.delta_secs());
-        control.horiz_accel = actual_accel;
+
+    let max_accel = limits.accel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
+    let max_decel = limits.decel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
+
+    #[allow(clippy::collapsible_else_if)]
+    let desired_action = if target.horiz_speed >= current_speed {
+        if control.horiz_accel < 0. {
+            // We are slower than we want to be and we are even further decelerating,
+            // so increasing throttle is the only correct action.
+            ThrottleAction::Increase
+        } else {
+            // Consider:
+            // accel(t) = accel(0) + accel_change_rate * t
+            // speed(t) = speed(0) + int[0..t] a(x) dx
+            //          = speed(0) + accel(0) * t + 0.5 accel_change_rate * t^2
+            // If we perform maximum throttle pull back now, when the acceleration decreases to 0,
+            // accel(t_stop) = 0 => t_stop = accel(0) / accel_change_rate
+            // => speed(t_stop) = speed(0) - 0.5 * accel(0) / accel_change_rate
+            let speed_stop =
+                current_speed - 0.5 * control.horiz_accel.powi(2) / (-limits.accel_change_rate);
+
+            // As we continue to accelerate, speed(0) increases over time,
+            // so speed(t_stop) also increases over time.
+            // We want speed(t_stop) to approach target.horiz_speed,
+            // so start pulling back when speed(t_stop) >= target.horiz_speed.
+            if speed_stop >= target.horiz_speed {
+                // We will overshoot the speed and go too fast; reduce throttle now.
+                ThrottleAction::Decrease
+            } else {
+                // Continue to increase throttle; we are still too slow.
+                ThrottleAction::Increase
+            }
+        }
     } else {
-        // We want to decelerate, but limited by maximum deceleration.
-        let desired_decel =
-            limits.decel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
-        // We cannot decelerate too quickly to avoid compressor stall.
-        let actual_accel =
-            desired_decel.max(control.horiz_accel - limits.accel_change_rate * time.delta_secs());
-        control.horiz_accel = actual_accel;
+        if control.horiz_accel > 0. {
+            // We are faster than we want to be and we are even further accelerating,
+            // so reducing throttle is the only correct action.
+            ThrottleAction::Decrease
+        } else {
+            // With a similar approach as above, except accel_change_rate is positive this time.
+            let speed_stop =
+                current_speed - 0.5 * control.horiz_accel.powi(2) / limits.accel_change_rate;
+
+            // As we continue to decelerate, speed(0) decreases over time,
+            // so speed(t_stop) also decreases over time.
+            // We start increasing the throttle when speed(t_stop) <= target.horiz_speed.
+            if speed_stop <= target.horiz_speed {
+                // We will overshoot the speed and go too slow; increase throttle now.
+                ThrottleAction::Increase
+            } else {
+                // Continue to decrease throttle; we are still too fast.
+                ThrottleAction::Decrease
+            }
+        }
+    };
+
+    match desired_action {
+        ThrottleAction::Increase => {
+            // We cannot increase acceleration too quickly to avoid compressor stall.
+            let actual_accel =
+                max_accel.min(control.horiz_accel + limits.accel_change_rate * time.delta_secs());
+            control.horiz_accel = actual_accel;
+        }
+        ThrottleAction::Decrease => {
+            // We cannot decelerate too quickly to avoid compressor stall.
+            let actual_accel =
+                max_decel.max(control.horiz_accel - limits.accel_change_rate * time.delta_secs());
+            control.horiz_accel = actual_accel;
+        }
     }
 
     let new_speed = current_speed + control.horiz_accel * time.delta_secs();

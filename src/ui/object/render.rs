@@ -10,8 +10,9 @@ use bevy::ecs::system::SystemParam;
 use bevy::math::{Vec3, Vec3Swizzles};
 use bevy::prelude::{
     Annulus, BuildChildren, Camera2d, ChildBuild, Children, Commands, Component,
-    DespawnRecursiveExt, Entity, EventReader, GlobalTransform, IntoSystemConfigs, Mesh, Mesh2d,
-    Parent, Query, Res, ResMut, Resource, Single, Transform, Visibility, With, Without,
+    DespawnRecursiveExt, DetectChangesMut, Entity, EventReader, GlobalTransform, IntoSystemConfigs,
+    Mesh, Mesh2d, Mut, Parent, Query, Res, ResMut, Resource, Single, Transform, Visibility, With,
+    Without,
 };
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
@@ -471,13 +472,12 @@ impl<'w, 's> DynamicTextWriterForEntity<'_, 'w, 's> {
     }
 
     fn set_color(&mut self, color: Color) {
-        let mut span = self
+        let span = self
             .text_color_query
             .get_mut(self.entity)
             .expect("descendent of the label entity must have TextColor component");
-        if span.0 != color {
-            span.0 = color;
-        }
+
+        Mut::map_unchanged(span, |TextColor(v)| v).set_if_neq(color);
     }
 
     fn get_text(&self) -> &str {

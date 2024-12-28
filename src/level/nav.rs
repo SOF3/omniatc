@@ -25,6 +25,7 @@ impl Plugin for Plug {
 ///
 /// This optional component is omitted when the plane is not airborne.
 #[derive(Component)]
+#[require(Limits)]
 pub struct VelocityTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
@@ -32,6 +33,13 @@ pub struct VelocityTarget {
     pub horiz_speed: f32,
     /// Target vertical rate, in kt.
     pub vert_rate:   f32,
+}
+
+/// Limits for setting velocity target.
+#[derive(Component, Default)]
+pub struct Limits {
+    /// Minimum horizontal indicated airspeed, in kt.
+    pub min_horiz_speed: f32,
 }
 
 /// Target yaw change.

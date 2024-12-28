@@ -23,7 +23,12 @@ impl Plugin for Plug {
                 .in_set(InputState::ObjectSearch)
                 .in_set(message::SenderSystemSet),
         );
-        app.add_systems(app::Update, deselect_system.in_set(InputState::ObjectAction));
+        app.add_systems(
+            app::Update,
+            deselect_system
+                .in_set(InputState::ObjectAction)
+                .ambiguous_with(InputState::ObjectAction),
+        );
     }
 }
 

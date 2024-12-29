@@ -55,7 +55,7 @@ jobs:
       - uses: "actions/download-artifact@v4"
         with:
           path: "pages"
-      - run: "cp pages/bin-* pages/wasm"
+      - run: "cp -r pages/bin-* pages/wasm"
       - id: deployment
         uses: "actions/upload-pages-artifact@v3"
         with:

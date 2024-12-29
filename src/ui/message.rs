@@ -110,8 +110,6 @@ fn update_queue_position(config: Res<Config>, container: Single<&mut ui::Node, W
         node.top = ui::Val::Auto;
         node.bottom = ui::Val::Px(-config.anchor_position.y);
     }
-
-    // node.min_width = ui::Val::Px(config.container_width);
 }
 
 /// Marks the container text component.
@@ -148,8 +146,6 @@ pub struct Config {
     pub retention_time:  Duration,
     /// Position of the message container border relative to the screen corner.
     pub anchor_position: Vec2,
-    /// Width of the message container.
-    pub container_width: f32,
     /// Color for info messages.
     pub info_color:      Color,
     /// Color for warning messages.
@@ -165,7 +161,6 @@ impl Default for Config {
         Self {
             retention_time:  Duration::from_secs(10),
             anchor_position: Vec2::new(-20., 20.),
-            container_width: 500.,
             info_color:      Color::WHITE,
             warning_color:   Color::srgb(1.0, 1.0, 0.2),
             error_color:     Color::srgb(1.0, 0.2, 0.4),

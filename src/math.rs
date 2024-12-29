@@ -163,7 +163,7 @@ impl fmt::Display for Quantity {
 }
 
 /// An absolute directional bearing.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Heading(
     f32, // in radians, -PI < heading <= PI
 );
@@ -277,10 +277,20 @@ impl Heading {
     /// The result is unspecified if `a` and `b` are exactly opposite.
     #[must_use]
     pub fn is_between(self, a: Heading, b: Heading) -> bool {
-        match a.distance(b, TurnDirection::Clockwise) {
-            dist @ 0.0..PI => dist < a.distance(self, TurnDirection::Clockwise),
-            dist => dist > a.distance(self, TurnDirection::Clockwise),
-        }
+        let ab_dir = a.closer_direction_to(b);
+        let ab_dist = a.distance(b, ab_dir);
+        let a_self_dist = a.distance(self, ab_dir);
+
+        a_self_dist.abs() < ab_dist * a_self_dist.signum()
+    }
+}
+
+impl fmt::Debug for Heading {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Heading")
+            .field("radians", &self.radians())
+            .field("degrees", &self.degrees())
+            .finish()
     }
 }
 

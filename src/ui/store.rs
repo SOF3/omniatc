@@ -41,6 +41,7 @@ impl Plugin for Plug {
                 control: Some(plane::Control::stabilized(Heading::SOUTH)),
                 limits:  DEFAULT_PLANE_LIMITS,
             });
+            plane.insert(DEFAULT_NAV_LIMITS);
         });
         app.add_systems(app::Startup, |mut commands: Commands| {
             let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
@@ -55,11 +56,14 @@ impl Plugin for Plug {
                 control: Some(plane::Control::stabilized(Heading::EAST)),
                 limits:  DEFAULT_PLANE_LIMITS,
             });
-            plane.insert(nav::VelocityTarget {
-                yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
-                vert_rate:   0.,
-                horiz_speed: 200.,
-            });
+            plane.insert((
+                nav::VelocityTarget {
+                    yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
+                    vert_rate:   0.,
+                    horiz_speed: 200.,
+                },
+                DEFAULT_NAV_LIMITS,
+            ));
         });
 
         app.add_systems(app::Startup, |mut commands: Commands| {

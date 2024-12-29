@@ -11,6 +11,7 @@ license = "GPL-3.0"
 default = ["dev"]
 dev = ["inspect", "bevy/dynamic_linking"]
 inspect = ["dep:bevy-inspector-egui"]
+precommit-checks = []
 
 [dependencies]
 bevy-inspector-egui = {version = "0.28.0", optional = true}

@@ -79,7 +79,7 @@ pub struct Limits {
     pub drag_coef:         f32,
 
     // Z axis rotation limits.
-    /// Max rate of change of yaw speed, in rad/s^2.
+    /// Max absolute rate of change of yaw speed, in rad/s^2.
     pub max_yaw_accel: f32,
     /// Max absolute yaw speed, in rad/s.
     pub max_yaw_speed: f32,
@@ -200,9 +200,23 @@ fn maintain_yaw(
     let desired_yaw_speed = match target.yaw {
         YawTarget::Speed(target_yaw_speed) => target_yaw_speed,
         YawTarget::Heading(target_heading) => {
-            match current_yaw.closer_direction_to(target_heading) {
-                TurnDirection::CounterClockwise => -limits.max_yaw_speed,
-                TurnDirection::Clockwise => limits.max_yaw_speed,
+            let dir = current_yaw.closer_direction_to(target_heading);
+
+            // Test if the target heading is overshot when yaw speed reduces to 0
+            // if we start reducing yaw speed now.
+            // By v^2 = u^2 + 2as and v=0, s = -u^2/2a.
+            let brake_distance =
+                control.yaw_speed.powi(2) / limits.max_yaw_accel * control.yaw_speed.signum();
+            let braked_yaw = current_yaw + brake_distance;
+
+            if target_heading.is_between(current_yaw, braked_yaw) {
+                // we are going to overshoot the target heading, start reducing speed now.
+                0.
+            } else {
+                match dir {
+                    TurnDirection::CounterClockwise => -limits.max_yaw_speed,
+                    TurnDirection::Clockwise => limits.max_yaw_speed,
+                }
             }
         }
         YawTarget::TurnHeading {

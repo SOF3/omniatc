@@ -8,6 +8,9 @@ use std::{fmt, ops};
 
 use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 
+#[cfg(test)]
+mod tests;
+
 /// Converts nautical miles to feet.
 pub const FEET_PER_NM: f32 = 6076.12;
 /// Converts nautical miles to feet.
@@ -212,7 +215,7 @@ impl Heading {
     /// Creates a heading from an absolute bearing in radians.
     pub fn from_radians(mut radians: f32) -> Self {
         if radians > PI {
-            radians -= PI;
+            radians -= TAU;
         }
         Self(radians)
     }
@@ -253,7 +256,7 @@ impl Heading {
     /// Returns the closer direction to turn towards `other`.
     ///
     /// This assumes zero current angular velocity.
-    /// The result is unspecified if `a` and `b` are exactly opposite.
+    /// The result is unspecified if `a` and `b` are exactly opposite or equal.
     #[must_use]
     pub fn closer_direction_to(self, other: Heading) -> TurnDirection {
         if self.distance(other, TurnDirection::Clockwise) < PI {

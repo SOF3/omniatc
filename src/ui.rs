@@ -68,6 +68,8 @@ pub enum InputState {
     ObjectSetSpeed,
     /// Set object heading.
     ObjectSetHeading,
+    /// Set object altitude.
+    ObjectSetAltitude,
 }
 
 /// Renderable layers.

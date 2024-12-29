@@ -8,13 +8,13 @@ use bevy::ecs::system::SystemParam;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::prelude::{
-    Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res, ResMut,
-    Resource,
+    Commands, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
+    ResMut, Resource,
 };
 
 use super::select::Selected;
 use crate::level::{nav, object};
-use crate::math::{Heading, TurnDirection};
+use crate::math::{Heading, TurnDirection, FEET_PER_NM};
 use crate::ui::{message, InputState};
 
 pub struct Plug;
@@ -24,6 +24,7 @@ impl Plugin for Plug {
         app.add_plugins((
             ControllablePlug::<SetSpeed>(PhantomData),
             ControllablePlug::<SetHeading>(PhantomData),
+            ControllablePlug::<SetAltitude>(PhantomData),
         ));
     }
 }
@@ -417,4 +418,139 @@ impl Controllable for SetHeading {
 struct SetHeadingGetInitialParams<'w, 's> {
     target_query:   Query<'w, 's, &'static nav::VelocityTarget>,
     airborne_query: Query<'w, 's, &'static object::Airborne>,
+}
+
+struct SetAltitude {
+    initial: f32,
+    current: SetAltitudeCurrent,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SetAltitudeCurrent {
+    Relative(i32),
+    OneDigit(u16),
+    TwoDigit(u16),
+    ThreeDigit(u16),
+}
+
+impl SetAltitude {
+    fn resolve_ft(&self) -> f32 {
+        match self.current {
+            #[allow(clippy::cast_precision_loss)]
+            SetAltitudeCurrent::Relative(diff) => self.initial + diff as f32,
+            SetAltitudeCurrent::OneDigit(thousands) | SetAltitudeCurrent::TwoDigit(thousands) => {
+                f32::from(thousands) * 1000.
+            }
+            SetAltitudeCurrent::ThreeDigit(hundreds) => f32::from(hundreds) * 100.,
+        }
+    }
+}
+impl Controllable for SetAltitude {
+    fn input_state() -> InputState { InputState::ObjectSetAltitude }
+
+    fn normal_step_size() -> u16 { 1000 }
+    fn large_step_size() -> u16 { 3000 }
+    fn small_step_size() -> u16 { 100 }
+
+    fn reset(&mut self) { self.current = SetAltitudeCurrent::Relative(0); }
+
+    fn modify_by(&mut self, change: ChangeDirection, amount: u16) {
+        let amount = i32::from(amount);
+
+        match self.current {
+            SetAltitudeCurrent::Relative(ref mut current) => match change {
+                ChangeDirection::Increase => {
+                    *current = current.saturating_add(amount);
+                    *current -= (*current % amount + amount) % amount;
+                }
+                ChangeDirection::Decrease => {
+                    if *current % amount != 0 {
+                        *current -= (*current % amount + amount) % amount;
+                    } else {
+                        *current = current.saturating_sub(amount);
+                    }
+                }
+            },
+            _ => {
+                self.current = SetAltitudeCurrent::Relative(match change {
+                    ChangeDirection::Increase => amount,
+                    ChangeDirection::Decrease => -amount,
+                });
+            }
+        };
+    }
+
+    fn push_digit(&mut self, digit: u16) {
+        self.current = match self.current {
+            SetAltitudeCurrent::Relative(..) => SetAltitudeCurrent::OneDigit(digit),
+            SetAltitudeCurrent::OneDigit(prev) => SetAltitudeCurrent::TwoDigit(prev * 10 + digit),
+            SetAltitudeCurrent::TwoDigit(prev) => SetAltitudeCurrent::ThreeDigit(prev * 10 + digit),
+            SetAltitudeCurrent::ThreeDigit(prev) => {
+                SetAltitudeCurrent::ThreeDigit(prev % 100 * 10 + digit)
+            }
+        }
+    }
+
+    fn pop_digit(&mut self) {
+        self.current = match self.current {
+            v @ SetAltitudeCurrent::Relative(..) => v,
+            SetAltitudeCurrent::OneDigit(_) => SetAltitudeCurrent::Relative(0),
+            SetAltitudeCurrent::TwoDigit(prev) => SetAltitudeCurrent::OneDigit(prev / 10),
+            SetAltitudeCurrent::ThreeDigit(prev) => SetAltitudeCurrent::TwoDigit(prev / 10),
+        }
+    }
+
+    fn init_keycode() -> KeyCode { KeyCode::KeyA }
+
+    fn make_initiate_controllable_system() -> SystemConfigs {
+        initiate_controllable_system::<Self>.into_configs()
+    }
+
+    type GetInitialParams<'w, 's> = SetAltitudeGetInitialParams<'w, 's>;
+
+    fn get_initial(
+        SetAltitudeGetInitialParams { query }: &mut SetAltitudeGetInitialParams<'_, '_>,
+        object_entity: Entity,
+    ) -> Result<Self, String> {
+        let Ok((target_altitude, position)) = query.get(object_entity) else {
+            return Err("object no longer exists".into());
+        };
+        let altitude = match target_altitude {
+            Some(&nav::TargetAltitude(altitude)) => altitude,
+            None => position.0.z,
+        };
+
+        let altitude_ft = altitude * FEET_PER_NM;
+        Ok(Self { initial: altitude_ft, current: SetAltitudeCurrent::Relative(0) })
+    }
+
+    fn make_execute_controllable_system() -> SystemConfigs {
+        execute_controllable_system::<Self>.into_configs()
+    }
+
+    type ApplyResultParams<'w, 's> = SetAltitudeApplyResultParams<'w, 's>;
+
+    fn apply_result(
+        self,
+        SetAltitudeApplyResultParams { commands, query }: &mut Self::ApplyResultParams<'_, '_>,
+        object_entity: Entity,
+    ) {
+        let altitude = self.resolve_ft() / FEET_PER_NM;
+        if let Ok(Some(mut target_altitude)) = query.get_mut(object_entity) {
+            target_altitude.0 = altitude;
+        } else if let Some(mut entity_commands) = commands.get_entity(object_entity) {
+            entity_commands.insert(nav::TargetAltitude(altitude));
+        }
+    }
+}
+
+#[derive(SystemParam)]
+struct SetAltitudeGetInitialParams<'w, 's> {
+    query: Query<'w, 's, (Option<&'static nav::TargetAltitude>, &'static object::Position)>,
+}
+
+#[derive(SystemParam)]
+struct SetAltitudeApplyResultParams<'w, 's> {
+    commands: Commands<'w, 's>,
+    query:    Query<'w, 's, Option<&'static mut nav::TargetAltitude>>,
 }

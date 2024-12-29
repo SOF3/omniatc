@@ -33,6 +33,9 @@ pub struct VelocityTarget {
     pub horiz_speed: f32,
     /// Target vertical rate, in kt.
     pub vert_rate:   f32,
+    /// Whether vertical rate should be expedited.
+    /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
+    pub expedit:     bool,
 }
 
 /// Limits for setting velocity target.
@@ -81,7 +84,7 @@ fn altitude_control_system(
 
     query.par_iter_mut().for_each(|(altitude, position, mut target)| {
         let diff = altitude.0 - position.0.z;
-        let speed = diff * DELTA_RATE_PER_SECOND;
+        let speed = diff * DELTA_RATE_PER_SECOND * 3600.;
         target.vert_rate = speed;
     });
 }

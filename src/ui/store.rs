@@ -12,11 +12,11 @@ pub struct Plug;
 
 pub const DEFAULT_PLANE_LIMITS: plane::Limits = plane::Limits {
     max_vert_accel:    1.,
-    exp_climb:         plane::ClimbProfile { vert_rate: 20., accel: 0.2, decel: -1.8 },
-    std_climb:         plane::ClimbProfile { vert_rate: 10., accel: 0.6, decel: -1.4 },
+    exp_climb:         plane::ClimbProfile { vert_rate: 30., accel: 0.2, decel: -1.8 },
+    std_climb:         plane::ClimbProfile { vert_rate: 15., accel: 0.6, decel: -1.4 },
     level:             plane::ClimbProfile { vert_rate: 0., accel: 1., decel: -1. },
-    exp_descent:       plane::ClimbProfile { vert_rate: -10., accel: 1.4, decel: -0.6 },
-    std_descent:       plane::ClimbProfile { vert_rate: -20., accel: 1.8, decel: -0.2 },
+    exp_descent:       plane::ClimbProfile { vert_rate: -15., accel: 1.4, decel: -0.6 },
+    std_descent:       plane::ClimbProfile { vert_rate: -30., accel: 1.8, decel: -0.2 },
     drag_coef:         3. / 500. / 500.,
     accel_change_rate: 0.3,
     max_yaw_accel:     PI / 600.,
@@ -28,7 +28,7 @@ pub const DEFAULT_NAV_LIMITS: nav::Limits = nav::Limits { min_horiz_speed: 120. 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         // during early stage of development, just spawn dummy objects for testing
-        app.add_systems(app::Startup, |mut commands: Commands| {
+        /*app.add_systems(app::Startup, |mut commands: Commands| {
             let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
             plane.queue(object::SpawnCommand {
                 position:     object::Position(Vec3A::new(0.0, 10., 5.)),
@@ -42,7 +42,7 @@ impl Plugin for Plug {
                 limits:  DEFAULT_PLANE_LIMITS,
             });
             plane.insert(DEFAULT_NAV_LIMITS);
-        });
+        });*/
         app.add_systems(app::Startup, |mut commands: Commands| {
             let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
             plane.queue(object::SpawnCommand {
@@ -59,8 +59,9 @@ impl Plugin for Plug {
             plane.insert((
                 nav::VelocityTarget {
                     yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
-                    vert_rate:   0.,
                     horiz_speed: 200.,
+                    vert_rate:   0.,
+                    expedit:     false,
                 },
                 DEFAULT_NAV_LIMITS,
             ));

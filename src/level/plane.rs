@@ -143,8 +143,12 @@ impl EntityCommand for SpawnCommand {
         if let Some(airborne) = entity_ref.get::<object::Airborne>() {
             let horiz_speed = airborne.airspeed.length();
 
-            let dt_target =
-                VelocityTarget { yaw: YawTarget::Speed(0.), horiz_speed, vert_rate: 0. };
+            let dt_target = VelocityTarget {
+                yaw: YawTarget::Speed(0.),
+                horiz_speed,
+                vert_rate: 0.,
+                expedit: false,
+            };
 
             entity_ref.insert(dt_target);
         }
@@ -353,8 +357,11 @@ fn maintain_vert(
     limits: &Limits,
     airborne: &mut object::Airborne,
 ) {
-    let desired_vert_rate =
-        target.vert_rate.clamp(limits.exp_descent.vert_rate, limits.exp_climb.vert_rate);
+    let desired_vert_rate = if target.expedit {
+        target.vert_rate.clamp(limits.exp_descent.vert_rate, limits.exp_climb.vert_rate)
+    } else {
+        target.vert_rate.clamp(limits.std_descent.vert_rate, limits.std_climb.vert_rate)
+    };
     let actual_vert_rate = desired_vert_rate.clamp(
         airborne.airspeed.z - limits.max_vert_accel * time.delta_secs(),
         airborne.airspeed.z + limits.max_vert_accel * time.delta_secs(),

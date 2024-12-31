@@ -326,21 +326,28 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
 fn write_speed_status(out: &mut String, object: &ObjectStatusQueryItem) {
     use std::fmt::Write;
 
-    let speed = match object.airborne {
-        Some(&object::Airborne { airspeed }) => airspeed.length(),
-        None => object.ground_speed.0.length(),
-    };
+    writeln!(
+        out,
+        "ground speed {:.1} knots towards {:.1} degrees",
+        object.ground_speed.0.length(),
+        Heading::from_vec3(object.ground_speed.0).degrees()
+    )
+    .unwrap();
+
+    let Some(&object::Airborne { airspeed }) = object.airborne else { return };
+    let airspeed = airspeed.length();
 
     match object.vel_target {
-        None => writeln!(out, "speed {speed:.0} knots, uncontrolled").unwrap(),
+        None => writeln!(out, "speed {airspeed:.0} knots, uncontrolled").unwrap(),
         Some(&nav::VelocityTarget { horiz_speed: target_speed, .. }) => {
-            if (target_speed - speed).abs() < 5. {
-                writeln!(out, "maintaining speed {speed:.0} knots").unwrap();
-            } else if target_speed > speed {
-                writeln!(out, "increasing speed from {speed:.0} to {target_speed:.0} knots")
+            if (target_speed - airspeed).abs() < 5. {
+                writeln!(out, "maintaining speed {airspeed:.0} knots").unwrap();
+            } else if target_speed > airspeed {
+                writeln!(out, "increasing speed from {airspeed:.0} to {target_speed:.0} knots")
                     .unwrap();
             } else {
-                writeln!(out, "reducing speed from {speed:.0} to {target_speed:.0} knots").unwrap();
+                writeln!(out, "reducing speed from {airspeed:.0} to {target_speed:.0} knots")
+                    .unwrap();
             }
         }
     }

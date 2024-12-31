@@ -1,12 +1,14 @@
 use std::f32::consts::PI;
 
 use bevy::app::{self, App, Plugin};
-use bevy::math::{Vec3, Vec3A};
+use bevy::math::bounding::Aabb3d;
+use bevy::math::{Vec2, Vec3, Vec3A};
 use bevy::prelude::Commands;
 
 use crate::level::waypoint::Waypoint;
-use crate::level::{aerodrome, nav, object, plane, waypoint};
+use crate::level::{aerodrome, nav, object, plane, waypoint, wind};
 use crate::math::Heading;
+use crate::pid;
 
 pub struct Plug;
 
@@ -36,6 +38,36 @@ impl Plugin for Plug {
                 ))
                 .id();
 
+            let mut waypoint =
+                commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
+            waypoint.queue(waypoint::SpawnCommand {
+                waypoint: Waypoint {
+                    name:         "ORIGIN".into(),
+                    display_type: waypoint::DisplayType::Vor,
+                    position:     Vec3::ZERO,
+                    navaid_range: vec![waypoint::NavaidRange {
+                        heading_range: Heading::NORTH..Heading::NORTH,
+                        min_pitch:     0.,
+                        max_range:     50.,
+                    }],
+                },
+            });
+            let waypoint = waypoint.id();
+
+            let mut wind = commands.spawn(bevy::core::Name::new(String::from("Wind")));
+            wind.queue(wind::SpawnCommand {
+                bundle: wind::Comps {
+                    vector:        wind::Vector {
+                        bottom: Vec2::new(5.0, 5.0),
+                        top:    Vec2::new(5.0, 5.0),
+                    },
+                    effect_region: wind::EffectRegion(Aabb3d::new(
+                        Vec3A::ZERO,
+                        Vec3A::new(128., 128., 5.),
+                    )),
+                },
+            });
+
             {
                 let mut plane =
                     commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
@@ -51,6 +83,15 @@ impl Plugin for Plug {
                     limits:  DEFAULT_PLANE_LIMITS,
                 });
                 plane.insert(DEFAULT_NAV_LIMITS);
+
+                plane.insert(nav::TargetGroundDirection {
+                    target:    Heading::WEST,
+                    pid_state: pid::State::new(pid::Params {
+                        p_gain: 1.0,
+                        i_gain: 0.0,
+                        d_gain: 0.0,
+                    }),
+                });
             }
 
             {
@@ -75,25 +116,9 @@ impl Plugin for Plug {
                         expedit:     false,
                     },
                     DEFAULT_NAV_LIMITS,
+                    nav::TargetWaypoint { waypoint_entity: waypoint },
                 ));
             }
-        });
-
-        app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut waypoint =
-                commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
-            waypoint.queue(waypoint::SpawnCommand {
-                waypoint: Waypoint {
-                    name:         "ORIGIN".into(),
-                    display_type: waypoint::DisplayType::Vor,
-                    position:     Vec3::ZERO,
-                    navaid_range: vec![waypoint::NavaidRange {
-                        heading_range: Heading::NORTH..Heading::NORTH,
-                        min_pitch:     0.,
-                        max_range:     50.,
-                    }],
-                },
-            });
         });
     }
 }

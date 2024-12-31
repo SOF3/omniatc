@@ -7,6 +7,10 @@ pub struct State {
     prev_error: f32,
 }
 
+impl Default for State {
+    fn default() -> Self { Self::new(Params { p_gain: 1.0, i_gain: 0.0, d_gain: 0.0 }) }
+}
+
 impl State {
     pub fn new(params: Params) -> Self { Self { params, prev_error: 0. } }
 }

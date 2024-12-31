@@ -2,9 +2,11 @@
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
-use bevy::prelude::{Component, IntoSystemConfigs, IntoSystemSetConfigs, Query, Res};
+use bevy::math::Vec3Swizzles;
+use bevy::prelude::{Component, Entity, IntoSystemConfigs, IntoSystemSetConfigs, Query, Res};
 use bevy::time::{self, Time};
 
+use super::waypoint::Waypoint;
 use super::{object, SystemSets};
 use crate::math::{Heading, TurnDirection};
 use crate::pid;
@@ -13,9 +15,13 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
+        app.add_systems(app::Update, altitude_control_system.in_set(SystemSets::Navigate));
+        app.add_systems(app::Update, ground_heading_control_system.in_set(SystemSets::Navigate));
         app.add_systems(
             app::Update,
-            (altitude_control_system, ground_heading_control_system).in_set(SystemSets::Navigate),
+            waypoint_control_system
+                .before(ground_heading_control_system)
+                .in_set(SystemSets::Navigate),
         );
         app.configure_sets(app::Update, SystemSets::Navigate.ambiguous_with(SystemSets::Navigate));
     }
@@ -94,8 +100,12 @@ fn altitude_control_system(
 /// Optional component to control target heading.
 #[derive(Component)]
 pub struct TargetGroundDirection {
-    pub target: Heading,
-    pid_state:  pid::State,
+    pub target:    Heading,
+    pub pid_state: pid::State,
+}
+
+impl Default for TargetGroundDirection {
+    fn default() -> Self { Self { target: Heading::NORTH, pid_state: pid::State::default() } }
 }
 
 #[derive(QueryData)]
@@ -122,5 +132,24 @@ fn ground_heading_control_system(
         let signal = pid::control(&mut data.objective.pid_state, error, time.delta_secs());
         data.signal.yaw =
             YawTarget::Heading(Heading::from_vec3(data.current_air.airspeed) + signal);
+    });
+}
+
+#[derive(Component)]
+#[require(TargetGroundDirection)]
+pub struct TargetWaypoint {
+    pub waypoint_entity: Entity,
+}
+
+fn waypoint_control_system(
+    mut object_query: Query<(&mut TargetGroundDirection, &TargetWaypoint, &object::Position)>,
+    waypoint_query: Query<&Waypoint>,
+) {
+    object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, position)| {
+        let Ok(waypoint_pos) = waypoint_query.get(waypoint.waypoint_entity) else {
+            bevy::log::error!("Invalid waypoint entity {:?}", waypoint.waypoint_entity);
+            return;
+        };
+        ground_dir.target = Heading::from_vec2(waypoint_pos.position.xy() - position.0.xy());
     });
 }

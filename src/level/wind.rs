@@ -3,7 +3,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3A};
-use bevy::prelude::{Bundle, Command, Component, Entity, Query, With, World};
+use bevy::prelude::{Bundle, Component, Entity, EntityCommand, Query, With, World};
 
 /// The direction and strength of wind.
 #[derive(Component)]
@@ -29,13 +29,12 @@ pub struct Comps {
 }
 
 pub struct SpawnCommand {
-    pub entity: Entity,
     pub bundle: Comps,
 }
 
-impl Command for SpawnCommand {
-    fn apply(self, world: &mut World) {
-        world.entity_mut(self.entity).insert((self.bundle, Marker));
+impl EntityCommand for SpawnCommand {
+    fn apply(self, entity: Entity, world: &mut World) {
+        world.entity_mut(entity).insert((self.bundle, Marker));
     }
 }
 

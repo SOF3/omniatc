@@ -1,3 +1,7 @@
-/// Identifies an aerodrome in the game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub u32);
+use bevy::prelude::Component;
+
+#[derive(Component)]
+pub struct Display {
+    pub id:   u32,
+    pub name: String,
+}

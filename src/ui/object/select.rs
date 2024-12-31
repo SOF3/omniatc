@@ -1,13 +1,17 @@
+use std::f32::consts::FRAC_PI_6;
+
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::query::QueryData;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::ButtonInput;
 use bevy::prelude::{
-    Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res, ResMut,
-    Resource,
+    in_state, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
+    ResMut, Resource, Single,
 };
 
-use crate::level::object;
-use crate::ui::{message, InputState};
+use crate::level::{aerodrome, nav, object};
+use crate::math::{Heading, TurnDirection, FEET_PER_NM};
+use crate::ui::{message, track, InputState, SystemSets};
 
 pub struct Plug;
 
@@ -16,40 +20,61 @@ impl Plugin for Plug {
         app.init_resource::<SearchStack>();
         app.init_resource::<Selected>();
 
-        app.add_systems(app::Update, start_search_system.in_set(InputState::Root));
+        app.add_systems(
+            app::Update,
+            start_search_system
+                .in_set(InputState::Root)
+                .in_set(message::SystemSets::FeedbackWriter),
+        );
         app.add_systems(
             app::Update,
             incremental_search_system
                 .in_set(InputState::ObjectSearch)
-                .in_set(message::SenderSystemSet),
+                .in_set(message::SystemSets::LogSender)
+                .in_set(message::SystemSets::FeedbackWriter),
         );
         app.add_systems(
             app::Update,
             deselect_system
                 .in_set(InputState::ObjectAction)
-                .ambiguous_with(InputState::ObjectAction),
+                .ambiguous_with(InputState::ObjectAction)
+                .in_set(message::SystemSets::FeedbackWriter),
+        );
+        app.add_systems(
+            app::Update,
+            write_status_system
+                .in_set(SystemSets::RenderMove)
+                .in_set(message::SystemSets::StatusWriter)
+                .run_if(in_state(InputState::ObjectAction)),
         );
     }
 }
+
+const STATUS_PREFIX: &str = "Search object: ";
 
 fn start_search_system(
     inputs: Res<ButtonInput<KeyCode>>,
     mut input_state: ResMut<NextState<InputState>>,
     mut search_stack: ResMut<SearchStack>,
+    mut feedback: Single<&mut message::Feedback>,
 ) {
     if inputs.just_pressed(KeyCode::Slash) {
         input_state.set(InputState::ObjectSearch);
         search_stack.chars = Some(String::new());
+        feedback.set(message::FeedbackType::ObjectSearch, STATUS_PREFIX);
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn incremental_search_system(
     mut inputs: EventReader<KeyboardInput>,
     mut input_state: ResMut<NextState<InputState>>,
     mut stack: ResMut<SearchStack>,
-    objects: Query<(Entity, &object::Display)>,
-    mut messages: EventWriter<message::PushEvent>,
+    object_query: Query<(Entity, &object::Display, &track::TrailOwnerRef)>,
+    mut trail_owner_query: Query<&mut track::TrailDisplay>,
+    mut messages: EventWriter<message::PushLog>,
     mut selected: ResMut<Selected>,
+    mut feedback: Single<&mut message::Feedback>,
 ) {
     for input in inputs.read() {
         if !input.state.is_pressed() || input.repeat {
@@ -65,11 +90,11 @@ fn incremental_search_system(
             Key::Character(ref str) => {
                 for ch in str.chars() {
                     match ch {
-                        '0'..='9' | 'a'..='z' => {
+                        '0'..='9' | 'A'..='Z' => {
                             chars.push(ch);
                         }
-                        'A'..='Z' => {
-                            chars.push(ch.to_ascii_lowercase());
+                        'a'..='z' => {
+                            chars.push(ch.to_ascii_uppercase());
                         }
                         '/' => chars.clear(),
                         _ => continue,
@@ -80,53 +105,57 @@ fn incremental_search_system(
             Key::Escape => {
                 input_state.set(InputState::Root);
                 stack.chars = None;
+                feedback.unset(message::FeedbackType::ObjectSearch);
+                return; // do not process further keys since we have switched state
             }
             Key::Enter => {
-                let all_matches: Vec<_> = objects
+                let all_matches: Vec<_> = object_query
                     .iter()
-                    .filter(|(_, display)| is_subsequence(chars, &display.name))
-                    .map(|(entity, _)| entity)
+                    .filter(|(_, display, _)| is_subsequence(chars, &display.name))
+                    .map(|(entity, _, trail)| (entity, trail))
                     .collect();
-                let match_ = match all_matches[..] {
+                let (match_, trail_ref) = match all_matches[..] {
                     [] => {
-                        messages.send(message::PushEvent {
+                        messages.send(message::PushLog {
                             message: format!("No objects matching \"{chars}\""),
-                            ty:      message::Type::Error,
+                            ty:      message::LogType::Error,
                         });
                         return;
                     }
-                    [entity] => entity,
+                    [result] => result,
                     _ => {
-                        messages.send(message::PushEvent {
+                        messages.send(message::PushLog {
                             message: format!(
                                 "There are {len} objects matching \"{chars}\"",
                                 len = all_matches.len()
                             ),
-                            ty:      message::Type::Error,
+                            ty:      message::LogType::Error,
                         });
                         return;
                     }
                 };
 
                 stack.chars = None;
+                feedback.unset(message::FeedbackType::ObjectSearch);
                 selected.object_entity = Some(match_);
                 input_state.set(InputState::ObjectAction);
+
+                if let Ok(mut trail) = trail_owner_query.get_mut(trail_ref.0) {
+                    trail.focused = true;
+                } else {
+                    bevy::log::error!("dangling trail owner reference {:?}", trail_ref.0);
+                }
+
+                return; // do not process further keys since we have switched state
             }
             _ => {}
         }
     }
-}
 
-fn deselect_system(
-    mut inputs: EventReader<KeyboardInput>,
-    mut input_state: ResMut<NextState<InputState>>,
-    mut selected: ResMut<Selected>,
-) {
-    for input in inputs.read() {
-        if let Key::Escape = input.logical_key {
-            selected.object_entity = None;
-            input_state.set(InputState::Root);
-        }
+    if let Some(ref chars) = stack.chars {
+        let feedback_msg = feedback.get_mut(message::FeedbackType::ObjectSearch);
+        STATUS_PREFIX.clone_into(feedback_msg);
+        feedback_msg.push_str(chars);
     }
 }
 
@@ -143,6 +172,247 @@ fn is_subsequence(sub: &str, full: &str) -> bool {
     }
 
     sub.next().is_none()
+}
+
+fn deselect_system(
+    mut inputs: EventReader<KeyboardInput>,
+    mut input_state: ResMut<NextState<InputState>>,
+    mut selected: ResMut<Selected>,
+    mut status: Single<&mut message::Status>,
+    object_query: Query<&track::TrailOwnerRef>,
+    mut trail_owner_query: Query<&mut track::TrailDisplay>,
+) {
+    for input in inputs.read() {
+        if let Key::Escape = input.logical_key {
+            if let Some(object) = selected.object_entity.take() {
+                if let Ok(trail_ref) = object_query.get(object) {
+                    if let Ok(mut trail) = trail_owner_query.get_mut(trail_ref.0) {
+                        trail.focused = false;
+                    } else {
+                        bevy::log::warn!("dangling trail owner reference {:?}", trail_ref.0);
+                    }
+                } else {
+                    bevy::log::warn!("Selected entity does not have a TrailOwnerRef");
+                }
+            } else {
+                bevy::log::warn!("deselect system should not be called when Selected is empty");
+            }
+            input_state.set(InputState::Root);
+            status.unset(message::StatusType::ObjectInfo);
+        }
+    }
+}
+
+#[derive(QueryData)]
+struct ObjectStatusQuery {
+    display:         &'static object::Display,
+    dest:            &'static object::Destination,
+    position:        &'static object::Position,
+    ground_speed:    &'static object::GroundSpeed,
+    airborne:        Option<&'static object::Airborne>,
+    vel_target:      Option<&'static nav::VelocityTarget>,
+    target_altitude: Option<&'static nav::TargetAltitude>,
+}
+
+#[derive(QueryData)]
+struct AerodromeStatusQuery {
+    display: &'static aerodrome::Display,
+}
+
+fn write_status_system(
+    mut status: Single<&mut message::Status>,
+    selected: Res<Selected>,
+    object_query: Query<ObjectStatusQuery>,
+    aerodrome_query: Query<AerodromeStatusQuery>,
+) {
+    let status = &mut **status;
+    let Selected { object_entity: Some(entity) } = *selected else { return };
+    let Ok(object) = object_query.get(entity) else {
+        status.set(message::StatusType::ObjectInfo, "Invalid selection");
+        return;
+    };
+
+    let out = status.get_mut(message::StatusType::ObjectInfo);
+    out.clear();
+
+    write_route_status(out, &object, &aerodrome_query);
+    write_altitude_status(out, &object);
+    write_speed_status(out, &object);
+    write_direction_status(out, &object);
+}
+
+fn write_route_status(
+    out: &mut String,
+    object: &ObjectStatusQueryItem,
+    aerodrome_query: &Query<AerodromeStatusQuery>,
+) {
+    use std::fmt::Write;
+
+    write!(out, "{}", &object.display.name).unwrap();
+    match *object.dest {
+        object::Destination::Departure { aerodrome: src } => {
+            if let Ok(AerodromeStatusQueryItem {
+                display: aerodrome::Display { name, .. }, ..
+            }) = aerodrome_query.get(src)
+            {
+                write!(out, " from {name}").unwrap();
+            }
+        }
+        object::Destination::Arrival { aerodrome: dest } => {
+            if let Ok(AerodromeStatusQueryItem {
+                display: aerodrome::Display { name, .. }, ..
+            }) = aerodrome_query.get(dest)
+            {
+                write!(out, " to {name}").unwrap();
+            }
+        }
+        object::Destination::Ferry { from_aerodrome: src, to_aerodrome: dest } => {
+            if let Ok(
+                [AerodromeStatusQueryItem { display: aerodrome::Display { name: from, .. }, .. }, AerodromeStatusQueryItem { display: aerodrome::Display { name: to, .. }, .. }],
+            ) = aerodrome_query.get_many([src, dest])
+            {
+                write!(out, " from {from} to {to}").unwrap();
+            }
+        }
+    }
+
+    writeln!(out).unwrap();
+}
+
+fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
+    use std::fmt::Write;
+
+    if object.airborne.is_some() {
+        // TODO use pressure altitudes where appropriate
+        match object.target_altitude {
+            None => {
+                writeln!(
+                    out,
+                    "passing {:.0} feet, uncontrolled",
+                    object.position.0.z * FEET_PER_NM
+                )
+                .unwrap();
+            }
+            Some(&nav::TargetAltitude(target)) => {
+                let expedit = object.vel_target.is_some_and(|t| t.expedit);
+
+                if (target - object.position.0.z).abs() * FEET_PER_NM < 100. {
+                    writeln!(out, "maintaining {:.0} feet", object.position.0.z * FEET_PER_NM)
+                        .unwrap();
+                } else if target > object.position.0.z {
+                    writeln!(
+                        out,
+                        "{} from {:.0} feet to {:.0} feet",
+                        if expedit { "expediting climb" } else { "climbing" },
+                        object.position.0.z * FEET_PER_NM,
+                        target * FEET_PER_NM
+                    )
+                    .unwrap();
+                } else {
+                    writeln!(
+                        out,
+                        "{} from {:.0} feet to {:.0} feet",
+                        if expedit { "expediting descent" } else { "descending" },
+                        object.position.0.z * FEET_PER_NM,
+                        target * FEET_PER_NM
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+}
+
+fn write_speed_status(out: &mut String, object: &ObjectStatusQueryItem) {
+    use std::fmt::Write;
+
+    let speed = match object.airborne {
+        Some(&object::Airborne { airspeed }) => airspeed.length(),
+        None => object.ground_speed.0.length(),
+    };
+
+    match object.vel_target {
+        None => writeln!(out, "speed {speed:.0} knots, uncontrolled").unwrap(),
+        Some(&nav::VelocityTarget { horiz_speed: target_speed, .. }) => {
+            if (target_speed - speed).abs() < 5. {
+                writeln!(out, "maintaining speed {speed:.0} knots").unwrap();
+            } else if target_speed > speed {
+                writeln!(out, "increasing speed from {speed:.0} to {target_speed:.0} knots")
+                    .unwrap();
+            } else {
+                writeln!(out, "reducing speed from {speed:.0} to {target_speed:.0} knots").unwrap();
+            }
+        }
+    }
+}
+
+fn write_direction_status(out: &mut String, object: &ObjectStatusQueryItem) {
+    use std::fmt::Write;
+
+    let Some(&object::Airborne { airspeed }) = object.airborne else { return };
+    let heading = Heading::from_vec3(airspeed);
+
+    match object.vel_target {
+        None => writeln!(out, "heading {:0>3.0}, uncontrolled", heading.degrees()).unwrap(),
+        Some(nav::VelocityTarget { yaw, .. }) => match *yaw {
+            nav::YawTarget::Speed(speed) if speed == 0.0 => {
+                writeln!(out, "maintaining heading {:0>3.0}", heading.degrees()).unwrap();
+            }
+            nav::YawTarget::Speed(speed) if speed > 0. => {
+                writeln!(out, "turning right {:.1} degrees per second", speed.to_degrees())
+                    .unwrap();
+            }
+            nav::YawTarget::Speed(speed) => {
+                writeln!(out, "turning left {:.1} degrees per second", -speed.to_degrees())
+                    .unwrap();
+            }
+            nav::YawTarget::Heading(target_heading) => {
+                let dir = heading.closer_direction_to(target_heading);
+                let dist = heading.distance(target_heading, dir);
+                if dist.abs() < FRAC_PI_6 / 12. {
+                    writeln!(out, "maintaining heading {:0>3.0} degrees", target_heading.degrees())
+                        .unwrap();
+                } else {
+                    writeln!(
+                        out,
+                        "turning {} to heading {:0>3.0} degrees",
+                        match dir {
+                            TurnDirection::CounterClockwise => "left",
+                            TurnDirection::Clockwise => "right",
+                        },
+                        target_heading.degrees(),
+                    )
+                    .unwrap();
+                }
+            }
+            nav::YawTarget::TurnHeading {
+                heading: target_heading,
+                remaining_crosses,
+                direction,
+            } => {
+                let dir_str = match direction {
+                    TurnDirection::CounterClockwise => "left",
+                    TurnDirection::Clockwise => "right",
+                };
+
+                match remaining_crosses {
+                    2.. => {
+                        write!(
+                            out,
+                            "turning {dir_str} for {remaining_crosses} full circles and stopping \
+                             at"
+                        )
+                        .unwrap();
+                    }
+                    1 => write!(out, "turning {dir_str} for one full circle and stopping at")
+                        .unwrap(),
+                    0 => write!(out, "turning {dir_str} to").unwrap(),
+                }
+
+                writeln!(out, " heading {:0>3.0} degrees", target_heading.degrees()).unwrap();
+            }
+        },
+    }
 }
 
 #[derive(Resource, Default)]

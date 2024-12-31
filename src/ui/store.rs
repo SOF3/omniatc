@@ -28,43 +28,55 @@ pub const DEFAULT_NAV_LIMITS: nav::Limits = nav::Limits { min_horiz_speed: 120. 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         // during early stage of development, just spawn dummy objects for testing
-        /*app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
-            plane.queue(object::SpawnCommand {
-                position:     object::Position(Vec3A::new(0.0, 10., 5.)),
-                ground_speed: object::GroundSpeed(Vec3A::new(0.0, 130., 0.)),
-                display:      object::Display { name: String::from("ABC123") },
-                destination:  object::Destination::Arrival(aerodrome::Id(0)),
-            });
-            plane.queue(object::SetAirborneCommand);
-            plane.queue(plane::SpawnCommand {
-                control: Some(plane::Control::stabilized(Heading::SOUTH)),
-                limits:  DEFAULT_PLANE_LIMITS,
-            });
-            plane.insert(DEFAULT_NAV_LIMITS);
-        });*/
         app.add_systems(app::Startup, |mut commands: Commands| {
-            let mut plane = commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
-            plane.queue(object::SpawnCommand {
-                position:     object::Position(Vec3A::new(10., 0., 3.)),
-                ground_speed: object::GroundSpeed(Vec3A::new(200.0, 0., 0.)),
-                display:      object::Display { name: String::from("ADE127") },
-                destination:  object::Destination::Departure(aerodrome::Id(0)),
-            });
-            plane.queue(object::SetAirborneCommand);
-            plane.queue(plane::SpawnCommand {
-                control: Some(plane::Control::stabilized(Heading::EAST)),
-                limits:  DEFAULT_PLANE_LIMITS,
-            });
-            plane.insert((
-                nav::VelocityTarget {
-                    yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
-                    horiz_speed: 200.,
-                    vert_rate:   0.,
-                    expedit:     false,
-                },
-                DEFAULT_NAV_LIMITS,
-            ));
+            let main_airport = commands
+                .spawn((
+                    bevy::core::Name::new(String::from("Aerodrome ALFA")),
+                    aerodrome::Display { id: 0, name: "MAIN".into() },
+                ))
+                .id();
+
+            {
+                let mut plane =
+                    commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
+                plane.queue(object::SpawnCommand {
+                    position:     object::Position(Vec3A::new(0.0, 10., 5.)),
+                    ground_speed: object::GroundSpeed(Vec3A::new(0.0, 130., 0.)),
+                    display:      object::Display { name: String::from("ABC123") },
+                    destination:  object::Destination::Arrival { aerodrome: main_airport },
+                });
+                plane.queue(object::SetAirborneCommand);
+                plane.queue(plane::SpawnCommand {
+                    control: Some(plane::Control::stabilized(Heading::SOUTH)),
+                    limits:  DEFAULT_PLANE_LIMITS,
+                });
+                plane.insert(DEFAULT_NAV_LIMITS);
+            }
+
+            {
+                let mut plane =
+                    commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
+                plane.queue(object::SpawnCommand {
+                    position:     object::Position(Vec3A::new(10., 0., 3.)),
+                    ground_speed: object::GroundSpeed(Vec3A::new(200.0, 0., 0.)),
+                    display:      object::Display { name: String::from("ADE127") },
+                    destination:  object::Destination::Departure { aerodrome: main_airport },
+                });
+                plane.queue(object::SetAirborneCommand);
+                plane.queue(plane::SpawnCommand {
+                    control: Some(plane::Control::stabilized(Heading::EAST)),
+                    limits:  DEFAULT_PLANE_LIMITS,
+                });
+                plane.insert((
+                    nav::VelocityTarget {
+                        yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
+                        horiz_speed: 200.,
+                        vert_rate:   0.,
+                        expedit:     false,
+                    },
+                    DEFAULT_NAV_LIMITS,
+                ));
+            }
         });
 
         app.add_systems(app::Startup, |mut commands: Commands| {

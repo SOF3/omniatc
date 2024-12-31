@@ -9,7 +9,7 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::prelude::{
     Commands, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
-    ResMut, Resource,
+    ResMut, Resource, Single,
 };
 
 use super::select::Selected;
@@ -37,7 +37,7 @@ impl<C: Controllable> Plugin for ControllablePlug<C> {
         app.add_systems(
             app::Update,
             C::make_initiate_controllable_system()
-                .in_set(message::SenderSystemSet)
+                .in_set(message::SystemSets::LogSender)
                 .in_set(InputState::ObjectAction)
                 .ambiguous_with(InputState::ObjectAction),
         );
@@ -76,6 +76,9 @@ trait Controllable: Sized + Send + Sync + 'static {
 
     type ApplyResultParams<'w, 's>: SystemParam;
     fn apply_result(self, params: &mut Self::ApplyResultParams<'_, '_>, object_entity: Entity);
+
+    fn feedback_prefix() -> &'static str;
+    fn feedback_write(&self, s: &mut String);
 }
 
 enum ChangeDirection {
@@ -94,8 +97,9 @@ fn initiate_controllable_system<C: Controllable>(
     mut input_state: ResMut<NextState<InputState>>,
     mut controllable_state: ResMut<ControllableState<C>>,
     selected: Res<Selected>,
-    mut messages: EventWriter<message::PushEvent>,
+    mut messages: EventWriter<message::PushLog>,
     mut params: C::GetInitialParams<'_, '_>,
+    mut feedback: Single<&mut message::Feedback>,
 ) {
     let Some(selected) = selected.object_entity else { return };
 
@@ -105,9 +109,10 @@ fn initiate_controllable_system<C: Controllable>(
         match C::get_initial(&mut params, selected) {
             Ok(current) => {
                 *controllable_state = ControllableState::Active { current };
+                feedback.set(message::FeedbackType::ObjectControl, C::feedback_prefix());
             }
             Err(err) => {
-                messages.send(message::PushEvent { message: err, ty: message::Type::Error });
+                messages.send(message::PushLog { message: err, ty: message::LogType::Error });
             }
         }
     }
@@ -120,6 +125,7 @@ fn execute_controllable_system<C: Controllable>(
     mut state: ResMut<ControllableState<C>>,
     selected: Res<Selected>,
     mut apply_result_params: C::ApplyResultParams<'_, '_>,
+    mut feedback: Single<&mut message::Feedback>,
 ) {
     fn modify_by<C: Controllable>(
         inputs: &ButtonInput<KeyCode>,
@@ -141,6 +147,8 @@ fn execute_controllable_system<C: Controllable>(
     let Some(selected) = selected.object_entity else { return };
     let ControllableState::Active { ref mut current } = *state else { return };
 
+    let mut feedback_reload = false;
+
     for input in input_reader.read() {
         match input {
             KeyboardInput { logical_key: Key::Backspace, state: ButtonState::Pressed, .. } => {
@@ -149,13 +157,17 @@ fn execute_controllable_system<C: Controllable>(
                 } else {
                     current.pop_digit();
                 }
+                feedback_reload = true;
             }
             KeyboardInput {
                 key_code:
                     KeyCode::Equal | KeyCode::NumpadAdd | KeyCode::ArrowUp | KeyCode::ArrowRight,
                 state: ButtonState::Pressed,
                 ..
-            } => modify_by(&inputs, current, ChangeDirection::Increase),
+            } => {
+                modify_by(&inputs, current, ChangeDirection::Increase);
+                feedback_reload = true;
+            }
             KeyboardInput {
                 key_code:
                     KeyCode::Minus | KeyCode::NumpadSubtract | KeyCode::ArrowDown | KeyCode::ArrowLeft,
@@ -165,16 +177,18 @@ fn execute_controllable_system<C: Controllable>(
             KeyboardInput { logical_key: Key::Escape, .. } => {
                 *state = ControllableState::Inactive;
                 input_state.set(InputState::ObjectAction);
+                feedback.unset(message::FeedbackType::ObjectControl);
                 return;
             }
             KeyboardInput { logical_key: Key::Enter, state: ButtonState::Pressed, .. } => {
                 let ControllableState::Active { current } =
                     mem::replace(&mut *state, ControllableState::Inactive)
                 else {
-                    unreachable!()
+                    unreachable!("checked before the loop")
                 };
                 current.apply_result(&mut apply_result_params, selected);
                 input_state.set(InputState::ObjectAction);
+                feedback.unset(message::FeedbackType::ObjectControl);
                 return;
             }
             KeyboardInput {
@@ -188,9 +202,16 @@ fn execute_controllable_system<C: Controllable>(
                         current.push_digit(u16::try_from(digit).expect("digit < 10"));
                     }
                 }
+                feedback_reload = true;
             }
             _ => {}
         }
+    }
+
+    if feedback_reload {
+        let message = feedback.get_mut(message::FeedbackType::ObjectControl);
+        C::feedback_prefix().clone_into(message);
+        current.feedback_write(message);
     }
 }
 
@@ -258,6 +279,13 @@ impl Controllable for SetSpeed {
         if let Ok(mut target) = target_query.get_mut(object_entity) {
             target.horiz_speed = f32::from(self.speed);
         }
+    }
+
+    fn feedback_prefix() -> &'static str { "Set speed: " }
+
+    fn feedback_write(&self, s: &mut String) {
+        use std::fmt::Write;
+        write!(s, "{}", self.speed).unwrap();
     }
 }
 
@@ -412,6 +440,17 @@ impl Controllable for SetHeading {
             nav::YawTarget::Heading(self.heading)
         };
     }
+
+    fn feedback_prefix() -> &'static str { "Set heading: " }
+
+    fn feedback_write(&self, s: &mut String) {
+        use std::fmt::Write;
+        match self.rotation_offset {
+            -179..180 => write!(s, "{:0>3.0}", self.heading.degrees()).unwrap(),
+            180.. => write!(s, "{:0>3.0} R", self.heading.degrees()).unwrap(),
+            ..-179 => write!(s, "{:0>3.0} L", self.heading.degrees()).unwrap(),
+        }
+    }
 }
 
 #[derive(SystemParam)]
@@ -445,6 +484,7 @@ impl SetAltitude {
         }
     }
 }
+
 impl Controllable for SetAltitude {
     fn input_state() -> InputState { InputState::ObjectSetAltitude }
 
@@ -541,6 +581,14 @@ impl Controllable for SetAltitude {
         } else if let Some(mut entity_commands) = commands.get_entity(object_entity) {
             entity_commands.insert(nav::TargetAltitude(altitude));
         }
+    }
+
+    fn feedback_prefix() -> &'static str { "Set altitude: " }
+
+    fn feedback_write(&self, s: &mut String) {
+        use std::fmt::Write;
+        let ft = self.resolve_ft();
+        write!(s, "{ft:.0} ft").unwrap();
     }
 }
 

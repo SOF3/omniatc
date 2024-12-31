@@ -12,7 +12,7 @@ use bevy::prelude::{
 };
 use bevy::time::{self, Time, Timer, TimerMode};
 
-use super::{aerodrome, wind, Config, SystemSets};
+use super::{wind, Config, SystemSets};
 use crate::math::{
     PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
     TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
@@ -47,15 +47,15 @@ pub struct Display {
 #[derive(Component)]
 pub enum Destination {
     /// An outbound flight from the aerodrome.
-    Departure(aerodrome::Id),
+    Departure { aerodrome: Entity },
     /// An inbound flight to the aerodrome.
-    Arrival(aerodrome::Id),
+    Arrival { aerodrome: Entity },
     /// A local flight from `from` to `to`.
     Ferry {
         /// Source aerodrome.
-        from: aerodrome::Id,
+        from_aerodrome: Entity,
         /// Destination aerodrome.
-        to:   aerodrome::Id,
+        to_aerodrome:   Entity,
     },
 }
 

@@ -19,7 +19,7 @@ use bevy::text::{Text2d, TextColor, TextSpan};
 use bevy::time::Time;
 
 use super::{select, ColorScheme, Config, LabelElement, LabelLine};
-use crate::level::{nav, object, plane};
+use crate::level::{aerodrome, nav, object, plane};
 use crate::math::{Heading, TurnDirection, TROPOPAUSE_ALTITUDE};
 use crate::ui::{billboard, SystemSets, Zorder};
 
@@ -164,6 +164,7 @@ fn maintain_viewable_system(
     separation_ring_query: Query<&MeshMaterial2d<ColorMaterial>, With<SeparationRing>>,
     label_query: Query<&LabelViewable>,
     mut writer: DynamicTextWriter,
+    resolve_color_params: ResolveColorParams,
     write_label_params: WriteLabelParams,
     mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -190,7 +191,7 @@ fn maintain_viewable_system(
             last_render.0 = Some(time.elapsed());
         }
 
-        let color = parent.resolve_color(&config.color_scheme);
+        let color = parent.resolve_color(&config.color_scheme, &resolve_color_params);
 
         owner_tf.translation = parent.position.0.into();
 
@@ -250,22 +251,41 @@ fn maintain_label(
     }
 }
 
+#[derive(SystemParam)]
+struct ResolveColorParams<'w, 's> {
+    aerodrome_query: Query<'w, 's, &'static aerodrome::Display>,
+}
+
 impl ParentQueryDataItem<'_> {
-    fn resolve_color(&self, color_scheme: &ColorScheme) -> Color {
+    fn resolve_color(&self, color_scheme: &ColorScheme, params: &ResolveColorParams) -> Color {
         match color_scheme {
             ColorScheme::Mixed { a, b, factor } => {
-                self.resolve_color(a).mix(&self.resolve_color(b), *factor)
+                self.resolve_color(a, params).mix(&self.resolve_color(b, params), *factor)
             }
             ColorScheme::Altitude(scale) => {
                 scale.get((self.position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.))
             }
-            ColorScheme::Destination { departure, arrival, ferry } => match self.destination {
-                object::Destination::Departure(id) => {
-                    departure[(id.0 as usize).min(departure.len() - 1)]
+            ColorScheme::Destination { departure, arrival, ferry } => match *self.destination {
+                object::Destination::Departure { aerodrome } => {
+                    let id = match params.aerodrome_query.get(aerodrome) {
+                        Ok(&aerodrome::Display { id, .. }) => id,
+                        _ => 0,
+                    };
+                    departure[(id as usize).min(departure.len() - 1)]
                 }
-                object::Destination::Arrival(id) => arrival[(id.0 as usize).min(arrival.len() - 1)],
-                object::Destination::Ferry { to, .. } => {
-                    ferry[(to.0 as usize).min(ferry.len() - 1)]
+                object::Destination::Arrival { aerodrome } => {
+                    let id = match params.aerodrome_query.get(aerodrome) {
+                        Ok(&aerodrome::Display { id, .. }) => id,
+                        _ => 0,
+                    };
+                    arrival[(id as usize).min(arrival.len() - 1)]
+                }
+                object::Destination::Ferry { to_aerodrome, .. } => {
+                    let id = match params.aerodrome_query.get(to_aerodrome) {
+                        Ok(&aerodrome::Display { id, .. }) => id,
+                        _ => 0,
+                    };
+                    ferry[(id as usize).min(ferry.len() - 1)]
                 }
             },
         }
@@ -465,9 +485,8 @@ impl<'w, 's> DynamicTextWriterForEntity<'_, 'w, 's> {
             .text_span_query
             .get_mut(self.entity)
             .expect("descendent of the label entity must have TextSpan component");
-        if span.0.as_str() != text.as_ref() {
-            span.0.clear();
-            span.0.push_str(text.as_ref());
+        if span.0 != text.as_ref() {
+            text.as_ref().clone_into(&mut span.0);
         }
     }
 

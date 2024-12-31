@@ -39,12 +39,12 @@ impl Plugin for Plug {
 
 /// Component on object entities referencing its child trail owner entity.
 #[derive(Component)]
-struct TrailOwnerRef(pub Entity);
+pub struct TrailOwnerRef(pub Entity);
 
 /// Component on trail owner entity to display the trail.
 #[derive(Component)]
-struct TrailDisplay {
-    focused: bool,
+pub struct TrailDisplay {
+    pub focused: bool,
 }
 
 #[derive(Component)]

@@ -33,6 +33,7 @@ pub enum DisplayType {
     /// A VHF Omnidirectional Range station.
     Vor,
     /// The waypoint should not be displayed on the map.
+    /// Used for virtual waypoints such as localizer limits.
     None,
 }
 

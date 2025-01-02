@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::math::bounding::Aabb3d;
@@ -8,7 +9,6 @@ use bevy::prelude::Commands;
 use crate::level::waypoint::Waypoint;
 use crate::level::{aerodrome, nav, object, plane, waypoint, wind};
 use crate::math::Heading;
-use crate::pid;
 
 pub struct Plug;
 
@@ -22,10 +22,10 @@ pub const DEFAULT_PLANE_LIMITS: plane::Limits = plane::Limits {
     drag_coef:         3. / 500. / 500.,
     accel_change_rate: 0.3,
     max_yaw_accel:     PI / 600.,
-    max_yaw_speed:     PI / 60.,
 };
 
-pub const DEFAULT_NAV_LIMITS: nav::Limits = nav::Limits { min_horiz_speed: 120. };
+pub const DEFAULT_NAV_LIMITS: nav::Limits =
+    nav::Limits { min_horiz_speed: 120., max_yaw_speed: PI / 60. };
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
@@ -38,21 +38,37 @@ impl Plugin for Plug {
                 ))
                 .id();
 
-            let mut waypoint =
-                commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
-            waypoint.queue(waypoint::SpawnCommand {
-                waypoint: Waypoint {
-                    name:         "ORIGIN".into(),
-                    display_type: waypoint::DisplayType::Vor,
-                    position:     Vec3::ZERO,
-                    navaid_range: vec![waypoint::NavaidRange {
-                        heading_range: Heading::NORTH..Heading::NORTH,
-                        min_pitch:     0.,
-                        max_range:     50.,
-                    }],
-                },
-            });
-            let waypoint = waypoint.id();
+            let origin = {
+                let mut entity =
+                    commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
+                entity.queue(waypoint::SpawnCommand {
+                    waypoint: Waypoint {
+                        name:         "ORIGIN".into(),
+                        display_type: waypoint::DisplayType::Vor,
+                        position:     Vec3::ZERO,
+                        navaid_range: vec![waypoint::NavaidRange {
+                            heading_range: Heading::NORTH..Heading::NORTH,
+                            min_pitch:     0.,
+                            max_range:     50.,
+                        }],
+                    },
+                });
+                entity.id()
+            };
+
+            let join = {
+                let mut entity =
+                    commands.spawn(bevy::core::Name::new(String::from("Waypoint: JOIN")));
+                entity.queue(waypoint::SpawnCommand {
+                    waypoint: Waypoint {
+                        name:         "JOIN".into(),
+                        display_type: waypoint::DisplayType::Waypoint,
+                        position:     Vec3::new(0., 12., 0.),
+                        navaid_range: vec![],
+                    },
+                });
+                entity.id()
+            };
 
             let mut wind = commands.spawn(bevy::core::Name::new(String::from("Wind")));
             wind.queue(wind::SpawnCommand {
@@ -72,25 +88,23 @@ impl Plugin for Plug {
                 let mut plane =
                     commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
                 plane.queue(object::SpawnCommand {
-                    position:     object::Position(Vec3A::new(0.0, 10., 5.)),
-                    ground_speed: object::GroundSpeed(Vec3A::new(0.0, 130., 0.)),
+                    position:     object::Position(Vec3A::new(1.0, 15., 0.6)),
+                    ground_speed: object::GroundSpeed(Vec3A::new(-40., 130., 0.)),
                     display:      object::Display { name: String::from("ABC123") },
                     destination:  object::Destination::Arrival { aerodrome: main_airport },
                 });
                 plane.queue(object::SetAirborneCommand);
                 plane.queue(plane::SpawnCommand {
-                    control: Some(plane::Control::stabilized(Heading::SOUTH)),
+                    control: Some(plane::Control::stabilized(Heading::from_degrees(210.))),
                     limits:  DEFAULT_PLANE_LIMITS,
                 });
                 plane.insert(DEFAULT_NAV_LIMITS);
 
-                plane.insert(nav::TargetGroundDirection {
-                    target:    Heading::WEST,
-                    pid_state: pid::State::new(pid::Params {
-                        p_gain: 1.0,
-                        i_gain: 0.0,
-                        d_gain: 0.0,
-                    }),
+                plane.insert(nav::TargetAlignment {
+                    activation_range: 0.2,
+                    lookahead:        Duration::from_secs(20),
+                    start_waypoint:   join,
+                    end_waypoint:     origin,
                 });
             }
 
@@ -110,13 +124,13 @@ impl Plugin for Plug {
                 });
                 plane.insert((
                     nav::VelocityTarget {
-                        yaw:         nav::YawTarget::Speed(DEFAULT_PLANE_LIMITS.max_yaw_speed),
+                        yaw:         nav::YawTarget::Speed(DEFAULT_NAV_LIMITS.max_yaw_speed),
                         horiz_speed: 200.,
                         vert_rate:   0.,
                         expedit:     false,
                     },
                     DEFAULT_NAV_LIMITS,
-                    nav::TargetWaypoint { waypoint_entity: waypoint },
+                    nav::TargetWaypoint { waypoint_entity: origin },
                 ));
             }
         });

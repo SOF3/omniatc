@@ -2,7 +2,7 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use bevy::math::Vec2;
 
-use super::{Heading, TurnDirection};
+use super::{line_circle_intersect, Heading, TurnDirection};
 
 fn assert_almost_eq(left: Heading, right: Heading, message: &str) {
     let delta = (left.0 - right.0).abs();
@@ -138,5 +138,55 @@ fn heading_is_between() {
     assert!(
         !Heading::SOUTH.is_between(Heading::from_degrees(1.), Heading::from_degrees(-1.)),
         "south is not between -1 and 1 degrees"
+    );
+}
+
+fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
+    assert_eq!(actual.is_none(), expect.is_none());
+
+    if let (Some([actual_low, actual_high]), Some([expect_low, expect_high])) = (actual, expect) {
+        assert!(
+            (actual_low - expect_low).abs() < 1e-5,
+            "expected k1 = {expect_low:?}, got {actual_low:?}"
+        );
+        assert!(
+            (actual_high - expect_high).abs() < 1e-5,
+            "expected k2 = {expect_high:?}, got {actual_high:?}"
+        );
+    }
+}
+
+#[test]
+fn line_circle_intersect_middle() {
+    let line_length = 200f32.sqrt();
+    let radius_ratio = 2. / line_length;
+
+    assert_line_circle_intersect(
+        line_circle_intersect(Vec2::new(10., 0.), 2., Vec2::new(5., 5.), Vec2::new(15., -5.)),
+        Some([0.5 - radius_ratio, 0.5 + radius_ratio]),
+    );
+}
+
+#[test]
+fn line_circle_intersect_contain_start() {
+    assert_line_circle_intersect(
+        line_circle_intersect(Vec2::new(10., 0.), 2., Vec2::new(9., 1.), Vec2::new(19., 1.)),
+        Some([0., (3f32.sqrt() + 1.) / 10.]),
+    );
+}
+
+#[test]
+fn line_circle_intersect_contain_end() {
+    assert_line_circle_intersect(
+        line_circle_intersect(Vec2::new(10., 0.), 4., Vec2::new(1., 1.), Vec2::new(11., 1.)),
+        Some([1. - (3f32.sqrt() + 1.) / 10., 1.]),
+    );
+}
+
+#[test]
+fn line_circle_intersect_outside() {
+    assert_line_circle_intersect(
+        line_circle_intersect(Vec2::new(10., 0.), 4., Vec2::new(10., 10.), Vec2::new(0., 0.)),
+        None,
     );
 }

@@ -10,7 +10,7 @@ use bevy::prelude::{
 };
 use bevy::time::{self, Time};
 
-use super::nav::{VelocityTarget, YawTarget};
+use super::nav::{self, VelocityTarget, YawTarget};
 use super::{object, SystemSets};
 use crate::math::{lerp, unlerp, Heading, TurnDirection};
 
@@ -81,8 +81,6 @@ pub struct Limits {
     // Z axis rotation limits.
     /// Max absolute rate of change of yaw speed, in rad/s^2.
     pub max_yaw_accel: f32,
-    /// Max absolute yaw speed, in rad/s.
-    pub max_yaw_speed: f32,
 }
 
 impl Limits {
@@ -176,23 +174,32 @@ pub struct SpawnEvent(pub Entity);
 
 fn apply_forces_system(
     time: Res<Time<time::Virtual>>,
-    mut plane_query: Query<(&mut VelocityTarget, &mut Control, &Limits, &mut object::Airborne)>,
+    mut plane_query: Query<(
+        &mut VelocityTarget,
+        &mut Control,
+        &Limits,
+        &nav::Limits,
+        &mut object::Airborne,
+    )>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    plane_query.par_iter_mut().for_each(|(mut target, mut control, limits, mut airborne)| {
-        // All components are always changed. Deref first to avoid borrowck issues.
-        maintain_yaw(&time, &mut target, &mut control, limits, &airborne);
-        maintain_accel(&time, &target, &mut control, limits, &mut airborne);
-        maintain_vert(&time, &target, limits, &mut airborne);
-    });
+    plane_query.par_iter_mut().for_each(
+        |(mut target, mut control, limits, nav_limits, mut airborne)| {
+            // All components are always changed. Deref first to avoid borrowck issues.
+            maintain_yaw(&time, &mut target, nav_limits, &mut control, limits, &airborne);
+            maintain_accel(&time, &target, &mut control, limits, &mut airborne);
+            maintain_vert(&time, &target, limits, &mut airborne);
+        },
+    );
 }
 
 fn maintain_yaw(
     time: &Time<time::Virtual>,
     target: &mut VelocityTarget,
+    nav_limits: &nav::Limits,
     control: &mut Control,
     limits: &Limits,
     airborne: &object::Airborne,
@@ -218,8 +225,8 @@ fn maintain_yaw(
                 0.
             } else {
                 match dir {
-                    TurnDirection::CounterClockwise => -limits.max_yaw_speed,
-                    TurnDirection::Clockwise => limits.max_yaw_speed,
+                    TurnDirection::CounterClockwise => -nav_limits.max_yaw_speed,
+                    TurnDirection::Clockwise => nav_limits.max_yaw_speed,
                 }
             }
         }
@@ -238,8 +245,8 @@ fn maintain_yaw(
             }
 
             match direction {
-                TurnDirection::CounterClockwise => -limits.max_yaw_speed,
-                TurnDirection::Clockwise => limits.max_yaw_speed,
+                TurnDirection::CounterClockwise => -nav_limits.max_yaw_speed,
+                TurnDirection::Clockwise => nav_limits.max_yaw_speed,
             }
         }
     };

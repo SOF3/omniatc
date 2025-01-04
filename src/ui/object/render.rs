@@ -86,7 +86,7 @@ fn spawn_plane_viewable_system(
                 .with_children(|b| {
                     b.spawn((
                         bevy::core::Name::new("ObjectSprite"),
-                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.to_z())),
+                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::Object.into_z())),
                         Sprite::from_image(asset_server.load("sprites/plane.png")),
                         billboard::MaintainScale { size: config.plane_sprite_size },
                         SpriteViewable,
@@ -94,7 +94,7 @@ fn spawn_plane_viewable_system(
                     b.spawn((
                         bevy::core::Name::new("SeparationRing"),
                         Transform::from_translation(
-                            Vec3::ZERO.with_z(Zorder::ObjectSeparation.to_z()),
+                            Vec3::ZERO.with_z(Zorder::ObjectSeparation.into_z()),
                         ),
                         Mesh2d(separation_annulus_mesh.0.clone().unwrap()),
                         MeshMaterial2d(color),
@@ -102,7 +102,9 @@ fn spawn_plane_viewable_system(
                     ));
                     b.spawn((
                         bevy::core::Name::new("ObjectLabel"),
-                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::ObjectLabel.to_z())),
+                        Transform::from_translation(
+                            Vec3::ZERO.with_z(Zorder::ObjectLabel.into_z()),
+                        ),
                         Text2d::new(""),
                         billboard::MaintainScale { size: config.label_size },
                         billboard::MaintainRotation,
@@ -151,7 +153,7 @@ struct ParentQueryData {
     nav_altitude: Option<&'static nav::TargetAltitude>,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // TODO we need to split up this system a bit
 fn maintain_viewable_system(
     time: Res<Time>,
     config: Res<Config>,

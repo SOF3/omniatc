@@ -33,9 +33,6 @@ fn spawn_waypoint_viewable_system(
 ) {
     for &waypoint::SpawnEvent(entity) in events.read() {
         let waypoint = waypoint_query.get(entity).expect("waypoint was just spawned");
-        if waypoint.display_type == DisplayType::None {
-            return;
-        }
 
         commands
             .entity(entity)
@@ -44,33 +41,49 @@ fn spawn_waypoint_viewable_system(
                 Visibility::Visible,
             ))
             .with_children(|b| {
-                b.spawn((
-                    Sprite::from_image(
-                        asset_server.load(sprite_path_for_display_type(waypoint.display_type)),
-                    ),
-                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::Waypoint.to_z())),
-                    billboard::MaintainScale { size: config.icon_size },
-                    billboard::MaintainRotation,
-                    IconViewable,
-                ));
-                b.spawn((
-                    Text2d::new(waypoint.name.clone()),
-                    Transform::from_translation(Vec3::ZERO.with_z(Zorder::WaypointLabel.to_z())),
-                    billboard::MaintainScale { size: config.label_size },
-                    billboard::MaintainRotation,
-                    billboard::Label { distance: config.label_distance },
-                    Anchor::BottomCenter,
-                    LabelViewable,
-                ));
+                if let Some(sprite_path) = display_type_sprite(waypoint.display_type) {
+                    b.spawn((
+                        Sprite::from_image(asset_server.load(sprite_path)),
+                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::Waypoint.into_z())),
+                        billboard::MaintainScale { size: config.icon_size },
+                        billboard::MaintainRotation,
+                        IconViewable,
+                    ));
+                }
+
+                if let Some(label_config) =
+                    display_type_label_config(&config, waypoint.display_type)
+                {
+                    b.spawn((
+                        Text2d::new(waypoint.name.clone()),
+                        Transform::from_translation(
+                            Vec3::ZERO.with_z(Zorder::WaypointLabel.into_z()),
+                        ),
+                        billboard::MaintainScale { size: label_config.size },
+                        billboard::MaintainRotation,
+                        billboard::Label { distance: label_config.distance },
+                        Anchor::BottomCenter,
+                        LabelViewable,
+                    ));
+                }
             });
     }
 }
 
-fn sprite_path_for_display_type(dt: DisplayType) -> &'static str {
-    match dt {
-        DisplayType::Vor => "sprites/vor.png",
-        DisplayType::Waypoint => "sprites/waypoint.png",
-        DisplayType::None => unreachable!(),
+fn display_type_sprite(display_type: DisplayType) -> Option<&'static str> {
+    match display_type {
+        DisplayType::Vor => Some("sprites/vor.png"),
+        DisplayType::Waypoint => Some("sprites/waypoint.png"),
+        DisplayType::None | DisplayType::Runway => None,
+    }
+}
+
+fn display_type_label_config(config: &Config, display_type: DisplayType) -> Option<&LabelConfig> {
+    match display_type {
+        DisplayType::Waypoint => Some(&config.waypoint_label),
+        DisplayType::Vor => Some(&config.vor_label),
+        DisplayType::Runway => Some(&config.runway_label),
+        DisplayType::None => None,
     }
 }
 
@@ -83,10 +96,36 @@ struct LabelViewable;
 #[derive(Resource)]
 pub struct Config {
     pub icon_size:      f32,
-    pub label_size:     f32,
-    pub label_distance: f32,
+    pub waypoint_label: LabelConfig,
+    pub vor_label:      LabelConfig,
+    pub runway_label:   LabelConfig,
+}
+
+pub struct LabelConfig {
+    size:     f32,
+    distance: f32,
+    anchor:   Anchor,
 }
 
 impl Default for Config {
-    fn default() -> Self { Self { icon_size: 0.7, label_size: 0.4, label_distance: 30. } }
+    fn default() -> Self {
+        Self {
+            icon_size:      0.7,
+            waypoint_label: LabelConfig {
+                size:     0.4,
+                distance: 30.,
+                anchor:   Anchor::BottomCenter,
+            },
+            vor_label:      LabelConfig {
+                size:     0.4,
+                distance: 30.,
+                anchor:   Anchor::BottomCenter,
+            },
+            runway_label:   LabelConfig {
+                size:     0.4,
+                distance: 30.,
+                anchor:   Anchor::BottomCenter,
+            },
+        }
+    }
 }

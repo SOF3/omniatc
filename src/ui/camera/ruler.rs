@@ -196,14 +196,14 @@ fn maintain_scale_ruler_system(
     };
 
     for (tf, pos) in [(&mut *ruler_left.1, left_text_pos), (&mut *ruler_right.1, right_text_pos)] {
-        tf.translation = (pos, Zorder::ScaleRulerLabel.to_z()).into();
+        tf.translation = (pos, Zorder::ScaleRulerLabel.into_z()).into();
         tf.rotation = camera_tf.rotation();
         tf.scale = camera_tf.scale() * 0.6;
     }
 
     ruler_right.2 .0 = format!("{ruler_distance} nm");
 
-    ruler_body.1.translation = (distal_world_pos, Zorder::ScaleRuler.to_z()).into();
+    ruler_body.1.translation = (distal_world_pos, Zorder::ScaleRuler.into_z()).into();
     ruler_body.1.rotation = camera_tf.rotation();
     ruler_body.1.scale.x = ruler_distance * ruler_config.pos.x.signum();
     ruler_body.1.scale.y = camera_tf.scale().y * ruler_config.height;

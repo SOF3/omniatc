@@ -3,3 +3,31 @@
 Yet another ATC simulator.
 
 ... surely there are many features I want to implement, but let's not make it a vaporware for now.
+Nevertheless, for those who want to contribute, I want to leave room for the following potential features,
+which may significantly affect design decisions:
+
+- Emergencies/anomalies:
+  - No GNSS: Aircraft must be within the range of at least two DMEs or one VOR+DME to navigate
+    in the event of GNSS failure or interference
+  - No RNAV: RNAV-incapable aircraft can only navigate directly towards navaid radials
+  - Pilot incapacitation: Aircraft may be uncontrollable and forcefully enter auto-land mode
+  - Engine failures: Aircraft with malfunctioning engines have reduced thrust and may be unable to climb/maintain altitude
+- Operations:
+  - Visibility: Landing in low visibility may result in go-arounds if ILS minima exceeds visibility
+  - ILS interference: Lining up planes in ILS critical area may increase visibility requirement
+  - Ground: Give taxi instructions to planes on ground
+  - Takeoff: Planes may take off at the middle of the runway if conditions permit
+- Variations:
+  - Aircraft types: There may be non-plane aircraft such as helicopters
+  - Ground vehicles: There may be ground vehicles requesting clearance for runway crossing
+- Gameplay
+  - World generation: Terrain may be randomly generated to produce natural altitude minima (implemented as a heightmap)
+  - Noise abatement: Impact on game score when planes operate at low altitude near populated areas (implemented as a heatmap)
+  - Fuel efficiency: Impact on game score when issuing:
+    - altitude/speed increase instructions to arrivals
+    - altitude/speed decrease instructions to departures
+  - Expedit altitude change: Impact on game score
+- Other features:
+  - Mobile and web support
+  - Spectation/Multiplayer: The UI may render objects simulated from a remote host not managed under `crate::level`
+  - 3D camera: unlikely to implement, but code under `crate::level` should convey all necessary 3D information

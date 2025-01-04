@@ -1,13 +1,14 @@
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_6, PI};
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3, Vec3A};
-use bevy::prelude::Commands;
+use bevy::prelude::{BuildChildren, ChildBuild, Commands};
 
+use crate::level::runway::Runway;
 use crate::level::waypoint::Waypoint;
-use crate::level::{aerodrome, nav, object, plane, waypoint, wind};
+use crate::level::{aerodrome, nav, object, plane, runway, waypoint, wind};
 use crate::math::Heading;
 
 pub struct Plug;
@@ -28,6 +29,7 @@ pub const DEFAULT_NAV_LIMITS: nav::Limits =
     nav::Limits { min_horiz_speed: 120., max_yaw_speed: PI / 60. };
 
 impl Plugin for Plug {
+    #[allow(clippy::too_many_lines)] // we will rewrite this later
     fn build(&self, app: &mut App) {
         // during early stage of development, just spawn dummy objects for testing
         app.add_systems(app::Startup, |mut commands: Commands| {
@@ -38,20 +40,47 @@ impl Plugin for Plug {
                 ))
                 .id();
 
-            let origin = {
-                let mut entity =
-                    commands.spawn(bevy::core::Name::new(String::from("Waypoint: ORIGIN")));
-                entity.queue(waypoint::SpawnCommand {
+            let runway = {
+                let mut entity = commands.spawn(bevy::core::Name::new(String::from("Runway 18")));
+                entity.queue(runway::SpawnCommand {
                     waypoint: Waypoint {
-                        name:         "ORIGIN".into(),
-                        display_type: waypoint::DisplayType::Vor,
+                        name:         "18".into(),
+                        display_type: waypoint::DisplayType::Runway,
                         position:     Vec3::ZERO,
-                        navaid_range: vec![waypoint::NavaidRange {
-                            heading_range: Heading::NORTH..Heading::NORTH,
-                            min_pitch:     0.,
-                            max_range:     50.,
-                        }],
                     },
+                    runway:   Runway {
+                        usable_length: Heading::SOUTH.into_dir2() * 2.,
+                        glide_angle:   FRAC_PI_6 / 10.,
+                        display_width: 0.04,
+                        display_start: Vec3::ZERO,
+                        display_end:   Vec3::NEG_Y * 2.,
+                    },
+                });
+                entity.with_children(|b| {
+                    b.spawn((
+                        waypoint::Navaid {
+                            heading_range:       Heading::NORTH..Heading::NORTH,
+                            min_pitch:           0.,
+                            max_pitch:           FRAC_PI_2,
+                            min_dist_horizontal: 0.2,
+                            min_dist_vertical:   0.03,
+                            max_dist_horizontal: 10.,
+                            max_dist_vertical:   1.,
+                        },
+                        waypoint::HasCriticalRegion {},
+                    ));
+                    b.spawn((
+                        waypoint::Navaid {
+                            heading_range:       Heading::NORTH..Heading::NORTH,
+                            min_pitch:           0.,
+                            max_pitch:           FRAC_PI_2,
+                            min_dist_horizontal: 0.,
+                            min_dist_vertical:   0.0,
+                            max_dist_horizontal: 10.,
+                            max_dist_vertical:   1.,
+                        },
+                        waypoint::Visual,
+                    ));
                 });
                 entity.id()
             };
@@ -64,7 +93,6 @@ impl Plugin for Plug {
                         name:         "JOIN".into(),
                         display_type: waypoint::DisplayType::Waypoint,
                         position:     Vec3::new(0., 12., 0.),
-                        navaid_range: vec![],
                     },
                 });
                 entity.id()
@@ -104,7 +132,7 @@ impl Plugin for Plug {
                     activation_range: 0.2,
                     lookahead:        Duration::from_secs(20),
                     start_waypoint:   join,
-                    end_waypoint:     origin,
+                    end_waypoint:     runway,
                 });
             }
 
@@ -130,7 +158,7 @@ impl Plugin for Plug {
                         expedit:     false,
                     },
                     DEFAULT_NAV_LIMITS,
-                    nav::TargetWaypoint { waypoint_entity: origin },
+                    nav::TargetWaypoint { waypoint_entity: runway },
                 ));
             }
         });

@@ -7,6 +7,7 @@ mod camera;
 mod clock;
 mod message;
 mod object;
+mod runway;
 mod store;
 mod track;
 mod waypoint;
@@ -22,6 +23,7 @@ impl Plugin for Plug {
         app.add_plugins(clock::Plug);
         app.add_plugins(billboard::Plug);
         app.add_plugins(object::Plug);
+        app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(store::Plug);
         app.add_plugins(track::Plug);
@@ -79,6 +81,9 @@ pub enum InputState {
 #[repr(u32)]
 pub enum Zorder {
     Terrain,
+    RunwayStrip,
+    Localizer,
+    LocalizerGlidePoint,
     ObjectTrack,
     Waypoint,
     WaypointLabel,
@@ -92,7 +97,7 @@ pub enum Zorder {
 
 impl Zorder {
     #[allow(clippy::cast_precision_loss)] // the number of items is small
-    pub const fn to_z(self) -> f32 {
+    pub const fn into_z(self) -> f32 {
         (self as u32 as f32) / (<Self as strum::EnumCount>::COUNT as f32)
     }
 }

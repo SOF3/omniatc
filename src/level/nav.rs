@@ -43,7 +43,7 @@ pub struct VelocityTarget {
     pub vert_rate:   f32,
     /// Whether vertical rate should be expedited.
     /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
-    pub expedit:     bool,
+    pub expedite:    bool,
 }
 
 /// Limits for setting velocity target.
@@ -79,7 +79,10 @@ pub enum YawTarget {
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.
 #[derive(Component)]
-pub struct TargetAltitude(pub f32);
+pub struct TargetAltitude {
+    pub altitude: f32,
+    pub expedite: bool,
+}
 
 fn altitude_control_system(
     time: Res<Time<time::Virtual>>,
@@ -93,9 +96,10 @@ fn altitude_control_system(
     }
 
     query.par_iter_mut().for_each(|(altitude, position, mut target)| {
-        let diff = altitude.0 - position.0.z;
+        let diff = altitude.altitude - position.0.z;
         let speed = diff * DELTA_RATE_PER_SECOND * 3600.;
         target.vert_rate = speed;
+        target.expedite = altitude.expedite;
     });
 }
 

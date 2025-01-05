@@ -293,9 +293,7 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                 )
                 .unwrap();
             }
-            Some(&nav::TargetAltitude(target)) => {
-                let expedit = object.vel_target.is_some_and(|t| t.expedit);
-
+            Some(&nav::TargetAltitude { altitude: target, expedite }) => {
                 if (target - object.position.0.z).abs() * FEET_PER_NM < 100. {
                     writeln!(out, "maintaining {:.0} feet", object.position.0.z * FEET_PER_NM)
                         .unwrap();
@@ -303,7 +301,7 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                     writeln!(
                         out,
                         "{} from {:.0} feet to {:.0} feet",
-                        if expedit { "expediting climb" } else { "climbing" },
+                        if expedite { "expediting climb" } else { "climbing" },
                         object.position.0.z * FEET_PER_NM,
                         target * FEET_PER_NM
                     )
@@ -312,7 +310,7 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                     writeln!(
                         out,
                         "{} from {:.0} feet to {:.0} feet",
-                        if expedit { "expediting descent" } else { "descending" },
+                        if expedite { "expediting descent" } else { "descending" },
                         object.position.0.z * FEET_PER_NM,
                         target * FEET_PER_NM
                     )

@@ -253,6 +253,11 @@ impl Heading {
         output
     }
 
+    #[must_use]
+    pub fn closest_distance(self, other: Heading) -> f32 {
+        self.distance(other, self.closer_direction_to(other))
+    }
+
     /// Returns the closer direction to turn towards `other`.
     ///
     /// This assumes zero current angular velocity.

@@ -30,8 +30,8 @@ fn main() {
             level::Plug,
             ui::Plug,
         ))
-        .configure_sets(app::Update, level::SystemSets::All.after(ui::SystemSets::Input))
-        .configure_sets(app::Update, level::SystemSets::All.before(ui::SystemSets::RenderAll))
+        .configure_sets(app::Update, level::AllSystemSets.after(ui::SystemSets::Input))
+        .configure_sets(app::Update, level::AllSystemSets.before(ui::SystemSets::RenderAll))
         .edit_schedule(app::Update, |schedule| {
             schedule.set_build_settings(ScheduleBuildSettings {
                 ambiguity_detection: schedule::LogLevel::Warn,

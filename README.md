@@ -20,13 +20,14 @@ which may significantly affect design decisions:
 - Variations:
   - Aircraft types: There may be non-plane aircraft such as helicopters
   - Ground vehicles: There may be ground vehicles requesting clearance for runway crossing
+  - Moving waypoints: Waypoint positions including runways may move, e.g. aircraft carrier landing
 - Gameplay
   - World generation: Terrain may be randomly generated to produce natural altitude minima (implemented as a heightmap)
   - Noise abatement: Impact on game score when planes operate at low altitude near populated areas (implemented as a heatmap)
   - Fuel efficiency: Impact on game score when issuing:
     - altitude/speed increase instructions to arrivals
     - altitude/speed decrease instructions to departures
-  - Expedit altitude change: Impact on game score
+  - Expedite altitude change: Impact on game score
 - Other features:
   - Mobile and web support
   - Spectation/Multiplayer: The UI may render objects simulated from a remote host not managed under `crate::level`

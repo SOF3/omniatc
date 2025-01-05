@@ -396,7 +396,7 @@ impl ParentQueryDataItem<'_> {
             }
             LabelElement::TargetAltitude(unit) => {
                 if let Some(nav) = self.nav_altitude {
-                    writer.set_display(unit.convert(nav.0));
+                    writer.set_display(unit.convert(nav.altitude));
                 } else {
                     writer.set_text("");
                 }

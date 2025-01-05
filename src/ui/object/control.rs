@@ -556,7 +556,7 @@ impl Controllable for SetAltitude {
             return Err("object no longer exists".into());
         };
         let altitude = match target_altitude {
-            Some(&nav::TargetAltitude(altitude)) => altitude,
+            Some(&nav::TargetAltitude { altitude, .. }) => altitude,
             None => position.0.z,
         };
 
@@ -577,9 +577,9 @@ impl Controllable for SetAltitude {
     ) {
         let altitude = self.resolve_ft() / FEET_PER_NM;
         if let Ok(Some(mut target_altitude)) = query.get_mut(object_entity) {
-            target_altitude.0 = altitude;
+            target_altitude.altitude = altitude;
         } else if let Some(mut entity_commands) = commands.get_entity(object_entity) {
-            entity_commands.insert(nav::TargetAltitude(altitude));
+            entity_commands.insert(nav::TargetAltitude { altitude, expedite: false });
         }
     }
 

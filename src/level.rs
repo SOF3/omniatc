@@ -4,11 +4,14 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::prelude::{IntoSystemSetConfigs, Resource, SystemSet};
+use itertools::Itertools;
+use strum::IntoEnumIterator;
 
 pub mod aerodrome;
 pub mod nav;
 pub mod object;
 pub mod plane;
+pub mod route;
 pub mod runway;
 pub mod waypoint;
 pub mod wind;
@@ -18,31 +21,28 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Config>();
-        app.configure_sets(app::Update, SystemSets::Navigate.before(SystemSets::Pilot));
-        app.configure_sets(app::Update, SystemSets::Pilot.before(SystemSets::Machine));
-        app.configure_sets(app::Update, SystemSets::Machine.before(SystemSets::Environ));
-        app.configure_sets(app::Update, SystemSets::Environ.before(SystemSets::Reconcile));
-        app.configure_sets(
-            app::Update,
-            (
-                SystemSets::Navigate,
-                SystemSets::Pilot,
-                SystemSets::Machine,
-                SystemSets::Environ,
-                SystemSets::Reconcile,
-            )
-                .in_set(SystemSets::All),
-        );
+
+        for set in SystemSets::iter() {
+            app.configure_sets(app::Update, set.in_set(AllSystemSets));
+        }
+
+        for (before, after) in SystemSets::iter().tuple_windows() {
+            app.configure_sets(app::Update, before.before(after));
+        }
+
         app.add_plugins(object::Plug);
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
+        app.add_plugins(route::Plug);
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
 pub enum SystemSets {
+    /// Systems executing a complex flight plan that decides navigation targets.
+    Action,
     /// Systems simulating absolute position navigation.
     Navigate,
     /// Systems simulating machine input control.
@@ -53,9 +53,10 @@ pub enum SystemSets {
     Environ,
     /// Reconcile components not involved in simulation but useful for other modules to read.
     Reconcile,
-    /// All systems belong to this system set.
-    All,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+pub struct AllSystemSets;
 
 #[derive(Resource)]
 pub struct Config {

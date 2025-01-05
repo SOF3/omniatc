@@ -155,7 +155,7 @@ impl Plugin for Plug {
                         yaw:         nav::YawTarget::Speed(DEFAULT_NAV_LIMITS.max_yaw_speed),
                         horiz_speed: 200.,
                         vert_rate:   0.,
-                        expedit:     false,
+                        expedite:    false,
                     },
                     DEFAULT_NAV_LIMITS,
                     nav::TargetWaypoint { waypoint_entity: runway },

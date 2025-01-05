@@ -170,7 +170,7 @@ fn maintain_localizer_viewable_system(
         });
         localizer_length_store.0 = localizer_length;
 
-        // Orientation: x = localizer lenght, y = line width
+        // Orientation: x = localizer length, y = line width
         tf.translation = (
             waypoint.position.xy() - runway.usable_length.normalize() * localizer_length * 0.5,
             Zorder::Localizer.into_z(),

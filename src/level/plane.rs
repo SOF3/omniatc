@@ -145,7 +145,7 @@ impl EntityCommand for SpawnCommand {
                 yaw: YawTarget::Speed(0.),
                 horiz_speed,
                 vert_rate: 0.,
-                expedit: false,
+                expedite: false,
             };
 
             entity_ref.insert(dt_target);
@@ -364,7 +364,7 @@ fn maintain_vert(
     limits: &Limits,
     airborne: &mut object::Airborne,
 ) {
-    let desired_vert_rate = if target.expedit {
+    let desired_vert_rate = if target.expedite {
         target.vert_rate.clamp(limits.exp_descent.vert_rate, limits.exp_climb.vert_rate)
     } else {
         target.vert_rate.clamp(limits.std_descent.vert_rate, limits.std_climb.vert_rate)

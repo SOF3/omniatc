@@ -41,8 +41,10 @@ impl Route {
         }
     }
 
+    #[must_use]
     pub fn current(&self) -> Option<&Node> { self.current.as_ref() }
 
+    #[must_use]
     pub fn next(&self) -> Option<&Node> { self.nodes.front() }
 
     pub fn shift(&mut self) -> Option<Node> {
@@ -68,7 +70,7 @@ pub enum WaypointProximity {
     /// such that the position after the turn is exactly between the two waypoints.
     ///
     /// The step is always completed when the proximity range is entered,
-    /// allowing smooth tranistion when the next waypoint hsa the same heading.
+    /// allowing smooth transition when the next waypoint has the same heading.
     FlyBy,
     /// Enter the horizontal distance range of the waypoint before turning to the next one.
     FlyOver,

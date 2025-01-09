@@ -10,13 +10,13 @@ use bevy::prelude::{
     Commands, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
     ResMut, Resource, Single,
 };
+use omniatc_core::level::object::Object;
+use omniatc_core::level::{nav, object};
+use omniatc_core::math::FEET_PER_NM;
+use omniatc_core::units::{Angle, Distance, Heading, Position, Speed, TurnDirection};
 
 use super::select::Selected;
-use crate::level::object::Object;
-use crate::level::{nav, object};
-use crate::math::FEET_PER_NM;
 use crate::ui::{message, InputState};
-use crate::units::{Angle, Distance, Heading, Position, Speed, TurnDirection};
 
 pub struct Plug;
 

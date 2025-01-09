@@ -1,3 +1,9 @@
+[workspace]
+members = [
+	".",
+	"omniatc-core",
+]
+
 [package]
 name = "omniatc"
 version = "0.0.0"
@@ -9,14 +15,16 @@ license = "GPL-3.0"
 
 [features]
 default = ["dev"]
-dev = ["inspect", "bevy/dynamic_linking"]
+dev = ["inspect", "bevy/dynamic_linking", "omniatc-core/dev"]
 inspect = ["dep:bevy-inspector-egui"]
 precommit-checks = []
 
 [dependencies]
+omniatc-core = {version = "0.0.0", path = "omniatc-core"}
 bevy-inspector-egui = {version = "0.28.0", optional = true}
 enum-map = "2.7.3"
 itertools = "0.13.0"
+serde = { version = "1.0.217", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 
 [dependencies.bevy]
@@ -29,7 +37,6 @@ features = [
 	"bevy_gltf",
 	"bevy_pbr",
 	"bevy_render",
-	"bevy_state",
 	"bevy_state",
 	"bevy_text",
 	"bevy_ui",

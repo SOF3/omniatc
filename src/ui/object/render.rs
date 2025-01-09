@@ -16,12 +16,12 @@ use bevy::prelude::{
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
 use bevy::time::Time;
+use omniatc_core::level::{aerodrome, nav, object, plane};
+use omniatc_core::math::TROPOPAUSE_ALTITUDE;
+use omniatc_core::units::{Angle, AngularSpeed, TurnDirection};
 
 use super::{select, ColorScheme, Config, LabelElement, LabelLine};
-use crate::level::{aerodrome, nav, object, plane};
-use crate::math::TROPOPAUSE_ALTITUDE;
 use crate::ui::{billboard, SystemSets, Zorder};
-use crate::units::{Angle, AngularSpeed, TurnDirection};
 
 pub struct Plug;
 

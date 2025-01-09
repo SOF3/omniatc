@@ -12,6 +12,7 @@ impl Default for State {
 }
 
 impl State {
+    #[must_use]
     pub fn new(params: Params) -> Self { Self { params, prev_error: 0. } }
 }
 

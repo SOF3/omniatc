@@ -5,7 +5,7 @@ use bevy::math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use super::{Distance, Squared};
 use crate::math::SEA_ALTITUDE;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub struct Position<T>(pub Distance<T>);
 
 impl<T> Position<T> {
@@ -47,6 +47,7 @@ impl<T: ops::SubAssign> ops::Sub for Position<T> {
 }
 
 impl<T: VectorSpace> Position<T> {
+    #[must_use]
     pub fn lerp(self, other: Self, s: f32) -> Self { Self(self.0.lerp(other.0, s)) }
 }
 
@@ -64,28 +65,39 @@ impl<T: ops::SubAssign + NormedVectorSpace> Position<T> {
 
 impl Position<f32> {
     /// Inverse lerp function.
+    #[must_use]
     pub fn ratio_between(self, start: Self, end: Self) -> f32 {
         self.0.ratio_between(start.0, end.0)
     }
 
+    #[must_use]
     pub fn min(self, other: Self) -> Self { Self(self.0.min(other.0)) }
 
+    #[must_use]
     pub fn max(self, other: Self) -> Self { Self(self.0.max(other.0)) }
 
+    #[must_use]
     pub fn clamp(self, min: Self, max: Self) -> Self { Self(self.0.clamp(min.0, max.0)) }
 
+    #[must_use]
     pub fn amsl(self) -> Distance<f32> { self - SEA_ALTITUDE }
 }
 
 impl Position<Vec2> {
+    #[must_use]
     pub fn x(self) -> Position<f32> { Position(self.0.x()) }
+    #[must_use]
     pub fn y(self) -> Position<f32> { Position(self.0.y()) }
 }
 
 impl Position<Vec3> {
+    #[must_use]
     pub fn x(self) -> Position<f32> { Position(self.0.x()) }
+    #[must_use]
     pub fn y(self) -> Position<f32> { Position(self.0.y()) }
 
+    #[must_use]
     pub fn horizontal(self) -> Position<Vec2> { Position(self.0.horizontal()) }
+    #[must_use]
     pub fn vertical(self) -> Position<f32> { Position(self.0.vertical()) }
 }

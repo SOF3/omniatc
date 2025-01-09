@@ -6,10 +6,10 @@ use bevy::prelude::{
     in_state, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
     ResMut, Resource, Single,
 };
+use omniatc_core::level::{aerodrome, nav, object};
+use omniatc_core::units::{Angle, Distance, TurnDirection};
 
-use crate::level::{aerodrome, nav, object};
 use crate::ui::{message, track, InputState, SystemSets};
-use crate::units::{Angle, Distance, TurnDirection};
 
 pub struct Plug;
 

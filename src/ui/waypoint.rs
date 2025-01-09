@@ -7,9 +7,9 @@ use bevy::prelude::{
 };
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
+use omniatc_core::level::waypoint::{self, DisplayType, Waypoint};
 
 use super::{billboard, SystemSets, Zorder};
-use crate::level::waypoint::{self, DisplayType, Waypoint};
 
 pub struct Plug;
 

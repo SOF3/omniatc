@@ -102,20 +102,28 @@ where
 }
 
 impl<U: Unit<Value = f32>> Squared<U> {
+    #[must_use]
     pub fn sqrt(self) -> U { U::from_raw(self.0.sqrt()) }
 
+    #[must_use]
     pub fn cmp_sqrt(self) -> impl PartialOrd<U> { SquaredNorm(self.0) }
 
+    #[must_use]
     pub fn squared(self) -> Squared<Self> { self * self }
 
+    #[must_use]
     pub fn is_zero(self) -> bool { self.0 == 0. }
 
+    #[must_use]
     pub fn is_positive(self) -> bool { self.0 > 0. }
 
+    #[must_use]
     pub fn is_negative(self) -> bool { self.0 < 0. }
 
+    #[must_use]
     pub fn abs(self) -> Self { Self(self.0.abs()) }
 
+    #[must_use]
     pub fn signum(self) -> f32 { self.0.signum() }
 }
 

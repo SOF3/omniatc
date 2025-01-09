@@ -15,12 +15,12 @@ use bevy::prelude::{
     Or, Parent, Query, Rectangle, Res, ResMut, Resource, Single, Transform, Visibility, With,
 };
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use omniatc_core::level::runway::{self, Runway};
+use omniatc_core::level::waypoint::{self, Navaid, Waypoint};
+use omniatc_core::math::SEA_ALTITUDE;
+use omniatc_core::units::Distance;
 
 use super::{billboard, SystemSets, Zorder};
-use crate::level::runway::{self, Runway};
-use crate::level::waypoint::{self, Navaid, Waypoint};
-use crate::math::SEA_ALTITUDE;
-use crate::units::Distance;
 
 pub struct Plug;
 

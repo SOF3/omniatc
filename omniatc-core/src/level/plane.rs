@@ -26,7 +26,7 @@ impl Plugin for Plug {
 }
 
 /// Mutable states modified by control systems.
-#[derive(Component)]
+#[derive(Component, serde::Serialize, serde::Deserialize)]
 pub struct Control {
     /// Heading of the plane, must be a unit vector.
     /// This is the horizontal direction of the thrust generated.
@@ -39,13 +39,14 @@ pub struct Control {
 
 impl Control {
     /// Stabilize at current velocity.
+    #[must_use]
     pub fn stabilized(heading: Heading) -> Self {
         Control { heading, yaw_speed: AngularSpeed::ZERO, horiz_accel: Accel::ZERO }
     }
 }
 
 /// Structural limitations of a plane.
-#[derive(Component)]
+#[derive(Component, serde::Serialize, serde::Deserialize)]
 pub struct Limits {
     // Pitch/vertical rate limits.
     /// Climb profile during expedited altitude increase.
@@ -88,12 +89,14 @@ impl Limits {
     /// Returns the maximum horizontal acceleration rate at the given climb rate.
     ///
     /// The returned value could be negative.
+    #[must_use]
     pub fn accel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
         self.find_field(climb_rate, |profile| profile.accel)
     }
 
     /// Returns the maximum horizontal deceleration rate at the given descent rate.
     /// The returned value is negative.
+    #[must_use]
     pub fn decel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
         self.find_field(climb_rate, |profile| profile.decel)
     }
@@ -123,6 +126,7 @@ impl Limits {
 }
 
 /// Speed limitations during a certain climb rate.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ClimbProfile {
     /// Vertical rate for this climb profile.
     /// A negative value indicates this is a descent profile.

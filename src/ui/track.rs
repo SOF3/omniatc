@@ -9,9 +9,9 @@ use bevy::prelude::{
     Resource, Transform, Visibility, Without,
 };
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use omniatc_core::level::object;
 
 use super::{billboard, SystemSets, Zorder};
-use crate::level::object;
 
 pub struct Plug;
 

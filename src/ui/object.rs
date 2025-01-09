@@ -3,8 +3,7 @@ use std::time::Duration;
 use bevy::app::{App, Plugin};
 use bevy::color::{Color, Mix};
 use bevy::prelude::Resource;
-
-use crate::units::display::{LengthUnit, SpeedUnit};
+use omniatc_core::units::display::{LengthUnit, SpeedUnit};
 
 mod control;
 mod render;

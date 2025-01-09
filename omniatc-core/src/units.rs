@@ -32,6 +32,7 @@ macro_rules! decl_units {
     )*) => { $(
         $(#[$meta])*
         #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+        #[derive(serde::Serialize, serde::Deserialize)]
         pub struct $ty<T>(pub T);
 
         impl<T: Copy> Unit for $ty<T> {
@@ -141,6 +142,7 @@ macro_rules! decl_units {
         impl<T: VectorSpace> $ty<T> {
             pub const ZERO: Self = Self(T::ZERO);
 
+            #[must_use]
             pub fn lerp(self, other: Self, s: f32) -> Self {
                 Self(self.0.lerp(other.0, s))
             }
@@ -155,39 +157,48 @@ macro_rules! decl_units {
         }
 
         impl $ty<f32> {
+            #[must_use]
             pub fn is_positive(self) -> bool {
                 self.0 > 0.
             }
 
+            #[must_use]
             pub fn is_negative(self) -> bool {
                 self.0 < 0.
             }
 
+            #[must_use]
             pub fn is_zero(self) -> bool {
                 self.0 == 0.
             }
 
+            #[must_use]
             pub fn abs(self) -> Self {
                 Self(self.0.abs())
             }
 
+            #[must_use]
             pub fn signum(self) -> f32 {
                 self.0.signum()
             }
 
             /// Inverse lerp function.
+            #[must_use]
             pub fn ratio_between(self, start: Self, end: Self) -> f32 {
                 (self - start).0 / (end - start).0
             }
 
+            #[must_use]
             pub fn min(self, other: Self) -> Self {
                 Self(self.0.min(other.0))
             }
 
+            #[must_use]
             pub fn max(self, other: Self) -> Self {
                 Self(self.0.max(other.0))
             }
 
+            #[must_use]
             pub fn clamp(self, min: Self, max: Self) -> Self {
                 Self(self.0.clamp(min.0, max.0))
             }
@@ -210,34 +221,44 @@ macro_rules! decl_units {
         }
 
         impl $ty<Vec2> {
+            #[must_use]
             pub fn x(self) -> $ty<f32> { $ty(self.0.x) }
+            #[must_use]
             pub fn y(self) -> $ty<f32> { $ty(self.0.y) }
 
+            #[must_use]
             pub fn horizontally(self) -> $ty<Vec3> {
                 $ty(Vec3::from((self.0, 0.)))
             }
 
+            #[must_use]
             pub fn with_vertical(self, vertical: $ty<f32>) -> $ty<Vec3> {
                 $ty(Vec3::from((self.0, vertical.0)))
             }
 
+            #[must_use]
             pub fn heading(self) -> Heading {
                 Heading::from_vec2(self.0)
             }
 
+            #[must_use]
             pub fn with_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
             }
         }
 
         impl $ty<Vec3> {
+            #[must_use]
             pub fn x(self) -> $ty<f32> { $ty(self.0.x) }
+            #[must_use]
             pub fn y(self) -> $ty<f32> { $ty(self.0.y) }
 
+            #[must_use]
             pub fn horizontal(self) -> $ty<Vec2> {
                 $ty(self.0.xy())
             }
 
+            #[must_use]
             pub fn vertical(self) -> $ty<f32> {
                 $ty(self.0.z)
             }
@@ -246,6 +267,7 @@ macro_rules! decl_units {
                 self.0.z = value.0;
             }
 
+            #[must_use]
             pub fn with_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
             }
@@ -268,6 +290,7 @@ macro_rules! decl_units {
         $(
             #[doc = $linear]
             impl $ty<f32> {
+            #[must_use]
                 pub fn atan2(self, x: Self) -> Angle<f32> {
                     Angle(self.0.atan2(x.0))
                 }
@@ -322,18 +345,22 @@ decl_units! {
 }
 
 impl Distance<f32> {
+    #[must_use]
     pub fn into_feet(self) -> f32 { self.0 * FEET_PER_NM }
 
+    #[must_use]
     pub fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
+    #[must_use]
     pub fn into_knots(self) -> T { self.0 * 3600. }
 
     pub fn from_knots(knots: T) -> Self { Self(knots / 3600.) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {
+    #[must_use]
     pub fn into_knots_per_sec(self) -> T { self.0 * 3600. }
 
     pub fn from_knots_per_sec(knots: T) -> Self { Self(knots / 3600.) }
@@ -348,9 +375,13 @@ impl Angle<f32> {
         Self(Into::<f32>::into(degrees).to_radians())
     }
 
+    #[must_use]
     pub fn into_degrees(self) -> f32 { self.0.to_degrees() }
 
+    #[must_use]
     pub fn sin(self) -> f32 { self.0.sin() }
+    #[must_use]
     pub fn cos(self) -> f32 { self.0.cos() }
+    #[must_use]
     pub fn tan(self) -> f32 { self.0.tan() }
 }

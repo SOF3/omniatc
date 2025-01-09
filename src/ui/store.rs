@@ -5,11 +5,10 @@ use bevy::app::{self, App, Plugin};
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3, Vec3A};
 use bevy::prelude::{BuildChildren, ChildBuild, Commands};
-
-use crate::level::runway::Runway;
-use crate::level::waypoint::Waypoint;
-use crate::level::{aerodrome, nav, object, plane, runway, waypoint, wind};
-use crate::units::{
+use omniatc_core::level::runway::Runway;
+use omniatc_core::level::waypoint::Waypoint;
+use omniatc_core::level::{aerodrome, nav, object, plane, runway, waypoint, wind};
+use omniatc_core::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
 };
 

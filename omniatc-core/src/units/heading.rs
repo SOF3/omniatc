@@ -9,7 +9,7 @@ use super::Angle;
 mod tests;
 
 /// An absolute directional bearing.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Heading(
     Angle<f32>, // always -PI < heading <= PI
 );
@@ -25,27 +25,33 @@ impl Heading {
     pub const WEST: Self = Self(Angle(FRAC_PI_2 * 3.));
 
     /// Returns the heading of the vector.
+    #[must_use]
     pub fn from_vec2(vec: Vec2) -> Self { Self(Angle(vec.x.atan2(vec.y))) }
 
     /// Converts the heading into a direction vector.
+    #[must_use]
     pub fn into_dir2(self) -> Dir2 {
         let (x, y) = self.0 .0.sin_cos();
         Dir2::from_xy_unchecked(x, y)
     }
 
     /// Returns the horizontal heading of the vector.
+    #[must_use]
     pub fn from_vec3(vec: impl Into<Vec3>) -> Self {
         let vec: Vec3 = vec.into();
         Self::from_vec2(vec.xy())
     }
 
     /// Returns the horizontal heading after rotating a northward vector by the quaternion.
+    #[must_use]
     pub fn from_quat(quat: Quat) -> Self { Self::from_vec3(quat.mul_vec3a(Vec3A::Y)) }
 
     /// Creates a heading from an absolute bearing.
+    #[must_use]
     pub fn from_degrees(degrees: f32) -> Self { Self::from_radians(Angle::from_degrees(degrees)) }
 
     /// Returns the heading in degrees in the range 0..360.
+    #[must_use]
     pub fn degrees(self) -> f32 {
         let degrees = self.0.into_degrees();
         if degrees < 0. {
@@ -56,6 +62,7 @@ impl Heading {
     }
 
     /// Creates a heading from an absolute bearing in radians.
+    #[must_use]
     pub fn from_radians(mut radians: Angle<f32>) -> Self {
         if radians > Angle::STRAIGHT {
             radians -= Angle::FULL;
@@ -64,9 +71,11 @@ impl Heading {
     }
 
     /// Returns the heading in radians in the range `-STRAIGHT < value <= STRAIGHT`.
+    #[must_use]
     pub fn radians(self) -> Angle<f32> { self.0 }
 
     /// Returns the heading in radians in the range `0 <= value < FULL`.
+    #[must_use]
     pub fn radians_nonnegative(self) -> Angle<f32> {
         if self.0.is_negative() {
             self.0 + Angle::FULL
@@ -75,6 +84,7 @@ impl Heading {
         }
     }
 
+    #[must_use]
     pub fn into_rotation_quat(self) -> Quat { Quat::from_rotation_z(-self.0 .0) }
 
     /// Radians to turn from `self` to `other` in the given direction.
@@ -195,7 +205,7 @@ impl ops::SubAssign<Angle<f32>> for Heading {
 }
 
 /// The direction for yaw change.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TurnDirection {
     /// A left, counter-clockwise turn generating negative yaw speed.
     CounterClockwise,

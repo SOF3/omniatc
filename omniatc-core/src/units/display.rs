@@ -26,6 +26,7 @@ pub enum LengthUnit {
 }
 
 impl LengthUnit {
+    #[must_use]
     pub fn convert(self, value: f32) -> Quantity {
         match self {
             Self::NauticalMile => Quantity { value, prefix: "", suffix: "nm" },
@@ -55,6 +56,7 @@ pub enum SpeedUnit {
 }
 
 impl SpeedUnit {
+    #[must_use]
     pub fn convert(self, value: f32) -> Quantity {
         let knots = value * 3600.;
 

@@ -1,9 +1,8 @@
 use bevy::app::{self, App, Plugin};
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{in_state, AppExtStates, IntoSystemSetConfigs, States, SystemSet};
+use omniatc_core::units::Position;
 use strum::IntoEnumIterator;
-
-use crate::units::Position;
 
 mod billboard;
 mod camera;

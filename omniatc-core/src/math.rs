@@ -19,6 +19,7 @@ mod tests;
 ///
 /// Returns None if the circle does not intersect with the line segment.
 /// The output is always a subset of `0..=1`.
+#[must_use]
 pub fn line_circle_intersect(
     circle_center: Position<Vec2>,
     radius_sq: Squared<Distance<f32>>,

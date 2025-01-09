@@ -33,7 +33,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is omitted when the plane is not airborne.
-#[derive(Component)]
+#[derive(Component, serde::Serialize, serde::Deserialize)]
 #[require(Limits)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -48,7 +48,7 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Default)]
+#[derive(Component, Default, serde::Serialize, serde::Deserialize)]
 pub struct Limits {
     /// Minimum horizontal indicated airspeed.
     pub min_horiz_speed: Speed<f32>,
@@ -57,6 +57,7 @@ pub struct Limits {
 }
 
 /// Target yaw change.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.
     Heading(Heading),
@@ -79,7 +80,7 @@ pub enum YawTarget {
 /// Desired altitude in feet.
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.
-#[derive(Component)]
+#[derive(Component, serde::Serialize, serde::Deserialize)]
 pub struct TargetAltitude {
     pub altitude: Position<f32>,
     pub expedite: bool,

@@ -12,12 +12,9 @@ use bevy::ecs::schedule::{self, ScheduleBuildSettings};
 use bevy::prelude::IntoSystemSetConfigs;
 use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
+use omniatc_core::level;
 
-mod level;
-mod math;
-mod pid;
 mod ui;
-mod units;
 
 fn main() {
     App::new()

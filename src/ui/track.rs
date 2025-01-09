@@ -126,7 +126,7 @@ fn move_trail_point_system(
                     track.log.get(track.log.len().saturating_sub(point.deque_reverse_offset + 1))
                 {
                     Mut::map_unchanged(tf, |tf| &mut tf.translation)
-                        .set_if_neq(position.with_z(Zorder::ObjectTrack.into_z()));
+                        .set_if_neq(position.get().with_z(Zorder::ObjectTrack.into_z()));
                 } else {
                     bevy::log::warn!("track log is shorter than point entity list");
                 }

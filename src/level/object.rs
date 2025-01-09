@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::SystemState;
-use bevy::math::{Quat, Vec3, Vec3A};
+use bevy::math::{Quat, Vec3};
 use bevy::prelude::{
-    Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, With, World,
+    Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, World,
 };
 use bevy::time::{self, Time, Timer, TimerMode};
 
@@ -17,6 +17,7 @@ use crate::math::{
     PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
     TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
+use crate::units::{Distance, Position, Speed};
 
 pub struct Plug;
 
@@ -59,30 +60,31 @@ pub enum Destination {
     },
 }
 
-/// Position relative to level origin at mean sea level, in (nm, nm, nm).
-///
-/// Altitude is not the pressure altitude.
 #[derive(Component)]
-pub struct Position(pub Vec3A);
+pub struct Object {
+    /// Position relative to level origin at mean sea level.
+    ///
+    /// Altitude is real AMSL altitude, independent of terrain and pressure.
+    pub position:     Position<Vec3>,
+    /// Speed relative to ground.
+    ///
+    /// The vertical component (Z) is independent of terrain.
+    pub ground_speed: Speed<Vec3>,
+}
 
 /// Rotation of the object, for display only.
 #[derive(Component, Default)]
 pub struct Rotation(pub Quat);
 
-/// Speed relative to ground, in (kt, kt, kt).
-/// The vertical component (Z) is independent of terrain.
-#[derive(Component, Default)]
-pub struct GroundSpeed(pub Vec3A);
-
 #[derive(Component)]
 pub struct Airborne {
-    /// Indicated airspeed, in (kt, kt, kt).
-    pub airspeed: Vec3A,
+    /// Indicated airspeed.
+    pub airspeed: Speed<Vec3>,
 }
 
 pub struct SpawnCommand {
-    pub position:     Position,
-    pub ground_speed: GroundSpeed,
+    pub position:     Position<Vec3>,
+    pub ground_speed: Speed<Vec3>,
     pub display:      Display,
     pub destination:  Destination,
 }
@@ -90,9 +92,8 @@ pub struct SpawnCommand {
 impl EntityCommand for SpawnCommand {
     fn apply(self, entity: Entity, world: &mut World) {
         world.entity_mut(entity).insert((
-            self.position,
             Rotation::default(),
-            self.ground_speed,
+            Object { position: self.position, ground_speed: self.ground_speed },
             self.display,
             self.destination,
             Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
@@ -116,12 +117,8 @@ impl EntityCommand for SetAirborneCommand {
                 bevy::log::error!("attempt to set airborne for nonexistent entity {entity:?}");
                 return;
             };
-            let Some(&Position(position)) = entity_ref.get() else {
-                bevy::log::error!("attempt to set airborne for entity {entity:?} without Position");
-                return;
-            };
-            let Some(&GroundSpeed(ground_speed)) = entity_ref.get() else {
-                bevy::log::error!("attempt to set airborne for entity {entity:?} without Position");
+            let Some(&Object { position, ground_speed }) = entity_ref.get() else {
+                bevy::log::error!("attempt to set airborne for non-Object entity {entity:?}");
                 return;
             };
             (position, ground_speed)
@@ -132,63 +129,63 @@ impl EntityCommand for SetAirborneCommand {
             locator.get(world).locate(position)
         };
 
-        world
-            .entity_mut(entity)
-            .insert(Airborne { airspeed: ground_speed - Vec3A::from((wind, 0.)) });
+        world.entity_mut(entity).insert(Airborne { airspeed: ground_speed - wind.horizontally() });
     }
 }
 
-fn move_object_system(
-    time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(&mut Position, &GroundSpeed), With<Marker>>,
-) {
+fn move_object_system(time: Res<Time<time::Virtual>>, mut object_query: Query<&mut Object>) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut position, ground_speed)| {
-        position.0 += ground_speed.0 * time.delta_secs() / 3600.;
+    object_query.par_iter_mut().for_each(|mut object| {
+        let moved = object.ground_speed * time.delta();
+        object.position += moved;
     });
 }
 
 fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
     wind: wind::Locator,
-    mut object_query: Query<(&mut GroundSpeed, &Position, &Airborne)>,
+    mut object_query: Query<(&mut Object, &Airborne)>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut ground_speed, position, airborne)| {
+    object_query.par_iter_mut().for_each(|(mut object, airborne)| {
+        let position = object.position;
+
         let sea_level_temperature = STANDARD_SEA_LEVEL_TEMPERATURE; // TODO do we have temperature?
-        let pressure_altitude = position.0.z; // TODO calibrate by pressure
+        let pressure_altitude = position.vertical(); // TODO calibrate by pressure
         let actual_temperature = sea_level_temperature
-            - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE);
+            - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE).get();
         let density_altitude = pressure_altitude
-            + STANDARD_SEA_LEVEL_TEMPERATURE / STANDARD_LAPSE_RATE
-                * (1.
-                    - (STANDARD_SEA_LEVEL_TEMPERATURE / actual_temperature)
-                        .powf(PRESSURE_DENSITY_ALTITUDE_POW));
+            + Distance(
+                STANDARD_SEA_LEVEL_TEMPERATURE / STANDARD_LAPSE_RATE
+                    * (1.
+                        - (STANDARD_SEA_LEVEL_TEMPERATURE / actual_temperature)
+                            .powf(PRESSURE_DENSITY_ALTITUDE_POW)),
+            );
 
-        let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude;
+        let tas_ratio = 1. + TAS_DELTA_PER_NM * density_altitude.get();
 
-        ground_speed.0 = airborne.airspeed * tas_ratio + Vec3A::from((wind.locate(position.0), 0.));
+        object.ground_speed = airborne.airspeed * tas_ratio + wind.locate(position).horizontally();
     });
 }
 
 #[derive(Component)]
 pub struct Track {
-    pub log: VecDeque<Vec3>,
+    pub log: VecDeque<Position<Vec3>>,
     timer:   Timer,
 }
 
 fn track_position_system(
     time: Res<Time<time::Virtual>>,
     config: Res<Config>,
-    mut query: Query<(&mut Track, &Position)>,
+    mut query: Query<(&mut Track, &Object)>,
 ) {
-    query.iter_mut().for_each(|(mut track, position)| {
+    query.iter_mut().for_each(|(mut track, &Object { position, .. })| {
         track.timer.tick(time.delta());
         if track.timer.finished() {
             track.timer.set_duration(config.track_density);
@@ -198,7 +195,7 @@ fn track_position_system(
                 track.log.pop_front();
             }
 
-            track.log.push_back(position.0.into());
+            track.log.push_back(position);
         }
     });
 }

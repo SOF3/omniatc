@@ -17,6 +17,7 @@ mod level;
 mod math;
 mod pid;
 mod ui;
+mod units;
 
 fn main() {
     App::new()

@@ -4,7 +4,7 @@ use bevy::app::{App, Plugin};
 use bevy::color::{Color, Mix};
 use bevy::prelude::Resource;
 
-use crate::math::{LengthUnit, SpeedUnit};
+use crate::units::display::{LengthUnit, SpeedUnit};
 
 mod control;
 mod render;

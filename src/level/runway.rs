@@ -3,6 +3,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, World};
 
 use super::waypoint::{self, Waypoint};
+use crate::units::{Angle, Distance, Position};
 
 pub struct Plug;
 
@@ -32,17 +33,17 @@ pub struct Runway {
     /// for some `0 <= k < 1`
     /// such that braking over `(1 - k) * usable_length.length()`
     /// allows the plane to reduce to taxi speed.
-    pub usable_length: Vec2,
+    pub usable_length: Distance<Vec2>,
 
     /// Starting point of the rendered runway.
-    pub display_start: Vec3,
+    pub display_start: Position<Vec3>,
     /// Ending point of the rendered runway.
-    pub display_end:   Vec3,
+    pub display_end:   Position<Vec3>,
     /// The displayed width for the runway.
-    pub display_width: f32,
+    pub display_width: Distance<f32>,
 
-    /// Standard angle of depression for the glide path, in radians.
-    pub glide_angle: f32,
+    /// Standard angle of depression for the glide path.
+    pub glide_angle: Angle<f32>,
 }
 
 pub struct SpawnCommand {

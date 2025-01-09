@@ -4,7 +4,7 @@ use bevy::app::{App, Plugin};
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, World};
 
-use crate::math::Heading;
+use crate::units::{Angle, Distance, Heading, Position};
 
 pub struct Plug;
 
@@ -21,7 +21,7 @@ pub struct Waypoint {
     /// Position of the waypoint.
     ///
     /// The altitude component is only used to compute the navaid range.
-    pub position:     Vec3,
+    pub position:     Position<Vec3>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,30 +55,30 @@ pub struct Navaid {
     /// `Heading::NORTH..Heading::NORTH` is explicitly defined to cover all directions.
     pub heading_range: ops::Range<Heading>,
 
-    /// Minimum angle of the receiver relative to the navaid, in radians.
-    pub min_pitch: f32,
-    /// Maximum angle of the receiver relative to the navaid, in radians.
-    pub max_pitch: f32,
+    /// Minimum angle of the receiver relative to the navaid.
+    pub min_pitch: Angle<f32>,
+    /// Maximum angle of the receiver relative to the navaid.
+    pub max_pitch: Angle<f32>,
 
-    /// Minimum horizontal distance of the receiver from the navaid, in nm.
+    /// Minimum horizontal distance of the receiver from the navaid.
     ///
     /// This is used to represent the runway visual range for ILS approach.
     /// For example, Cat I localizers should have a longer min range than Cat III localizers.
     ///
     /// This value may fluctuate during ILS ground interference.
-    pub min_dist_horizontal: f32,
-    /// Minimum vertical distance of the receiver from the navaid, in nm.
+    pub min_dist_horizontal: Distance<f32>,
+    /// Minimum vertical distance of the receiver from the navaid.
     ///
     /// This is used to represent the decision height for ILS approach.
     /// For example, Cat I localizers should have a longer min range than Cat III localizers.
     ///
     /// This value may fluctuate during ILS ground interference.
-    pub min_dist_vertical:   f32,
+    pub min_dist_vertical:   Distance<f32>,
 
-    /// Maximum horizontal distance of the receiver from the navaid, in nm.
-    pub max_dist_horizontal: f32,
-    /// Maximum vertical distance of the receiver from the navaid, in nm.
-    pub max_dist_vertical:   f32,
+    /// Maximum horizontal distance of the receiver from the navaid.
+    pub max_dist_horizontal: Distance<f32>,
+    /// Maximum vertical distance of the receiver from the navaid.
+    pub max_dist_vertical:   Distance<f32>,
 }
 
 /// Marks the navaid entity as a visual reference.

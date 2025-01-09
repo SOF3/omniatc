@@ -9,24 +9,52 @@ use bevy::prelude::{BuildChildren, ChildBuild, Commands};
 use crate::level::runway::Runway;
 use crate::level::waypoint::Waypoint;
 use crate::level::{aerodrome, nav, object, plane, runway, waypoint, wind};
-use crate::math::Heading;
+use crate::units::{
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
+};
 
 pub struct Plug;
 
-pub const DEFAULT_PLANE_LIMITS: plane::Limits = plane::Limits {
-    max_vert_accel:    1.,
-    exp_climb:         plane::ClimbProfile { vert_rate: 30., accel: 0.2, decel: -1.8 },
-    std_climb:         plane::ClimbProfile { vert_rate: 15., accel: 0.6, decel: -1.4 },
-    level:             plane::ClimbProfile { vert_rate: 0., accel: 1., decel: -1. },
-    exp_descent:       plane::ClimbProfile { vert_rate: -15., accel: 1.4, decel: -0.6 },
-    std_descent:       plane::ClimbProfile { vert_rate: -30., accel: 1.8, decel: -0.2 },
-    drag_coef:         3. / 500. / 500.,
-    accel_change_rate: 0.3,
-    max_yaw_accel:     PI / 600.,
-};
+pub fn default_plane_limits() -> plane::Limits {
+    plane::Limits {
+        max_vert_accel:    Accel::from_knots_per_sec(1.),
+        exp_climb:         plane::ClimbProfile {
+            vert_rate: Speed::from_knots(30.),
+            accel:     Accel::from_knots_per_sec(0.2),
+            decel:     Accel::from_knots_per_sec(-1.8),
+        },
+        std_climb:         plane::ClimbProfile {
+            vert_rate: Speed::from_knots(15.),
+            accel:     Accel::from_knots_per_sec(0.6),
+            decel:     Accel::from_knots_per_sec(-1.4),
+        },
+        level:             plane::ClimbProfile {
+            vert_rate: Speed::from_knots(0.),
+            accel:     Accel::from_knots_per_sec(1.),
+            decel:     Accel::from_knots_per_sec(-1.),
+        },
+        exp_descent:       plane::ClimbProfile {
+            vert_rate: Speed::from_knots(-15.),
+            accel:     Accel::from_knots_per_sec(1.4),
+            decel:     Accel::from_knots_per_sec(-0.6),
+        },
+        std_descent:       plane::ClimbProfile {
+            vert_rate: Speed::from_knots(-30.),
+            accel:     Accel::from_knots_per_sec(1.8),
+            decel:     Accel::from_knots_per_sec(-0.2),
+        },
+        drag_coef:         3. / 500. / 500.,
+        accel_change_rate: AccelRate(0.3),
+        max_yaw_accel:     AngularAccel(PI / 600.),
+    }
+}
 
-pub const DEFAULT_NAV_LIMITS: nav::Limits =
-    nav::Limits { min_horiz_speed: 120., max_yaw_speed: PI / 60. };
+pub fn default_nav_limits() -> nav::Limits {
+    nav::Limits {
+        min_horiz_speed: Speed::from_knots(120.),
+        max_yaw_speed:   AngularSpeed(PI / 60.),
+    }
+}
 
 impl Plugin for Plug {
     #[allow(clippy::too_many_lines)] // we will rewrite this later
@@ -46,38 +74,38 @@ impl Plugin for Plug {
                     waypoint: Waypoint {
                         name:         "18".into(),
                         display_type: waypoint::DisplayType::Runway,
-                        position:     Vec3::ZERO,
+                        position:     Position::new(Vec3::ZERO),
                     },
                     runway:   Runway {
-                        usable_length: Heading::SOUTH.into_dir2() * 2.,
-                        glide_angle:   FRAC_PI_6 / 10.,
-                        display_width: 0.04,
-                        display_start: Vec3::ZERO,
-                        display_end:   Vec3::NEG_Y * 2.,
+                        usable_length: Distance(2.) * Heading::SOUTH.into_dir2(),
+                        glide_angle:   Angle(FRAC_PI_6 / 10.),
+                        display_width: Distance(0.04),
+                        display_start: Position::new(Vec3::ZERO),
+                        display_end:   Position::new(Vec3::NEG_Y * 2.),
                     },
                 });
                 entity.with_children(|b| {
                     b.spawn((
                         waypoint::Navaid {
                             heading_range:       Heading::NORTH..Heading::NORTH,
-                            min_pitch:           0.,
-                            max_pitch:           FRAC_PI_2,
-                            min_dist_horizontal: 0.2,
-                            min_dist_vertical:   0.03,
-                            max_dist_horizontal: 10.,
-                            max_dist_vertical:   1.,
+                            min_pitch:           Angle(0.),
+                            max_pitch:           Angle(FRAC_PI_2),
+                            min_dist_horizontal: Distance(0.2),
+                            min_dist_vertical:   Distance(0.03),
+                            max_dist_horizontal: Distance(10.),
+                            max_dist_vertical:   Distance(1.),
                         },
                         waypoint::HasCriticalRegion {},
                     ));
                     b.spawn((
                         waypoint::Navaid {
                             heading_range:       Heading::NORTH..Heading::NORTH,
-                            min_pitch:           0.,
-                            max_pitch:           FRAC_PI_2,
-                            min_dist_horizontal: 0.,
-                            min_dist_vertical:   0.0,
-                            max_dist_horizontal: 10.,
-                            max_dist_vertical:   1.,
+                            min_pitch:           Angle(0.),
+                            max_pitch:           Angle(FRAC_PI_2),
+                            min_dist_horizontal: Distance(0.),
+                            min_dist_vertical:   Distance(0.0),
+                            max_dist_horizontal: Distance(10.),
+                            max_dist_vertical:   Distance(1.),
                         },
                         waypoint::Visual,
                     ));
@@ -92,7 +120,7 @@ impl Plugin for Plug {
                     waypoint: Waypoint {
                         name:         "JOIN".into(),
                         display_type: waypoint::DisplayType::Waypoint,
-                        position:     Vec3::new(0., 12., 0.),
+                        position:     Position::new(Vec3::new(0., 12., 0.)),
                     },
                 });
                 entity.id()
@@ -102,8 +130,8 @@ impl Plugin for Plug {
             wind.queue(wind::SpawnCommand {
                 bundle: wind::Comps {
                     vector:        wind::Vector {
-                        bottom: Vec2::new(5.0, 5.0),
-                        top:    Vec2::new(5.0, 5.0),
+                        bottom: Speed::from_knots(Vec2::new(5.0, 5.0)),
+                        top:    Speed::from_knots(Vec2::new(5.0, 5.0)),
                     },
                     effect_region: wind::EffectRegion(Aabb3d::new(
                         Vec3A::ZERO,
@@ -116,20 +144,20 @@ impl Plugin for Plug {
                 let mut plane =
                     commands.spawn(bevy::core::Name::new(String::from("Plane: ABC123")));
                 plane.queue(object::SpawnCommand {
-                    position:     object::Position(Vec3A::new(1.0, 15., 0.6)),
-                    ground_speed: object::GroundSpeed(Vec3A::new(-40., 130., 0.)),
+                    position:     Position::new(Vec3::new(1.0, 15., 0.6)),
+                    ground_speed: Speed::from_knots(Vec3::new(-40., 130., 0.)),
                     display:      object::Display { name: String::from("ABC123") },
                     destination:  object::Destination::Arrival { aerodrome: main_airport },
                 });
                 plane.queue(object::SetAirborneCommand);
                 plane.queue(plane::SpawnCommand {
                     control: Some(plane::Control::stabilized(Heading::from_degrees(210.))),
-                    limits:  DEFAULT_PLANE_LIMITS,
+                    limits:  default_plane_limits(),
                 });
-                plane.insert(DEFAULT_NAV_LIMITS);
+                plane.insert(default_nav_limits());
 
                 plane.insert(nav::TargetAlignment {
-                    activation_range: 0.2,
+                    activation_range: Distance(0.2),
                     lookahead:        Duration::from_secs(20),
                     start_waypoint:   join,
                     end_waypoint:     runway,
@@ -140,24 +168,24 @@ impl Plugin for Plug {
                 let mut plane =
                     commands.spawn(bevy::core::Name::new(String::from("Plane: ADE127")));
                 plane.queue(object::SpawnCommand {
-                    position:     object::Position(Vec3A::new(10., 0., 3.)),
-                    ground_speed: object::GroundSpeed(Vec3A::new(200.0, 0., 0.)),
+                    position:     Position::new(Vec3::new(10., 0., 3.)),
+                    ground_speed: Speed::from_knots(Vec3::new(200.0, 0., 0.)),
                     display:      object::Display { name: String::from("ADE127") },
                     destination:  object::Destination::Departure { aerodrome: main_airport },
                 });
                 plane.queue(object::SetAirborneCommand);
                 plane.queue(plane::SpawnCommand {
                     control: Some(plane::Control::stabilized(Heading::EAST)),
-                    limits:  DEFAULT_PLANE_LIMITS,
+                    limits:  default_plane_limits(),
                 });
                 plane.insert((
                     nav::VelocityTarget {
-                        yaw:         nav::YawTarget::Speed(DEFAULT_NAV_LIMITS.max_yaw_speed),
-                        horiz_speed: 200.,
-                        vert_rate:   0.,
+                        yaw:         nav::YawTarget::Speed(default_nav_limits().max_yaw_speed),
+                        horiz_speed: Speed::from_knots(200.),
+                        vert_rate:   Speed::from_knots(0.),
                         expedite:    false,
                     },
-                    DEFAULT_NAV_LIMITS,
+                    default_nav_limits(),
                     nav::TargetWaypoint { waypoint_entity: runway },
                 ));
             }

@@ -1,6 +1,9 @@
 use bevy::app::{self, App, Plugin};
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{in_state, AppExtStates, IntoSystemSetConfigs, States, SystemSet};
 use strum::IntoEnumIterator;
+
+use crate::units::Position;
 
 mod billboard;
 mod camera;
@@ -99,5 +102,13 @@ impl Zorder {
     #[allow(clippy::cast_precision_loss)] // the number of items is small
     pub const fn into_z(self) -> f32 {
         (self as u32 as f32) / (<Self as strum::EnumCount>::COUNT as f32)
+    }
+
+    pub fn pos2_to_translation(self, position: Position<Vec2>) -> Vec3 {
+        (position.get(), self.into_z()).into()
+    }
+
+    pub fn pos3_to_translation(self, position: Position<Vec3>) -> Vec3 {
+        self.pos2_to_translation(position.horizontal())
     }
 }

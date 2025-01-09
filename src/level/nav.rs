@@ -4,14 +4,15 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
-use bevy::math::Vec3Swizzles;
 use bevy::prelude::{Component, Entity, IntoSystemConfigs, IntoSystemSetConfigs, Query, Res};
 use bevy::time::{self, Time};
 
+use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{object, SystemSets};
-use crate::math::{line_circle_intersect, Heading, TurnDirection};
+use crate::math::line_circle_intersect;
 use crate::pid;
+use crate::units::{Angle, AngularSpeed, Distance, Heading, Position, Speed, TurnDirection};
 
 pub struct Plug;
 
@@ -37,10 +38,10 @@ impl Plugin for Plug {
 pub struct VelocityTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
-    /// Target horizontal indicated airspeed, in kt.
-    pub horiz_speed: f32,
-    /// Target vertical rate, in kt.
-    pub vert_rate:   f32,
+    /// Target horizontal indicated airspeed.
+    pub horiz_speed: Speed<f32>,
+    /// Target vertical rate.
+    pub vert_rate:   Speed<f32>,
     /// Whether vertical rate should be expedited.
     /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
     pub expedite:    bool,
@@ -49,10 +50,10 @@ pub struct VelocityTarget {
 /// Limits for setting velocity target.
 #[derive(Component, Default)]
 pub struct Limits {
-    /// Minimum horizontal indicated airspeed, in kt.
-    pub min_horiz_speed: f32,
-    /// Max absolute yaw speed, in rad/s.
-    pub max_yaw_speed:   f32,
+    /// Minimum horizontal indicated airspeed.
+    pub min_horiz_speed: Speed<f32>,
+    /// Max absolute yaw speed.
+    pub max_yaw_speed:   AngularSpeed<f32>,
 }
 
 /// Target yaw change.
@@ -71,8 +72,8 @@ pub enum YawTarget {
         remaining_crosses: u8,
         direction:         TurnDirection,
     },
-    /// Perform a constant turn at the given angular speed, in rad/s.
-    Speed(f32),
+    /// Perform a constant turn at the given angular speed.
+    Speed(AngularSpeed<f32>),
 }
 
 /// Desired altitude in feet.
@@ -80,13 +81,13 @@ pub enum YawTarget {
 /// Optional component. Target vertical speed is uncontrolled without this component.
 #[derive(Component)]
 pub struct TargetAltitude {
-    pub altitude: f32,
+    pub altitude: Position<f32>,
     pub expedite: bool,
 }
 
 fn altitude_control_system(
     time: Res<Time<time::Virtual>>,
-    mut query: Query<(&TargetAltitude, &object::Position, &mut VelocityTarget)>,
+    mut query: Query<(&TargetAltitude, &Object, &mut VelocityTarget)>,
 ) {
     /// Maximum proportion of the altitude error to compensate per second.
     const DELTA_RATE_PER_SECOND: f32 = 0.3;
@@ -95,9 +96,9 @@ fn altitude_control_system(
         return;
     }
 
-    query.par_iter_mut().for_each(|(altitude, position, mut target)| {
-        let diff = altitude.altitude - position.0.z;
-        let speed = diff * DELTA_RATE_PER_SECOND * 3600.;
+    query.par_iter_mut().for_each(|(altitude, &Object { position, .. }, mut target)| {
+        let diff = altitude.altitude - position.vertical();
+        let speed = Speed::per_second(diff * DELTA_RATE_PER_SECOND);
         target.vert_rate = speed;
         target.expedite = altitude.expedite;
     });
@@ -123,7 +124,7 @@ impl Default for TargetGroundDirection {
 #[query_data(mutable)]
 struct GroundDirectionSystemQueryData {
     objective:      &'static mut TargetGroundDirection,
-    current_ground: &'static object::GroundSpeed,
+    current_object: &'static Object,
     current_air:    &'static object::Airborne,
     signal:         &'static mut VelocityTarget,
 }
@@ -144,12 +145,12 @@ fn ground_heading_control_system(
             return;
         }
 
-        let current_heading = Heading::from_vec3(data.current_ground.0);
+        let current_heading = data.current_object.ground_speed.horizontal().heading();
         let error = data.objective.target - current_heading;
 
-        let signal = pid::control(&mut data.objective.pid_state, error, time.delta_secs());
+        let signal = Angle(pid::control(&mut data.objective.pid_state, error.0, time.delta_secs()));
         data.signal.yaw =
-            YawTarget::Heading(Heading::from_vec3(data.current_air.airspeed) + signal);
+            YawTarget::Heading(data.current_air.airspeed.horizontal().heading() + signal);
     });
 }
 
@@ -163,15 +164,15 @@ pub struct TargetWaypoint {
 }
 
 fn waypoint_control_system(
-    mut object_query: Query<(&mut TargetGroundDirection, &TargetWaypoint, &object::Position)>,
+    mut object_query: Query<(&mut TargetGroundDirection, &TargetWaypoint, &Object)>,
     waypoint_query: Query<&Waypoint>,
 ) {
-    object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, position)| {
+    object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, &Object { position, .. })| {
         let Ok(waypoint_pos) = waypoint_query.get(waypoint.waypoint_entity) else {
             bevy::log::error!("Invalid waypoint entity {:?}", waypoint.waypoint_entity);
             return;
         };
-        ground_dir.target = Heading::from_vec2(waypoint_pos.position.xy() - position.0.xy());
+        ground_dir.target = (waypoint_pos.position.horizontal() - position.horizontal()).heading();
     });
 }
 
@@ -194,43 +195,40 @@ pub struct TargetAlignment {
     /// Maximum orthogonal distance between the line and the object
     /// within which direction control is activated for alignment.
     /// This is used to avoid prematurely turning directly towards the localizer.
-    pub activation_range: f32,
+    pub activation_range: Distance<f32>,
 }
 
 fn alignment_control_system(
-    mut object_query: Query<(
-        &mut TargetGroundDirection,
-        &TargetAlignment,
-        &object::Position,
-        &object::GroundSpeed,
-    )>,
+    mut object_query: Query<(&mut TargetGroundDirection, &TargetAlignment, &Object)>,
     waypoint_query: Query<&Waypoint>,
 ) {
     object_query.par_iter_mut().for_each(
-        |(mut signal, target, &object::Position(position), ground_speed)| {
+        |(mut signal, target, &Object { position, ground_speed })| {
             let Ok(&Waypoint { position: start, .. }) = waypoint_query.get(target.start_waypoint)
             else {
                 return;
             };
-            let start = start.xy();
+            let start = start.horizontal();
 
             let Ok(&Waypoint { position: end, .. }) = waypoint_query.get(target.end_waypoint)
             else {
                 return;
             };
-            let end = end.xy();
+            let end = end.horizontal();
 
-            let position = position.xy();
-            let radius = ground_speed.0.length() * target.lookahead.as_secs_f32() / 3600.;
-            let radius_sq = radius.powi(2);
+            let position = position.horizontal();
+            let radius = ground_speed * target.lookahead;
+            let radius_sq = radius.magnitude_squared();
 
             let circle_intersects = line_circle_intersect(position, radius_sq, start, end)
                 .and_then(|[low, high]| {
-                    // compute apothem from radius and chord length
-                    let ortho_dist_sq = radius_sq - (high - low).powi(2) / 4.;
                     let high_pos = start.lerp(end, high);
+                    let low_pos = start.lerp(end, low);
 
-                    if ortho_dist_sq < target.activation_range.powi(2)
+                    // compute apothem from radius and chord length
+                    let ortho_dist_sq = radius_sq - low_pos.distance_squared(high_pos) / 4.;
+
+                    if ortho_dist_sq.cmp_sqrt() < target.activation_range
                         || position.distance_squared(high_pos) < radius_sq
                     {
                         Some(high_pos)
@@ -240,7 +238,7 @@ fn alignment_control_system(
                 });
             if let Some(high_pos) = circle_intersects {
                 signal.active = true;
-                signal.target = Heading::from_vec2(high_pos - position);
+                signal.target = (high_pos - position).heading();
             } else {
                 // too far from path, maintain current heading
                 signal.active = false;

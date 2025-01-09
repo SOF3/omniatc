@@ -1,5 +1,3 @@
-use std::f32::consts::FRAC_PI_6;
-
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -10,8 +8,8 @@ use bevy::prelude::{
 };
 
 use crate::level::{aerodrome, nav, object};
-use crate::math::{Heading, TurnDirection, FEET_PER_NM};
 use crate::ui::{message, track, InputState, SystemSets};
+use crate::units::{Angle, Distance, TurnDirection};
 
 pub struct Plug;
 
@@ -207,8 +205,7 @@ fn deselect_system(
 struct ObjectStatusQuery {
     display:         &'static object::Display,
     dest:            &'static object::Destination,
-    position:        &'static object::Position,
-    ground_speed:    &'static object::GroundSpeed,
+    object:          &'static object::Object,
     airborne:        Option<&'static object::Airborne>,
     vel_target:      Option<&'static nav::VelocityTarget>,
     target_altitude: Option<&'static nav::TargetAltitude>,
@@ -289,21 +286,25 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                 writeln!(
                     out,
                     "passing {:.0} feet, uncontrolled",
-                    object.position.0.z * FEET_PER_NM
+                    (object.object.position.vertical().amsl()).into_feet(),
                 )
                 .unwrap();
             }
             Some(&nav::TargetAltitude { altitude: target, expedite }) => {
-                if (target - object.position.0.z).abs() * FEET_PER_NM < 100. {
-                    writeln!(out, "maintaining {:.0} feet", object.position.0.z * FEET_PER_NM)
-                        .unwrap();
-                } else if target > object.position.0.z {
+                if (target - object.object.position.vertical()).abs() < Distance::from_feet(100.) {
+                    writeln!(
+                        out,
+                        "maintaining {:.0} feet",
+                        object.object.position.vertical().amsl().into_feet()
+                    )
+                    .unwrap();
+                } else if target > object.object.position.vertical() {
                     writeln!(
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting climb" } else { "climbing" },
-                        object.position.0.z * FEET_PER_NM,
-                        target * FEET_PER_NM
+                        object.object.position.vertical().amsl().into_feet(),
+                        target.amsl().into_feet(),
                     )
                     .unwrap();
                 } else {
@@ -311,8 +312,8 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting descent" } else { "descending" },
-                        object.position.0.z * FEET_PER_NM,
-                        target * FEET_PER_NM
+                        object.object.position.vertical().amsl().into_feet(),
+                        target.amsl().into_feet(),
                     )
                     .unwrap();
                 }
@@ -327,17 +328,18 @@ fn write_speed_status(out: &mut String, object: &ObjectStatusQueryItem) {
     writeln!(
         out,
         "ground speed {:.1} knots towards {:.1} degrees",
-        object.ground_speed.0.length(),
-        Heading::from_vec3(object.ground_speed.0).degrees()
+        object.object.ground_speed.magnitude_exact().into_knots(),
+        object.object.ground_speed.horizontal().heading().degrees(),
     )
     .unwrap();
 
     let Some(&object::Airborne { airspeed }) = object.airborne else { return };
-    let airspeed = airspeed.length();
+    let airspeed = airspeed.horizontal().magnitude_exact().into_knots();
 
     match object.vel_target {
         None => writeln!(out, "speed {airspeed:.0} knots, uncontrolled").unwrap(),
         Some(&nav::VelocityTarget { horiz_speed: target_speed, .. }) => {
+            let target_speed = target_speed.into_knots();
             if (target_speed - airspeed).abs() < 5. {
                 writeln!(out, "maintaining speed {airspeed:.0} knots").unwrap();
             } else if target_speed > airspeed {
@@ -355,26 +357,26 @@ fn write_direction_status(out: &mut String, object: &ObjectStatusQueryItem) {
     use std::fmt::Write;
 
     let Some(&object::Airborne { airspeed }) = object.airborne else { return };
-    let heading = Heading::from_vec3(airspeed);
+    let heading = airspeed.horizontal().heading();
 
     match object.vel_target {
         None => writeln!(out, "heading {:0>3.0}, uncontrolled", heading.degrees()).unwrap(),
         Some(nav::VelocityTarget { yaw, .. }) => match *yaw {
-            nav::YawTarget::Speed(speed) if speed == 0.0 => {
+            nav::YawTarget::Speed(speed) if speed.is_zero() => {
                 writeln!(out, "maintaining heading {:0>3.0}", heading.degrees()).unwrap();
             }
-            nav::YawTarget::Speed(speed) if speed > 0. => {
-                writeln!(out, "turning right {:.1} degrees per second", speed.to_degrees())
+            nav::YawTarget::Speed(speed) if speed.is_positive() => {
+                writeln!(out, "turning right {:.1} degrees per second", speed.0.to_degrees())
                     .unwrap();
             }
             nav::YawTarget::Speed(speed) => {
-                writeln!(out, "turning left {:.1} degrees per second", -speed.to_degrees())
+                writeln!(out, "turning left {:.1} degrees per second", -speed.0.to_degrees())
                     .unwrap();
             }
             nav::YawTarget::Heading(target_heading) => {
                 let dir = heading.closer_direction_to(target_heading);
                 let dist = heading.distance(target_heading, dir);
-                if dist.abs() < FRAC_PI_6 / 12. {
+                if dist.abs() < Angle::from_degrees(2.5) {
                     writeln!(out, "maintaining heading {:0>3.0} degrees", target_heading.degrees())
                         .unwrap();
                 } else {

@@ -1,4 +1,3 @@
-use std::f32::consts::FRAC_PI_2;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -13,9 +12,11 @@ use bevy::prelude::{
 };
 
 use super::select::Selected;
+use crate::level::object::Object;
 use crate::level::{nav, object};
-use crate::math::{Heading, TurnDirection, FEET_PER_NM};
+use crate::math::FEET_PER_NM;
 use crate::ui::{message, InputState};
+use crate::units::{Angle, Distance, Heading, Position, Speed, TurnDirection};
 
 pub struct Plug;
 
@@ -261,7 +262,7 @@ impl Controllable for SetSpeed {
         };
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let speed = horiz_speed.round() as u16;
+        let speed = horiz_speed.into_knots() as u16;
         Ok(Self { initial: speed, speed })
     }
 
@@ -277,7 +278,7 @@ impl Controllable for SetSpeed {
         object_entity: Entity,
     ) {
         if let Ok(mut target) = target_query.get_mut(object_entity) {
-            target.horiz_speed = f32::from(self.speed);
+            target.horiz_speed = Speed::from_knots(f32::from(self.speed));
         }
     }
 
@@ -303,7 +304,7 @@ struct SetHeading {
     initial_heading: Heading,
     heading:         Heading,
     digits:          Vec<u16>,
-    rotation_offset: i16,
+    rotation_offset: i16, // arrow-key offset in degrees
 }
 
 impl SetHeading {
@@ -342,11 +343,11 @@ impl Controllable for SetHeading {
     fn modify_by(&mut self, change: ChangeDirection, amount: u16) {
         match change {
             ChangeDirection::Increase => {
-                self.heading += f32::from(amount);
+                self.heading += Angle::from_degrees(amount);
                 self.rotation_offset = self.rotation_offset.saturating_add_unsigned(amount);
             }
             ChangeDirection::Decrease => {
-                self.heading -= f32::from(amount);
+                self.heading -= Angle::from_degrees(amount);
                 self.rotation_offset = self.rotation_offset.saturating_sub_unsigned(amount);
             }
         }
@@ -377,7 +378,7 @@ impl Controllable for SetHeading {
         object_entity: Entity,
     ) -> Result<Self, String> {
         let current_heading = match airborne_query.get(object_entity) {
-            Ok(&object::Airborne { airspeed }) => Heading::from_vec3(airspeed),
+            Ok(&object::Airborne { airspeed }) => airspeed.horizontal().heading(),
             _ => return Err("Cannot set heading of ground objects".into()),
         };
 
@@ -399,7 +400,7 @@ impl Controllable for SetHeading {
             digits: Vec::new(),
             #[allow(clippy::cast_possible_truncation)]
             rotation_offset: match dir {
-                Some(dir) => current_heading.distance(target_heading, dir) as i16,
+                Some(dir) => current_heading.distance(target_heading, dir).into_degrees() as i16,
                 None => 0,
             },
         })
@@ -416,7 +417,7 @@ impl Controllable for SetHeading {
         let Ok((mut target, &object::Airborne { airspeed })) = query.get_mut(object_entity) else {
             return;
         };
-        let current_heading = Heading::from_vec3(airspeed);
+        let current_heading = airspeed.horizontal().heading();
 
         // only set command as explicit reflex turn when rotation offset is obviously in that
         // direction.
@@ -430,7 +431,7 @@ impl Controllable for SetHeading {
 
         let distance = current_heading.distance(self.heading, dir);
 
-        target.yaw = if distance.abs() >= FRAC_PI_2 {
+        target.yaw = if distance.abs() >= Angle::RIGHT {
             nav::YawTarget::TurnHeading {
                 heading:           self.heading,
                 direction:         dir,
@@ -552,15 +553,15 @@ impl Controllable for SetAltitude {
         SetAltitudeGetInitialParams { query }: &mut SetAltitudeGetInitialParams<'_, '_>,
         object_entity: Entity,
     ) -> Result<Self, String> {
-        let Ok((target_altitude, position)) = query.get(object_entity) else {
+        let Ok((target_altitude, object)) = query.get(object_entity) else {
             return Err("object no longer exists".into());
         };
         let altitude = match target_altitude {
             Some(&nav::TargetAltitude { altitude, .. }) => altitude,
-            None => position.0.z,
+            None => object.position.vertical(),
         };
 
-        let altitude_ft = altitude * FEET_PER_NM;
+        let altitude_ft = altitude.0.into_feet();
         Ok(Self { initial: altitude_ft, current: SetAltitudeCurrent::Relative(0) })
     }
 
@@ -575,7 +576,7 @@ impl Controllable for SetAltitude {
         SetAltitudeApplyResultParams { commands, query }: &mut Self::ApplyResultParams<'_, '_>,
         object_entity: Entity,
     ) {
-        let altitude = self.resolve_ft() / FEET_PER_NM;
+        let altitude = Position(Distance::from_feet(self.resolve_ft() / FEET_PER_NM));
         if let Ok(Some(mut target_altitude)) = query.get_mut(object_entity) {
             target_altitude.altitude = altitude;
         } else if let Some(mut entity_commands) = commands.get_entity(object_entity) {
@@ -594,7 +595,7 @@ impl Controllable for SetAltitude {
 
 #[derive(SystemParam)]
 struct SetAltitudeGetInitialParams<'w, 's> {
-    query: Query<'w, 's, (Option<&'static nav::TargetAltitude>, &'static object::Position)>,
+    query: Query<'w, 's, (Option<&'static nav::TargetAltitude>, &'static Object)>,
 }
 
 #[derive(SystemParam)]

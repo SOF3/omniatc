@@ -1,4 +1,3 @@
-use std::f32::consts::TAU;
 use std::time::Duration;
 use std::{fmt, str};
 
@@ -7,7 +6,7 @@ use bevy::asset::{AssetServer, Assets, Handle};
 use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::SystemParam;
-use bevy::math::{Vec3, Vec3Swizzles};
+use bevy::math::Vec3;
 use bevy::prelude::{
     Annulus, BuildChildren, Camera2d, ChildBuild, Children, Commands, Component,
     DespawnRecursiveExt, DetectChangesMut, Entity, EventReader, GlobalTransform, IntoSystemConfigs,
@@ -20,8 +19,9 @@ use bevy::time::Time;
 
 use super::{select, ColorScheme, Config, LabelElement, LabelLine};
 use crate::level::{aerodrome, nav, object, plane};
-use crate::math::{Heading, TurnDirection, TROPOPAUSE_ALTITUDE};
+use crate::math::TROPOPAUSE_ALTITUDE;
 use crate::ui::{billboard, SystemSets, Zorder};
+use crate::units::{Angle, AngularSpeed, TurnDirection};
 
 pub struct Plug;
 
@@ -140,12 +140,11 @@ struct LastRender(Option<Duration>);
 struct ParentQueryData {
     entity: Entity,
 
-    display:      &'static object::Display,
-    destination:  &'static object::Destination,
-    ground_speed: &'static object::GroundSpeed,
-    position:     &'static object::Position,
-    rotation:     &'static object::Rotation,
-    airborne:     Option<&'static object::Airborne>,
+    display:     &'static object::Display,
+    destination: &'static object::Destination,
+    object:      &'static object::Object,
+    rotation:    &'static object::Rotation,
+    airborne:    Option<&'static object::Airborne>,
 
     plane_control: Option<&'static plane::Control>,
 
@@ -181,7 +180,8 @@ fn maintain_viewable_system(
                 return true;
             };
 
-            let scan_radial = Heading::from_vec3(parent.position.0).radians_nonnegative() / TAU;
+            let scan_radial =
+                parent.object.position.horizontal().0.heading().radians_nonnegative() / Angle::FULL;
             let scan_offset = freq.mul_f32(scan_radial);
             let current_cycles =
                 time.elapsed().saturating_sub(scan_offset).as_nanos() / freq.as_nanos();
@@ -195,7 +195,7 @@ fn maintain_viewable_system(
 
         let color = parent.resolve_color(&config.color_scheme, &resolve_color_params);
 
-        owner_tf.translation = parent.position.0.into();
+        owner_tf.translation = parent.object.position.get();
 
         owner_children.iter().for_each(|&child_entity| {
             if let Ok((mut sprite_tf, mut sprite)) = sprite_query.get_mut(child_entity) {
@@ -264,9 +264,10 @@ impl ParentQueryDataItem<'_> {
             ColorScheme::Mixed { a, b, factor } => {
                 self.resolve_color(a, params).mix(&self.resolve_color(b, params), *factor)
             }
-            ColorScheme::Altitude(scale) => {
-                scale.get((self.position.0.z / TROPOPAUSE_ALTITUDE).clamp(0., 1.))
-            }
+            ColorScheme::Altitude(scale) => scale.get(
+                ((self.object.position.vertical().amsl()) / (TROPOPAUSE_ALTITUDE.amsl()))
+                    .clamp(0., 1.),
+            ),
             ColorScheme::Destination { departure, arrival, ferry } => match *self.destination {
                 object::Destination::Departure { aerodrome } => {
                     let id = match params.aerodrome_query.get(aerodrome) {
@@ -368,16 +369,20 @@ impl ParentQueryDataItem<'_> {
             },
             LabelElement::CurrentIndicatedAirspeed(unit) => {
                 if let Some(airborne) = self.airborne {
-                    writer.set_display(unit.convert(airborne.airspeed.xy().length()));
+                    writer.set_display(
+                        unit.convert(airborne.airspeed.horizontal().magnitude_exact().0),
+                    );
                 } else {
                     writer.set_text("");
                 }
             }
             LabelElement::CurrentGroundSpeed(unit) => {
-                writer.set_display(unit.convert(self.ground_speed.0.xy().length()));
+                writer.set_display(
+                    unit.convert(self.object.ground_speed.horizontal().magnitude_exact().0),
+                );
             }
             LabelElement::CurrentAltitude(unit) => {
-                writer.set_display(unit.convert(self.position.0.z));
+                writer.set_display(unit.convert(self.object.position.vertical().get()));
             }
             LabelElement::CurrentHeading => {
                 if let Some(plane_control) = self.plane_control {
@@ -389,21 +394,21 @@ impl ParentQueryDataItem<'_> {
             }
             LabelElement::TargetAirspeed(unit) => {
                 if let Some(nav) = self.nav_velocity {
-                    writer.set_display(unit.convert(nav.horiz_speed));
+                    writer.set_display(unit.convert(nav.horiz_speed.0));
                 } else {
                     writer.set_text("");
                 }
             }
             LabelElement::TargetAltitude(unit) => {
                 if let Some(nav) = self.nav_altitude {
-                    writer.set_display(unit.convert(nav.altitude));
+                    writer.set_display(unit.convert(nav.altitude.get()));
                 } else {
                     writer.set_text("");
                 }
             }
             LabelElement::TargetClimbRate(unit) => {
                 if let Some(nav) = self.nav_velocity {
-                    writer.set_display(unit.convert(nav.vert_rate));
+                    writer.set_display(unit.convert(nav.vert_rate.0));
                 } else {
                     writer.set_text("");
                 }
@@ -430,8 +435,8 @@ impl ParentQueryDataItem<'_> {
                             ));
                         }
                         nav::YawTarget::Speed(speed) => writer.set_text(match speed {
-                            0.0 => "",
-                            0.0.. => "R",
+                            AngularSpeed(0.0) => "",
+                            AngularSpeed(0.0..) => "R",
                             _ => "L",
                         }),
                     }

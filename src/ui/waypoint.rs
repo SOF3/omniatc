@@ -37,7 +37,7 @@ fn spawn_waypoint_viewable_system(
         commands
             .entity(entity)
             .insert((
-                Transform::from_translation(waypoint.position.with_z(0.)),
+                Transform::from_translation(waypoint.position.get().with_z(0.)),
                 Visibility::Visible,
             ))
             .with_children(|b| {

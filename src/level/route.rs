@@ -1,18 +1,22 @@
 use std::collections::VecDeque;
 
 use bevy::app::{self, App, Plugin};
-use bevy::math::Vec3Swizzles;
-use bevy::prelude::{Component, Entity, Event, EventWriter, IntoSystemConfigs, Query, With};
+use bevy::prelude::{
+    Component, Entity, Event, EventWriter, Events, IntoSystemConfigs, Query, With,
+};
 
+use super::object::Object;
 use super::waypoint::Waypoint;
-use super::{nav, object, SystemSets};
-use crate::math::Heading;
+use super::{nav, SystemSets};
+use crate::units::Distance;
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_event::<StepRouteEvent>();
+        app.allow_ambiguous_resource::<Events<StepRouteEvent>>();
+
         app.add_systems(
             app::Update,
             (fly_over_trigger_system, fly_by_trigger_system).in_set(SystemSets::Action),
@@ -56,7 +60,7 @@ pub struct Node {
     pub waypoint:  Entity,
     pub altitude:  Option<f32>,
     pub proximity: WaypointProximity,
-    pub distance:  f32,
+    pub distance:  Distance<f32>,
 }
 
 pub enum WaypointProximity {
@@ -72,16 +76,16 @@ pub enum WaypointProximity {
 
 #[derive(Component)]
 struct FlyOverTrigger {
-    distance: f32,
+    distance: Distance<f32>,
 }
 
 fn fly_over_trigger_system(
     waypoint_query: Query<&Waypoint>,
-    object_query: Query<(Entity, &object::Position, &Route, &FlyOverTrigger)>,
+    object_query: Query<(Entity, &Object, &Route, &FlyOverTrigger)>,
     mut step_route_events: EventWriter<StepRouteEvent>,
 ) {
     object_query.iter().for_each(
-        |(object_entity, &object::Position(current_pos), route, trigger)| {
+        |(object_entity, &Object { position: current_pos, .. }, route, trigger)| {
             let Some(node) = route.current() else {
                 bevy::log::error!("FlyOverTrigger applied on object with an empty Route");
                 return;
@@ -93,7 +97,7 @@ fn fly_over_trigger_system(
                 return;
             };
 
-            if current_pos.distance_squared(current_target.into()) <= trigger.distance {
+            if current_pos.distance_cmp(current_target) <= trigger.distance {
                 step_route_events.send(StepRouteEvent(object_entity));
             }
         },
@@ -105,17 +109,13 @@ struct FlyByTrigger;
 
 fn fly_by_trigger_system(
     waypoint_query: Query<&Waypoint>,
-    object_query: Query<
-        (Entity, &object::Position, &object::GroundSpeed, &nav::Limits, &Route),
-        With<FlyByTrigger>,
-    >,
+    object_query: Query<(Entity, &Object, &nav::Limits, &Route), With<FlyByTrigger>>,
     mut step_route_events: EventWriter<StepRouteEvent>,
 ) {
     object_query.iter().for_each(
         |(
             object_entity,
-            &object::Position(current_pos),
-            &object::GroundSpeed(speed),
+            &Object { position: current_pos, ground_speed: speed },
             nav_limits,
             route,
         )| {
@@ -130,7 +130,7 @@ fn fly_by_trigger_system(
                 bevy::log::error!("Invalid waypoint referenced in route");
                 return;
             };
-            let current_target = current_target.xy();
+            let current_target = current_target.horizontal();
 
             match route.next() {
                 Some(next_node) => {
@@ -140,21 +140,24 @@ fn fly_by_trigger_system(
                         bevy::log::error!("Invalid waypoint referenced in next node in route");
                         return;
                     };
-                    let next_target = next_target.xy();
+                    let next_target = next_target.horizontal();
 
-                    let current_heading = Heading::from_vec2(current_target - current_pos.xy());
-                    let next_heading = Heading::from_vec2(next_target - current_target);
-                    let turn_radius = speed.xy().length() / nav_limits.max_yaw_speed;
-                    let turn_distance = (current_heading.closest_distance(next_heading).abs() / 2.)
-                        .tan()
-                        * turn_radius;
+                    let current_heading = (current_target - current_pos.horizontal()).heading();
+                    let next_heading = (next_target - current_target).heading();
+                    let turn_radius = Distance(
+                        speed.horizontal().magnitude_exact().0 / nav_limits.max_yaw_speed.0,
+                    ); // (L/T) / (1/T) = L
+                    let turn_distance = turn_radius
+                        * (current_heading.closest_distance(next_heading).abs() / 2.).tan();
 
-                    if current_pos.xy().distance_squared(current_target) <= turn_distance.powi(2) {
+                    if current_pos.horizontal().distance_cmp(current_target) <= turn_distance {
                         step_route_events.send(StepRouteEvent(object_entity));
                     }
                 }
                 None => {
-                    if current_pos.xy().distance_squared(current_target) <= current_node.distance {
+                    if current_pos.horizontal().distance_cmp(current_target)
+                        <= current_node.distance
+                    {
                         step_route_events.send(StepRouteEvent(object_entity));
                     }
                 }

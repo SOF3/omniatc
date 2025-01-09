@@ -1,18 +1,19 @@
 //! A flying object with forward thrust and takes off/lands on a runway.
 //! All plane entities are object entities.
 
-use std::f32::consts::FRAC_PI_2;
-
 use bevy::app::{self, App, Plugin};
-use bevy::math::{Quat, Vec3Swizzles};
+use bevy::math::Quat;
 use bevy::prelude::{
     Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, World,
 };
 use bevy::time::{self, Time};
 
 use super::nav::{self, VelocityTarget, YawTarget};
+use super::object::Object;
 use super::{object, SystemSets};
-use crate::math::{lerp, unlerp, Heading, TurnDirection};
+use crate::units::{
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection,
+};
 
 pub struct Plug;
 
@@ -30,16 +31,16 @@ pub struct Control {
     /// Heading of the plane, must be a unit vector.
     /// This is the horizontal direction of the thrust generated.
     pub heading:     Heading,
-    /// Rate of yaw change, in rad/s. Considered to be directly proportional to roll.
-    pub yaw_speed:   f32,
+    /// Rate of yaw change. Considered to be directly proportional to roll.
+    pub yaw_speed:   AngularSpeed<f32>,
     /// Current horizontal acceleration.
-    pub horiz_accel: f32,
+    pub horiz_accel: Accel<f32>,
 }
 
 impl Control {
     /// Stabilize at current velocity.
     pub fn stabilized(heading: Heading) -> Self {
-        Control { heading, yaw_speed: 0., horiz_accel: 0. }
+        Control { heading, yaw_speed: AngularSpeed::ZERO, horiz_accel: Accel::ZERO }
     }
 }
 
@@ -62,12 +63,12 @@ pub struct Limits {
     pub std_descent:    ClimbProfile,
     /// Climb profile during expedited altitude decrease.
     pub exp_descent:    ClimbProfile,
-    /// Absolute change rate for vertical rate acceleration, in kt/s.
-    pub max_vert_accel: f32,
+    /// Maximum absolute change rate for vertical rate acceleration.
+    pub max_vert_accel: Accel<f32>,
 
     // Forward limits.
-    /// Absolute change rate for airborne horizontal acceleration, in kt/s^2. Always positive.
-    pub accel_change_rate: f32, // ah yes we have d^3/dt^3 now...
+    /// Absolute change rate for airborne horizontal acceleration. Always positive.
+    pub accel_change_rate: AccelRate<f32>, // ah yes we have d^3/dt^3 now...
     /// Drag coefficient, in nm^-1.
     ///
     /// Acceleration is subtracted by `drag_coef * airspeed^2`.
@@ -79,25 +80,29 @@ pub struct Limits {
     pub drag_coef:         f32,
 
     // Z axis rotation limits.
-    /// Max absolute rate of change of yaw speed, in rad/s^2.
-    pub max_yaw_accel: f32,
+    /// Max absolute rate of change of yaw speed.
+    pub max_yaw_accel: AngularAccel<f32>,
 }
 
 impl Limits {
     /// Returns the maximum horizontal acceleration rate at the given climb rate.
     ///
     /// The returned value could be negative.
-    pub fn accel(&self, climb_rate: f32) -> f32 {
+    pub fn accel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
         self.find_field(climb_rate, |profile| profile.accel)
     }
 
     /// Returns the maximum horizontal deceleration rate at the given descent rate.
     /// The returned value is negative.
-    pub fn decel(&self, climb_rate: f32) -> f32 {
+    pub fn decel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
         self.find_field(climb_rate, |profile| profile.decel)
     }
 
-    fn find_field(&self, climb_rate: f32, field: impl Fn(&ClimbProfile) -> f32) -> f32 {
+    fn find_field(
+        &self,
+        climb_rate: Speed<f32>,
+        field: impl Fn(&ClimbProfile) -> Accel<f32>,
+    ) -> Accel<f32> {
         if climb_rate < self.exp_descent.vert_rate {
             return field(&self.exp_descent);
         }
@@ -108,8 +113,8 @@ impl Limits {
         {
             let &[left, right] = pair else { unreachable!() };
             if climb_rate < right.vert_rate {
-                let ratio = unlerp(left.vert_rate, right.vert_rate, climb_rate);
-                return lerp(field(left), field(right), ratio);
+                let ratio = climb_rate.ratio_between(left.vert_rate, right.vert_rate);
+                return field(left).lerp(field(right), ratio);
             }
         }
 
@@ -119,14 +124,14 @@ impl Limits {
 
 /// Speed limitations during a certain climb rate.
 pub struct ClimbProfile {
-    /// Vertical rate for this climb profile, in nm/h.
+    /// Vertical rate for this climb profile.
     /// A negative value indicates this is a descent profile.
-    pub vert_rate: f32,
-    /// Standard horizontal acceleration rate when requested, in kt/s.
-    pub accel:     f32,
-    /// Standard horizontal deceleration rate, in kt/s.
+    pub vert_rate: Speed<f32>,
+    /// Standard horizontal acceleration rate when requested.
+    pub accel:     Accel<f32>,
+    /// Standard horizontal deceleration rate.
     /// The value is negative.
-    pub decel:     f32,
+    pub decel:     Accel<f32>,
 }
 
 pub struct SpawnCommand {
@@ -139,12 +144,12 @@ impl EntityCommand for SpawnCommand {
         let mut entity_ref = world.entity_mut(entity);
 
         if let Some(airborne) = entity_ref.get::<object::Airborne>() {
-            let horiz_speed = airborne.airspeed.length();
+            let horiz_speed = airborne.airspeed.magnitude_exact();
 
             let dt_target = VelocityTarget {
-                yaw: YawTarget::Speed(0.),
+                yaw: YawTarget::Speed(AngularSpeed(0.)),
                 horiz_speed,
-                vert_rate: 0.,
+                vert_rate: Speed::ZERO,
                 expedite: false,
             };
 
@@ -204,7 +209,7 @@ fn maintain_yaw(
     limits: &Limits,
     airborne: &object::Airborne,
 ) {
-    let current_yaw = Heading::from_vec3(airborne.airspeed);
+    let current_yaw = airborne.airspeed.horizontal().heading();
     let mut detect_crossing = None;
     let mut set_yaw_target = None;
 
@@ -216,13 +221,13 @@ fn maintain_yaw(
             // Test if the target heading is overshot when yaw speed reduces to 0
             // if we start reducing yaw speed now.
             // By v^2 = u^2 + 2as and v=0, s = -u^2/2a.
-            let brake_distance =
-                control.yaw_speed.powi(2) / limits.max_yaw_accel * control.yaw_speed.signum();
-            let braked_yaw = current_yaw + brake_distance;
+            let brake_angle = Angle(control.yaw_speed.0.powi(2) / limits.max_yaw_accel.0)
+                * control.yaw_speed.signum();
+            let braked_yaw = current_yaw + brake_angle;
 
             if target_heading.is_between(current_yaw, braked_yaw) {
                 // we are going to overshoot the target heading, start reducing speed now.
-                0.
+                AngularSpeed(0.)
             } else {
                 match dir {
                     TurnDirection::CounterClockwise => -nav_limits.max_yaw_speed,
@@ -237,7 +242,7 @@ fn maintain_yaw(
         } => {
             let distance = current_yaw.distance(target_heading, direction);
             if *remaining_crosses == 0 {
-                if distance < FRAC_PI_2 {
+                if distance < Angle::RIGHT {
                     set_yaw_target = Some(target_heading);
                 }
             } else {
@@ -252,11 +257,12 @@ fn maintain_yaw(
     };
 
     let delta = desired_yaw_speed - control.yaw_speed;
-    control.yaw_speed +=
-        delta.clamp(-limits.max_yaw_accel, limits.max_yaw_accel) * time.delta_secs();
+    control.yaw_speed += AngularAccel::per_second(delta)
+        .clamp(-limits.max_yaw_accel, limits.max_yaw_accel)
+        * time.delta();
 
     {
-        let new_heading = control.heading + control.yaw_speed * time.delta_secs();
+        let new_heading = control.heading + control.yaw_speed * time.delta();
         if let Some((boundary, counter)) = detect_crossing {
             if boundary.is_between(control.heading, new_heading) {
                 *counter -= 1;
@@ -282,14 +288,16 @@ fn maintain_accel(
         Decrease,
     }
 
-    let current_speed = airborne.airspeed.xy().length();
+    let current_speed = airborne.airspeed.horizontal().magnitude_exact();
 
-    let max_accel = limits.accel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
-    let max_decel = limits.decel(airborne.airspeed.z) - limits.drag_coef * current_speed.powi(2);
+    let max_accel = limits.accel(airborne.airspeed.vertical())
+        - Accel(limits.drag_coef * current_speed.0.powi(2));
+    let max_decel = limits.decel(airborne.airspeed.vertical())
+        - Accel(limits.drag_coef * current_speed.0.powi(2));
 
     #[allow(clippy::collapsible_else_if)]
     let desired_action = if target.horiz_speed >= current_speed {
-        if control.horiz_accel < 0. {
+        if control.horiz_accel.is_negative() {
             // We are slower than we want to be and we are even further decelerating,
             // so increasing throttle is the only correct action.
             ThrottleAction::Increase
@@ -301,8 +309,8 @@ fn maintain_accel(
             // If we perform maximum throttle pull back now, when the acceleration decreases to 0,
             // accel(t_stop) = 0 => t_stop = accel(0) / accel_change_rate
             // => speed(t_stop) = speed(0) - 0.5 * accel(0) / accel_change_rate
-            let speed_stop =
-                current_speed - 0.5 * control.horiz_accel.powi(2) / (-limits.accel_change_rate);
+            let speed_stop = current_speed
+                - Speed(0.5 * control.horiz_accel.0.powi(2) / (-limits.accel_change_rate.0));
 
             // As we continue to accelerate, speed(0) increases over time,
             // so speed(t_stop) also increases over time.
@@ -317,14 +325,14 @@ fn maintain_accel(
             }
         }
     } else {
-        if control.horiz_accel > 0. {
+        if control.horiz_accel.is_positive() {
             // We are faster than we want to be and we are even further accelerating,
             // so reducing throttle is the only correct action.
             ThrottleAction::Decrease
         } else {
             // With a similar approach as above, except accel_change_rate is positive this time.
-            let speed_stop =
-                current_speed - 0.5 * control.horiz_accel.powi(2) / limits.accel_change_rate;
+            let speed_stop = current_speed
+                - Speed(0.5 * control.horiz_accel.0.powi(2) / limits.accel_change_rate.0);
 
             // As we continue to decelerate, speed(0) decreases over time,
             // so speed(t_stop) also decreases over time.
@@ -343,19 +351,20 @@ fn maintain_accel(
         ThrottleAction::Increase => {
             // We cannot increase acceleration too quickly to avoid compressor stall.
             let actual_accel =
-                max_accel.min(control.horiz_accel + limits.accel_change_rate * time.delta_secs());
+                max_accel.min(control.horiz_accel + limits.accel_change_rate * time.delta());
             control.horiz_accel = actual_accel;
         }
         ThrottleAction::Decrease => {
             // We cannot decelerate too quickly to avoid compressor stall.
             let actual_accel =
-                max_decel.max(control.horiz_accel - limits.accel_change_rate * time.delta_secs());
+                max_decel.max(control.horiz_accel - limits.accel_change_rate * time.delta());
             control.horiz_accel = actual_accel;
         }
     }
 
-    let new_speed = current_speed + control.horiz_accel * time.delta_secs();
-    airborne.airspeed = (control.heading.into_dir2() * new_speed, airborne.airspeed.z).into();
+    let new_speed = current_speed + control.horiz_accel * time.delta();
+    airborne.airspeed =
+        (new_speed * control.heading.into_dir2()).with_vertical(airborne.airspeed.vertical());
 }
 
 fn maintain_vert(
@@ -370,16 +379,15 @@ fn maintain_vert(
         target.vert_rate.clamp(limits.std_descent.vert_rate, limits.std_climb.vert_rate)
     };
     let actual_vert_rate = desired_vert_rate.clamp(
-        airborne.airspeed.z - limits.max_vert_accel * time.delta_secs(),
-        airborne.airspeed.z + limits.max_vert_accel * time.delta_secs(),
+        airborne.airspeed.vertical() - limits.max_vert_accel * time.delta(),
+        airborne.airspeed.vertical() + limits.max_vert_accel * time.delta(),
     );
-    airborne.airspeed.z = actual_vert_rate;
+    airborne.airspeed.set_vertical(actual_vert_rate);
 }
 
-fn rotate_object_system(mut query: Query<(&mut object::Rotation, &object::GroundSpeed, &Control)>) {
-    query.iter_mut().for_each(|(mut rot, gs, thrust)| {
-        let yaw = thrust.heading.radians();
-        let pitch = gs.0.z.atan2(gs.0.xy().length());
-        rot.0 = Quat::from_rotation_x(pitch) * Quat::from_rotation_z(-yaw);
+fn rotate_object_system(mut query: Query<(&mut object::Rotation, &object::Object, &Control)>) {
+    query.iter_mut().for_each(|(mut rot, &Object { ground_speed, .. }, thrust)| {
+        let pitch = ground_speed.vertical().atan2(ground_speed.horizontal().magnitude_exact());
+        rot.0 = Quat::from_rotation_x(pitch.0) * thrust.heading.into_rotation_quat();
     });
 }

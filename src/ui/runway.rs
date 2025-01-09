@@ -8,7 +8,7 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle};
 use bevy::color::Color;
-use bevy::math::{Quat, Vec3, Vec3Swizzles};
+use bevy::math::Vec3;
 use bevy::prelude::{
     Annulus, BuildChildren, Camera2d, Children, Commands, Component, DespawnRecursiveExt,
     DetectChangesMut, Entity, EventReader, GlobalTransform, IntoSystemConfigs, Mesh, Mesh2d, Mut,
@@ -19,7 +19,8 @@ use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use super::{billboard, SystemSets, Zorder};
 use crate::level::runway::{self, Runway};
 use crate::level::waypoint::{self, Navaid, Waypoint};
-use crate::math::{Heading, FEET_PER_NM};
+use crate::math::SEA_ALTITUDE;
+use crate::units::Distance;
 
 pub struct Plug;
 
@@ -64,7 +65,7 @@ struct LocalizerViewable;
 
 /// Horizontal length of the displayed localizer.
 #[derive(Component)]
-struct LocalizerDisplayLength(f32);
+struct LocalizerDisplayLength(Distance<f32>);
 
 /// Marks the entity that owns the glide point entities.
 #[derive(Component)]
@@ -117,25 +118,25 @@ fn spawn_viewable_system(
             MeshMaterial2d(
                 materials.add(ColorMaterial { color: config.strip_color, ..Default::default() }),
             ),
-            // x = width, y = height
+            // x = width, y = length
             Transform {
-                translation: (
-                    (runway.display_start.xy() + runway.display_end.xy()) * 0.5,
-                    Zorder::RunwayStrip.into_z(),
-                )
-                    .into(),
-                rotation:    Quat::from_rotation_z(
-                    Heading::from_vec3(runway.display_end - runway.display_start).radians(),
+                translation: Zorder::RunwayStrip.pos2_to_translation(
+                    runway.display_start.horizontal().lerp(runway.display_end.horizontal(), 0.5),
                 ),
+                rotation:    (runway.display_end - runway.display_start)
+                    .horizontal()
+                    .heading()
+                    .into_rotation_quat(),
                 scale:       Vec3::new(
-                    runway.display_width,
-                    runway.display_start.distance(runway.display_end),
+                    runway.display_width.0,
+                    runway.display_start.distance_exact(runway.display_end).0,
                     1.,
                 ),
             },
         ));
 
-        runway_ref.insert((LocalizerDisplayLength(0.), GlidePointOwnerRef(glide_point_owner)));
+        runway_ref
+            .insert((LocalizerDisplayLength(Distance(0.)), GlidePointOwnerRef(glide_point_owner)));
     }
 }
 
@@ -157,7 +158,7 @@ fn maintain_localizer_viewable_system(
             return;
         };
 
-        let mut localizer_length = None::<f32>;
+        let mut localizer_length = None::<Distance<f32>>;
         for &child in children {
             let Ok(navaid) = navaid_query.get(child) else { continue };
             let max = localizer_length.get_or_insert_default();
@@ -166,18 +167,17 @@ fn maintain_localizer_viewable_system(
 
         let localizer_length = localizer_length.unwrap_or_else(|| {
             bevy::log::warn!("no visual navaid children for runway {runway_ref:?}");
-            1.
+            Distance(1.)
         });
         localizer_length_store.0 = localizer_length;
 
-        // Orientation: x = localizer length, y = line width
-        tf.translation = (
-            waypoint.position.xy() - runway.usable_length.normalize() * localizer_length * 0.5,
-            Zorder::Localizer.into_z(),
-        )
-            .into();
-        tf.rotation = Quat::from_rotation_z(runway.usable_length.y.atan2(runway.usable_length.x));
-        tf.scale = Vec3::new(localizer_length, config.localizer_width * camera.scale().y, 1.);
+        // Orientation: x = line width, y = localizer length
+        tf.translation = Zorder::Localizer.pos2_to_translation(
+            waypoint.position.horizontal()
+                - runway.usable_length.with_magnitude(localizer_length) * 0.5,
+        );
+        tf.rotation = runway.usable_length.heading().into_rotation_quat();
+        tf.scale = Vec3::new(config.localizer_width * camera.scale().y, localizer_length.0, 1.);
     });
 }
 
@@ -198,9 +198,13 @@ fn maintain_glide_point_system(
             &GlidePointOwnerRef(owner_ref),
         )| {
             #[allow(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
-            let first_mult = (waypoint.position.z / config.glide_point_density).ceil() as i32 + 1;
+            let first_mult = (waypoint.position.vertical().amsl() / config.glide_point_density)
+                .ceil() as i32
+                + 1;
             #[allow(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
-            let last_mult = ((waypoint.position.z + runway.glide_angle.tan() * localizer_length)
+            let last_mult = ((waypoint.position.vertical()
+                + localizer_length * runway.glide_angle.tan())
+            .amsl()
                 / config.glide_point_density)
                 .floor() as i32;
             let point_count = usize::try_from(last_mult - first_mult + 1).unwrap_or(0);
@@ -220,12 +224,12 @@ fn maintain_glide_point_system(
                     clippy::cast_possible_truncation,
                     clippy::cast_possible_wrap
                 )]
-                let altitude = (first_mult + point as i32) as f32 * config.glide_point_density;
-                let distance = (altitude - waypoint.position.z) / runway.glide_angle.tan();
-                let pos = Vec3::from((
-                    waypoint.position.xy() - runway.usable_length.normalize() * distance,
-                    Zorder::LocalizerGlidePoint.into_z(),
-                ));
+                let altitude =
+                    SEA_ALTITUDE + config.glide_point_density * (first_mult + point as i32) as f32;
+                let distance = (altitude - waypoint.position.vertical()) / runway.glide_angle.tan();
+                let pos = Zorder::LocalizerGlidePoint.pos2_to_translation(
+                    waypoint.position.horizontal() - runway.usable_length.with_magnitude(distance),
+                );
 
                 if let Some(&point_entity) = children.get(point) {
                     let Ok(point_tf) = glide_point_query.get_mut(point_entity) else {
@@ -263,8 +267,8 @@ pub struct Config {
     pub localizer_width:     f32,
     /// A glide point is displayed on the displayed localizer line
     /// if a plane on the glidepath should be at a height
-    /// that is an integer multiple of `glidepath_density` in nm.
-    pub glide_point_density: f32,
+    /// that is an integer multiple of `glidepath_density`.
+    pub glide_point_density: Distance<f32>,
     /// Display size of a glide point.
     pub glide_point_size:    f32,
 }
@@ -275,7 +279,7 @@ impl Default for Config {
             strip_color:         Color::srgb(0.4, 0.9, 0.2),
             localizer_color:     Color::WHITE,
             localizer_width:     0.3,
-            glide_point_density: 1000. / FEET_PER_NM,
+            glide_point_density: Distance::from_feet(1000.),
             glide_point_size:    3.0,
         }
     }

@@ -3,11 +3,11 @@ use crate::units::Position;
 /// Converts nautical miles to feet.
 pub const FEET_PER_NM: f32 = 6076.12;
 /// Converts nautical miles to feet.
-pub const MILE_PER_NM: f32 = 1.15078;
+pub const MILES_PER_NM: f32 = 1.15078;
 /// Converts nautical miles to meter.
-pub const METER_PER_NM: f32 = 1852.;
+pub const METERS_PER_NM: f32 = 1852.;
 /// Converts speed of sound to knots.
-pub const KT_PER_MACH: f32 = 666.739;
+pub const KNOTS_PER_MACH: f32 = 666.739;
 
 /// Altitude of mean sea level.
 pub const SEA_ALTITUDE: Position<f32> = Position::new(0.);

@@ -13,7 +13,7 @@ mod squared;
 pub use squared::Squared;
 use squared::SquaredNorm;
 
-use crate::math::FEET_PER_NM;
+use crate::math::{FEET_PER_NM, METERS_PER_NM, MILES_PER_NM};
 
 pub trait Unit: Copy {
     type Value: Copy;
@@ -202,6 +202,11 @@ macro_rules! decl_units {
             pub fn clamp(self, min: Self, max: Self) -> Self {
                 Self(self.0.clamp(min.0, max.0))
             }
+
+            #[must_use]
+            pub fn with_heading(self, heading: Heading) -> $ty<Vec2> {
+                $ty(heading.into_dir2() * self.0)
+            }
         }
 
         impl ops::Mul<Dir2> for $ty<f32> {
@@ -346,10 +351,34 @@ decl_units! {
 
 impl Distance<f32> {
     #[must_use]
+    pub fn into_nm(self) -> f32 { self.0 }
+
+    #[must_use]
+    pub fn from_nm(nm: f32) -> Self { Self(nm) }
+
+    #[must_use]
     pub fn into_feet(self) -> f32 { self.0 * FEET_PER_NM }
 
     #[must_use]
     pub fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
+
+    #[must_use]
+    pub fn into_mile(self) -> f32 { self.0 * MILES_PER_NM }
+
+    #[must_use]
+    pub fn from_mile(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
+
+    #[must_use]
+    pub fn into_meters(self) -> f32 { self.0 * METERS_PER_NM }
+
+    #[must_use]
+    pub fn from_meters(meters: f32) -> Self { Self(meters / METERS_PER_NM) }
+
+    #[must_use]
+    pub fn into_km(self) -> f32 { self.0 * (METERS_PER_NM / 1000.) }
+
+    #[must_use]
+    pub fn from_km(meters: f32) -> Self { Self(meters / (METERS_PER_NM / 1000.)) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
@@ -357,6 +386,10 @@ impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
     pub fn into_knots(self) -> T { self.0 * 3600. }
 
     pub fn from_knots(knots: T) -> Self { Self(knots / 3600.) }
+
+    pub fn into_fpm(self) -> T { self.0 * 60. * FEET_PER_NM }
+
+    pub fn from_fpm(fpm: T) -> Self { Self(fpm / 60. / FEET_PER_NM) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {
@@ -364,6 +397,17 @@ impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {
     pub fn into_knots_per_sec(self) -> T { self.0 * 3600. }
 
     pub fn from_knots_per_sec(knots: T) -> Self { Self(knots / 3600.) }
+
+    pub fn into_fpm_per_sec(self) -> T { self.0 * 60. * FEET_PER_NM }
+
+    pub fn from_fpm_per_sec(fpm: T) -> Self { Self(fpm / 60. / FEET_PER_NM) }
+}
+
+impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> AccelRate<T> {
+    #[must_use]
+    pub fn into_knots_per_sec2(self) -> T { self.0 * 3600. }
+
+    pub fn from_knots_per_sec2(knots: T) -> Self { Self(knots / 3600.) }
 }
 
 impl Angle<f32> {
@@ -384,4 +428,20 @@ impl Angle<f32> {
     pub fn cos(self) -> f32 { self.0.cos() }
     #[must_use]
     pub fn tan(self) -> f32 { self.0.tan() }
+}
+
+impl AngularSpeed<f32> {
+    #[must_use]
+    pub fn into_degrees_per_sec(self) -> f32 { self.0.to_degrees() }
+
+    #[must_use]
+    pub fn from_degrees_per_sec(degrees: f32) -> Self { Self(degrees.to_radians()) }
+}
+
+impl AngularAccel<f32> {
+    #[must_use]
+    pub fn into_degrees_per_sec2(self) -> f32 { self.0.to_degrees() }
+
+    #[must_use]
+    pub fn from_degrees_per_sec2(degrees: f32) -> Self { Self(degrees.to_radians()) }
 }

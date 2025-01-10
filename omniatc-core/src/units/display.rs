@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::math::{FEET_PER_NM, KT_PER_MACH, METER_PER_NM, MILE_PER_NM};
+use crate::math::{FEET_PER_NM, KNOTS_PER_MACH, METERS_PER_NM, MILES_PER_NM};
 
 pub struct Quantity {
     pub value:  f32,
@@ -34,13 +34,13 @@ impl LengthUnit {
                 Quantity { value: value * FEET_PER_NM / 100., prefix: "FL", suffix: "" }
             }
             Self::FlightLevelMeter => {
-                Quantity { value: value / METER_PER_NM, prefix: "FL", suffix: "m" }
+                Quantity { value: value / METERS_PER_NM, prefix: "FL", suffix: "m" }
             }
             Self::Feet => Quantity { value: value * FEET_PER_NM, prefix: "", suffix: "ft" },
-            Self::Mile => Quantity { value: value * MILE_PER_NM, prefix: "", suffix: "mi" },
-            Self::Meter => Quantity { value: value * METER_PER_NM, prefix: "", suffix: "m" },
+            Self::Mile => Quantity { value: value * MILES_PER_NM, prefix: "", suffix: "mi" },
+            Self::Meter => Quantity { value: value * METERS_PER_NM, prefix: "", suffix: "m" },
             Self::Kilometer => {
-                Quantity { value: value * METER_PER_NM / 1000., prefix: "", suffix: "km" }
+                Quantity { value: value * METERS_PER_NM / 1000., prefix: "", suffix: "km" }
             }
         }
     }
@@ -63,13 +63,13 @@ impl SpeedUnit {
         match self {
             Self::Knot => Quantity { value: knots, prefix: "", suffix: "kt" },
             Self::KilometerHour => {
-                Quantity { value: knots * METER_PER_NM / 1000., prefix: "", suffix: "km/h" }
+                Quantity { value: knots * METERS_PER_NM / 1000., prefix: "", suffix: "km/h" }
             }
-            Self::MileHour => Quantity { value: knots * MILE_PER_NM, prefix: "", suffix: "mph" },
+            Self::MileHour => Quantity { value: knots * MILES_PER_NM, prefix: "", suffix: "mph" },
             Self::MeterSecond => {
-                Quantity { value: knots * METER_PER_NM / 3600., prefix: "", suffix: "m/s" }
+                Quantity { value: knots * METERS_PER_NM / 3600., prefix: "", suffix: "m/s" }
             }
-            Self::Mach => Quantity { value: knots / KT_PER_MACH, prefix: "Ma", suffix: "" },
+            Self::Mach => Quantity { value: knots / KNOTS_PER_MACH, prefix: "Ma", suffix: "" },
         }
     }
 }

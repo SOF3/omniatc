@@ -4,7 +4,7 @@ use bevy::math::Vec2;
 use serde::{Deserialize, Serialize};
 
 use crate::level::{nav, plane};
-use crate::units::{Accel, Angle, AngularSpeed, Distance, Position, Speed};
+use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
 #[derive(Serialize, Deserialize)]
 pub struct File {
@@ -24,7 +24,7 @@ pub struct Level {
 #[derive(Serialize, Deserialize)]
 pub struct Environment {
     /// Terrain altitude.
-    pub heightmap: HeatMap2<Distance<f32>>,
+    pub heightmap: HeatMap2<Position<f32>>,
 
     // TODO noise abatement functions
     /// Visibility range.
@@ -32,7 +32,8 @@ pub struct Environment {
     /// An object at position `P` can see an object at position `Q`
     /// if and only if both `P` and `Q` have visibility not less than `dist(P, Q)`.
     pub visibility: HeatMap2<Distance<f32>>,
-    // pub wind: HeatMap3<Speed<f32>>, // TODO
+
+    pub wind: Vec<Wind>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -42,13 +43,13 @@ pub struct HeatMap2<T> {
     /// e.g. a real-world mountainous map
     /// or a Perlin noise generated level.
     ///
-    /// For artificially generated maps or maps with mostly ocean,
-    /// this field may be omitted, which defaults to a zero heatmap.
-    aligned: Option<AlignedHeatMap2<T>>,
+    /// For artificially generated heightmaps or heightmaps with mostly ocean,
+    /// this may simply be `AlignedHeatMap2::constant(Distance(0.))`.
+    pub aligned: AlignedHeatMap2<T>,
     /// A list of a set of R^2->R functions,
     /// used for artificially defined heatmap.
     /// The result at any point (x, y) is `functions.map(|f| f(x, y)).chain([aligned.get(x, y)]).max()`.
-    sparse:  SparseHeatMap2<T>,
+    pub sparse:  SparseHeatMap2<T>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -73,14 +74,14 @@ pub struct AlignedHeatMap2<Datum> {
     pub data:            Vec<Datum>,
 }
 
-impl<Datum: Default> Default for AlignedHeatMap2<Datum> {
-    fn default() -> Self {
+impl<Datum> AlignedHeatMap2<Datum> {
+    pub fn constant(value: Datum) -> Self {
         Self {
             initial_corner:  Position::new(Vec2::new(0., 0.)),
             end_corner:      Position::new(Vec2::new(0., 0.)),
             major_direction: AxisDirection::X,
             major_length:    1,
-            data:            vec![Datum::default()],
+            data:            vec![value],
         }
     }
 }
@@ -102,6 +103,16 @@ pub struct SparseFunction2<Datum> {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct Wind {
+    pub start:        Position<Vec2>,
+    pub end:          Position<Vec2>,
+    pub bottom:       Position<f32>,
+    pub top:          Position<f32>,
+    pub bottom_speed: Speed<Vec2>,
+    pub top_speed:    Speed<Vec2>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Aerodrome {
     /// Aerodrome short display name.
     pub name:      String,
@@ -116,11 +127,11 @@ pub struct Runway {
     /// Runway display name, e.g. "13R".
     pub name:                       String,
     /// Elevation of the runway.
-    pub elevation:                  Distance<f32>,
+    pub elevation:                  Position<f32>,
     /// Position of the touchdown marker.
     pub touchdown_position:         Position<Vec2>,
     /// Heading of the runway.
-    pub heading:                    Angle<f32>,
+    pub heading:                    Heading,
     /// Declared landing distance available.
     /// Extended from touchdown position in the runway heading direction.
     pub landing_distance_available: Distance<f32>,
@@ -132,6 +143,9 @@ pub struct Runway {
     pub glide_angle:                Angle<f32>,
     /// Width of the runway. Only affects display.
     pub width:                      Distance<f32>,
+    /// Maximum distance from which the runway is visible during CAVOK conditions,
+    /// allowing the aircraft to commence visual approach.
+    pub max_visual_distance:        Distance<f32>,
 
     /// ILS information, if any.
     pub ils: Option<Localizer>,
@@ -163,7 +177,7 @@ pub struct Waypoint {
     /// Position of the waypoint.
     pub position:  Position<Vec2>,
     /// Elevation of the navaids of the waypoint, if any.
-    pub elevation: Option<Distance<f32>>,
+    pub elevation: Option<Position<f32>>,
     /// Navaids available at this waypoint.
     pub navaids:   Vec<Navaid>,
     /// Whether the waypoint can be observed visually when in proximity.
@@ -198,13 +212,12 @@ pub enum Object {
 
 #[derive(Serialize, Deserialize)]
 pub struct Plane {
-    pub aircraft:        BaseAircraft,
-    pub control:         PlaneControl,
+    pub aircraft:     BaseAircraft,
+    pub control:      PlaneControl,
     #[allow(clippy::struct_field_names)]
-    pub plane_limits:    plane::Limits,
-    pub nav_limits:      nav::Limits,
-    pub airborne:        Option<Airborne>,
-    pub velocity_target: nav::VelocityTarget,
+    pub plane_limits: plane::Limits,
+    pub nav_limits:   nav::Limits,
+    pub airborne:     Option<Airborne>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -212,17 +225,16 @@ pub struct BaseAircraft {
     pub name:         String,
     // pub dest: Destination, // TODO
     pub position:     Position<Vec2>,
-    pub altitude:     Distance<f32>,
+    pub altitude:     Position<f32>,
     /// Speed of ground projection displacement.
     pub ground_speed: Speed<f32>,
     /// Direction of ground projection displacement.
-    pub ground_dir:   Angle<f32>,
-    pub is_airborne:  bool,
+    pub ground_dir:   Heading,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct PlaneControl {
-    pub heading:     Angle<f32>,
+    pub heading:     Heading,
     pub yaw_speed:   AngularSpeed<f32>,
     pub horiz_accel: Accel<f32>,
 }
@@ -230,7 +242,7 @@ pub struct PlaneControl {
 #[derive(Serialize, Deserialize)]
 pub struct Airborne {
     pub velocity:         nav::VelocityTarget,
-    pub target_altitude:  Option<nav::TargetAltitude>,
+    pub target_altitude:  Option<Position<f32>>,
     pub target_waypoint:  Option<TargetWaypoint>,
     pub target_alignment: Option<TargetAlignment>,
 }
@@ -265,9 +277,9 @@ pub struct Camera {
     /// Level position that the camera is centered in.
     pub center: Position<Vec2>,
 
-    /// Heading of the camera in degrees.
-    /// 0 means north is upwards; 90 means east is upwards.
-    pub up: Angle<f32>,
+    /// Heading of the upward direction of the camera.
+    /// 0 degrees means north is upwards; 90 degrees means east is upwards.
+    pub up: Heading,
 
     /// Whether the camera scale is based on X (width) or Y (height) axis.
     pub scale_axis:   AxisDirection,

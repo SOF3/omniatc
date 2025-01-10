@@ -1,11 +1,11 @@
 [package]
 name = "omniatc-core"
-version = "0.0.0"
-edition = "2021"
-authors = ["SOFe <sofe2038@gmail.com>"]
-repository = "https://github.com/SOF3/omniatc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 description = "Core game logic"
-license = "GPL-3.0"
 
 [features]
 default = ["dev"]
@@ -15,12 +15,11 @@ precommit-checks = []
 [dependencies]
 enum-map = "2.7.3"
 itertools = "0.13.0"
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 
 [dependencies.bevy]
-version = "0.15.0"
-default-features = false
+workspace = true
 features = [
 	"bevy_color",
 	"bevy_state",

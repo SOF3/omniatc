@@ -14,6 +14,16 @@ impl<T> Position<T> {
     pub fn get(self) -> T { self.0 .0 }
 }
 
+impl Position<f32> {
+    #[must_use]
+    pub fn from_amsl_feet(z: f32) -> Self { Position(Distance(z)) }
+}
+
+impl Position<Vec2> {
+    #[must_use]
+    pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance(Vec2 { x, y })) }
+}
+
 impl<T: ops::AddAssign> ops::Add<Distance<T>> for Position<T> {
     type Output = Self;
 

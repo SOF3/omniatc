@@ -1,0 +1,21 @@
+[package]
+name = "omniatc-maps"
+version = "0.0.0"
+edition = "2021"
+authors = ["SOFe <sofe2038@gmail.com>"]
+repository = "https://github.com/SOF3/omniatc"
+description = "Generate map files"
+license = "GPL-3.0"
+
+[features]
+default = ["dev"]
+dev = []
+precommit-checks = []
+
+[dependencies]
+omniatc-core.workspace = true
+anyhow = "1.0.95"
+bevy = { workspace = true, features = ["dynamic_linking"] }
+ciborium = "0.2.2"
+serde.workspace = true
+strum = { version = "0.26.3", features = ["derive"] }

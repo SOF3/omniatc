@@ -33,7 +33,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is omitted when the plane is not airborne.
-#[derive(Component, serde::Serialize, serde::Deserialize)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
 #[require(Limits)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -48,7 +48,7 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Component, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Limits {
     /// Minimum horizontal indicated airspeed.
     pub min_horiz_speed: Speed<f32>,
@@ -57,7 +57,7 @@ pub struct Limits {
 }
 
 /// Target yaw change.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.
     Heading(Heading),
@@ -98,7 +98,7 @@ fn altitude_control_system(
     }
 
     query.par_iter_mut().for_each(|(altitude, &Object { position, .. }, mut target)| {
-        let diff = altitude.altitude - position.vertical();
+        let diff = altitude.altitude - position.altitude();
         let speed = Speed::per_second(diff * DELTA_RATE_PER_SECOND);
         target.vert_rate = speed;
         target.expedite = altitude.expedite;

@@ -13,10 +13,12 @@ dev = []
 precommit-checks = []
 
 [dependencies]
+ciborium = "0.2.2"
 enum-map = "2.7.3"
 itertools = "0.13.0"
 serde = { workspace = true, features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
+thiserror = "2.0.11"
 
 [dependencies.bevy]
 workspace = true

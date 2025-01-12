@@ -1,18 +1,38 @@
 use std::time::Duration;
 
 use bevy::math::Vec2;
+use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
 
 use crate::level::{nav, plane};
 use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
-#[derive(Serialize, Deserialize)]
+pub mod load;
+
+/// Marks that an entity was loaded from a save file, and should be deleted during reload.
+#[derive(Component)]
+pub struct LoadedEntity;
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct File {
+    /// Metadata about the file.
+    pub meta:  Meta,
+    /// Gameplay entities.
     pub level: Level,
+    /// UI configuration.
     pub ui:    Ui,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Meta {
+    /// Title of the map.
+    pub title:       String,
+    pub description: String,
+    pub authors:     Vec<String>,
+    pub tags:        Vec<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Level {
     pub environment: Environment,
     pub aerodromes:  Vec<Aerodrome>,
@@ -21,7 +41,7 @@ pub struct Level {
     pub objects:     Vec<Object>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Environment {
     /// Terrain altitude.
     pub heightmap: HeatMap2<Position<f32>>,
@@ -33,10 +53,10 @@ pub struct Environment {
     /// if and only if both `P` and `Q` have visibility not less than `dist(P, Q)`.
     pub visibility: HeatMap2<Distance<f32>>,
 
-    pub wind: Vec<Wind>,
+    pub winds: Vec<Wind>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HeatMap2<T> {
     /// Base heatmap as a 2D dense matrix,
     /// used when majority of the terrain has irregular altitude,
@@ -52,7 +72,7 @@ pub struct HeatMap2<T> {
     pub sparse:  SparseHeatMap2<T>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AlignedHeatMap2<Datum> {
     /// Coordinates of the first data point in `data`.
     pub initial_corner:  Position<Vec2>,
@@ -86,13 +106,13 @@ impl<Datum> AlignedHeatMap2<Datum> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SparseHeatMap2<Datum> {
     /// List of sparse valued areas.
     pub functions: Vec<SparseFunction2<Datum>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SparseFunction2<Datum> {
     /// The area in which the function is nonzero.
     pub shape:               Shape2d,
@@ -102,7 +122,7 @@ pub struct SparseFunction2<Datum> {
     pub emergency_exception: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Wind {
     pub start:        Position<Vec2>,
     pub end:          Position<Vec2>,
@@ -112,19 +132,21 @@ pub struct Wind {
     pub top_speed:    Speed<Vec2>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Aerodrome {
     /// Aerodrome short display name.
-    pub name:      String,
+    pub code:      String,
     /// Aerodrome long display name.
     pub full_name: String,
     /// Runways for the aerodrome.
     pub runways:   Vec<Runway>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Runway {
-    /// Runway display name, e.g. "13R".
+    /// Runway identifier, e.g. "13R".
+    ///
+    /// Should not include the aerodrome name.
     pub name:                       String,
     /// Elevation of the runway.
     pub elevation:                  Position<f32>,
@@ -151,7 +173,7 @@ pub struct Runway {
     pub ils: Option<Localizer>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Localizer {
     /// An aircraft is unable to establish on ILS when
     /// the horizontal deviation from the approach path is greater than this value.
@@ -168,9 +190,15 @@ pub struct Localizer {
     /// An aircraft is unable to establish on ILS when
     /// the vertical distance from the touchdown position is greater than this value.
     pub vertical_range:   Distance<f32>,
+    /// The Runway Visual Range;
+    /// an aircraft must go around if visibility is lower than this value.
+    pub visual_range:     Distance<f32>,
+    /// An aircraft must go around if it cannot establish visual contact with the runway
+    /// before descending past this altitude.
+    pub decision_height:  Distance<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Waypoint {
     /// Display name of the waypoint.
     pub name:      String,
@@ -184,14 +212,33 @@ pub struct Waypoint {
     pub visual:    Option<VisualWaypoint>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Navaid {
     /// Type of navaid.
     #[serde(rename = "type")]
-    pub ty: NavaidType,
+    pub ty:            NavaidType,
+    /// Horizontal radial directions from which the navaid can be received.
+    ///
+    /// The range is taken in clockwise direction. That is,
+    /// A receiver at heading `h` from the navaid is within this range
+    /// if and only if sweeping from `heading_start` to `h` in clockwise direction
+    /// does not cross `heading_end`.
+    ///
+    /// If `heading_start == heading_end`, there is no heading restriction.
+    pub heading_start: Heading,
+    /// See `heading_start`.
+    pub heading_end:   Heading,
+
+    /// Minimum angle of elevation from the navaid to the receiver.
+    pub min_pitch: Angle<f32>,
+
+    /// Maximum horizontal distance of the receiver from the navaid.
+    pub max_dist_horizontal: Distance<f32>,
+    /// Maximum vertical distance of the receiver from the navaid.
+    pub max_dist_vertical:   Distance<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum NavaidType {
     /// This navaid tells the heading from the aircraft to the waypoint
     Vor,
@@ -199,66 +246,102 @@ pub enum NavaidType {
     Dme,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct VisualWaypoint {
     /// Maximum 3D distance from which pilots can see the waypoint.
     pub max_distance: Distance<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Object {
     Plane(Plane),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Plane {
     pub aircraft:     BaseAircraft,
     pub control:      PlaneControl,
     #[allow(clippy::struct_field_names)]
     pub plane_limits: plane::Limits,
     pub nav_limits:   nav::Limits,
-    pub airborne:     Option<Airborne>,
+    pub nav_target:   NavTarget,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BaseAircraft {
     pub name:         String,
-    // pub dest: Destination, // TODO
+    pub dest:         Destination, // TODO
     pub position:     Position<Vec2>,
     pub altitude:     Position<f32>,
     /// Speed of ground projection displacement.
     pub ground_speed: Speed<f32>,
     /// Direction of ground projection displacement.
     pub ground_dir:   Heading,
+    pub vert_rate:    Speed<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
+pub enum Destination {
+    Departure { aerodrome_code: String, dest_waypoint: String },
+    Arrival { aerodrome_code: String },
+    Ferry { source_aerodrome_code: String, dest_aerodrome_code: String },
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PlaneControl {
     pub heading:     Heading,
     pub yaw_speed:   AngularSpeed<f32>,
     pub horiz_accel: Accel<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Airborne {
-    pub velocity:         nav::VelocityTarget,
-    pub target_altitude:  Option<Position<f32>>,
+#[derive(Clone, Serialize, Deserialize)]
+pub enum NavTarget {
+    Airborne(Box<AirborneNavTarget>),
+    Ground(GroundNavTarget),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AirborneNavTarget {
+    /// Target yaw change.
+    pub yaw:         nav::YawTarget,
+    /// Target horizontal indicated airspeed.
+    pub horiz_speed: Speed<f32>,
+    /// Target vertical rate.
+    pub vert_rate:   Speed<f32>,
+    /// Whether vertical rate should be expedited.
+    /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
+    pub expedite:    bool,
+
+    pub target_altitude:  Option<TargetAltitude>,
     pub target_waypoint:  Option<TargetWaypoint>,
     pub target_alignment: Option<TargetAlignment>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct TargetWaypoint {
-    /// Name of target waypoint.
-    pub name: String,
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GroundNavTarget {
+    pub velocity: nav::VelocityTarget,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TargetAltitude {
+    /// Altitude to move towards and maintain.
+    pub altitude: Position<f32>,
+    /// Whether to expedite towards the altitude.
+    pub expedite: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TargetWaypoint {
+    /// Name of target waypoint.
+    pub waypoint: WaypointRef,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TargetAlignment {
     /// Name of start waypoint.
-    pub start_waypoint:   String,
+    pub start_waypoint:   WaypointRef,
     /// Name of end waypoint.
-    pub end_waypoint:     String,
+    pub end_waypoint:     WaypointRef,
     /// Lookahead time for pure pursuit.
     pub lookahead:        Duration,
     /// Maximum orthogonal distance between the line and the object
@@ -267,13 +350,42 @@ pub struct TargetAlignment {
     pub activation_range: Distance<f32>,
 }
 
-#[derive(Serialize, Deserialize)]
+/// References a position.
+#[derive(Clone, Serialize, Deserialize)]
+pub enum WaypointRef {
+    /// A regular named waypoint.
+    Named(String),
+    /// The threshold of a runway.
+    RunwayThreshold(RunwayRef),
+    /// Extended runway centerline up to localizer range,
+    /// used with [`RunwayThreshold`](WaypointRef::RunwayThreshold) to represent
+    /// ILS-established planes in [`TargetAlignment`].
+    ///
+    /// For runways without a localizer, the centerline is extended up to visual range instead.
+    LocalizerStart(RunwayRef),
+}
+
+/// References a runway.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RunwayRef {
+    /// Code of the aerodrome for the runway.
+    pub aerodrome_code: String,
+    /// Name of the runway.
+    pub runway_name:    String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Ui {
     pub camera: Camera,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Camera {
+#[derive(Clone, Serialize, Deserialize)]
+pub enum Camera {
+    TwoDimension(Camera2d),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Camera2d {
     /// Level position that the camera is centered in.
     pub center: Position<Vec2>,
 
@@ -288,14 +400,14 @@ pub struct Camera {
 }
 
 /// A horizontal map axis.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum AxisDirection {
     X,
     Y,
 }
 
 /// A 2D shape.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Shape2d {
     Ellipse {
         /// Center of the ellipse.

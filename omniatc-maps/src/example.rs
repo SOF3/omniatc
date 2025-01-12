@@ -50,13 +50,11 @@ pub fn default_nav_limits() -> nav::Limits {
 /// A simple map featuring different mechanisms for testing.
 pub fn file() -> store::File {
     store::File {
-        ui:    store::Ui {
-            camera: store::Camera {
-                center:       Position::from_origin_nm(0., 0.),
-                up:           Heading::NORTH,
-                scale_axis:   store::AxisDirection::X,
-                scale_length: Distance::from_nm(50.),
-            },
+        meta:  store::Meta {
+            title:       "Example".into(),
+            description: "Demo map".into(),
+            authors:     vec!["omniatc demo".into()],
+            tags:        vec!["demo".into(), "fictional".into()],
         },
         level: store::Level {
             environment: store::Environment {
@@ -68,7 +66,7 @@ pub fn file() -> store::File {
                     aligned: store::AlignedHeatMap2::constant(Distance::from_nm(1000.)),
                     sparse:  store::SparseHeatMap2 { functions: vec![] },
                 },
-                wind:       vec![store::Wind {
+                winds:      vec![store::Wind {
                     start:        Position::from_origin_nm(-1000., -1000.),
                     end:          Position::from_origin_nm(1000., 1000.),
                     top:          Position::from_amsl_feet(40000.),
@@ -78,8 +76,8 @@ pub fn file() -> store::File {
                 }],
             },
             aerodromes:  vec![store::Aerodrome {
-                name:      "MAIN".into(),
-                full_name: "Demo Main Airport".into(),
+                code:      "MAIN".into(),
+                full_name: "Main Airport".into(),
                 runways:   vec![store::Runway {
                     name:                       "18".into(),
                     elevation:                  Position::from_amsl_feet(0.),
@@ -96,27 +94,45 @@ pub fn file() -> store::File {
                         max_pitch:        Angle::RIGHT,
                         horizontal_range: Distance::from_nm(20.),
                         vertical_range:   Distance::from_feet(6000.),
+                        visual_range:     Distance::from_meters(200.),
+                        decision_height:  Distance::from_feet(100.),
                     }),
                 }],
             }],
             waypoints:   vec![store::Waypoint {
-                name:      "V".into(),
-                position:  Position::from_origin_nm(8., 1.),
+                name:      "EXITS".into(),
+                position:  Position::from_origin_nm(15., 1.),
                 elevation: Some(Position::from_amsl_feet(0.)),
                 visual:    None,
                 navaids:   vec![
-                    store::Navaid { ty: store::NavaidType::Vor },
-                    store::Navaid { ty: store::NavaidType::Dme },
+                    store::Navaid {
+                        ty:                  store::NavaidType::Vor,
+                        heading_start:       Heading::NORTH,
+                        heading_end:         Heading::NORTH,
+                        min_pitch:           Angle::ZERO,
+                        max_dist_horizontal: Distance::from_nm(199.),
+                        max_dist_vertical:   Distance::from_feet(40000.),
+                    },
+                    store::Navaid {
+                        ty:                  store::NavaidType::Dme,
+                        heading_start:       Heading::NORTH,
+                        heading_end:         Heading::NORTH,
+                        min_pitch:           Angle::ZERO,
+                        max_dist_horizontal: Distance::from_nm(199.),
+                        max_dist_vertical:   Distance::from_feet(40000.),
+                    },
                 ],
             }],
             objects:     vec![
                 store::Object::Plane(store::Plane {
                     aircraft:     store::BaseAircraft {
                         name:         "ABC123".into(),
+                        dest:         store::Destination::Arrival { aerodrome_code: "MAIN".into() },
                         position:     Position::from_origin_nm(1., 15.),
                         altitude:     Position::from_amsl_feet(5000.),
                         ground_speed: Speed::from_knots(180.),
                         ground_dir:   Heading::from_degrees(200.),
+                        vert_rate:    Speed::ZERO,
                     },
                     control:      store::PlaneControl {
                         heading:     Heading::from_degrees(210.),
@@ -125,25 +141,46 @@ pub fn file() -> store::File {
                     },
                     plane_limits: default_plane_limits(),
                     nav_limits:   default_nav_limits(),
-                    airborne:     Some(store::Airborne {
-                        velocity:         nav::VelocityTarget {
-                            yaw:         nav::YawTarget::Heading(Heading::from_degrees(200.)),
-                            horiz_speed: Speed::from_knots(160.),
-                            vert_rate:   Speed::from_fpm(0.),
-                            expedite:    false,
-                        },
-                        target_altitude:  Some(Position::from_amsl_feet(5000.)),
+                    nav_target:   store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                        yaw:              nav::YawTarget::Heading(Heading::from_degrees(200.)),
+                        horiz_speed:      Speed::from_knots(160.),
+                        vert_rate:        Speed::from_fpm(0.),
+                        expedite:         false,
+                        target_altitude:  Some(store::TargetAltitude {
+                            altitude: Position::from_amsl_feet(5000.),
+                            expedite: false,
+                        }),
                         target_waypoint:  None,
-                        target_alignment: None,
-                    }),
+                        target_alignment: Some(store::TargetAlignment {
+                            start_waypoint:   store::WaypointRef::LocalizerStart(
+                                store::RunwayRef {
+                                    aerodrome_code: "MAIN".into(),
+                                    runway_name:    "18".into(),
+                                },
+                            ),
+                            end_waypoint:     store::WaypointRef::RunwayThreshold(
+                                store::RunwayRef {
+                                    aerodrome_code: "MAIN".into(),
+                                    runway_name:    "18".into(),
+                                },
+                            ),
+                            lookahead:        Duration::from_secs(20),
+                            activation_range: Distance::from_nm(0.2),
+                        }),
+                    })),
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:     store::BaseAircraft {
                         name:         "ADE127".into(),
+                        dest:         store::Destination::Departure {
+                            aerodrome_code: "MAIN".into(),
+                            dest_waypoint:  "EXITS".into(),
+                        },
                         position:     Position::from_origin_nm(10., -1.),
                         altitude:     Position::from_amsl_feet(8000.),
                         ground_speed: Speed::from_knots(250.),
                         ground_dir:   Heading::EAST,
+                        vert_rate:    Speed::ZERO,
                     },
                     control:      store::PlaneControl {
                         heading:     Heading::EAST,
@@ -152,24 +189,30 @@ pub fn file() -> store::File {
                     },
                     plane_limits: default_plane_limits(),
                     nav_limits:   default_nav_limits(),
-                    airborne:     Some(store::Airborne {
-                        velocity:         nav::VelocityTarget {
-                            yaw:         nav::YawTarget::Heading(Heading::NORTH),
-                            horiz_speed: Speed::from_knots(250.),
-                            vert_rate:   Speed::from_fpm(1000.),
-                            expedite:    false,
-                        },
-                        target_altitude:  Some(Position::from_amsl_feet(30000.)),
-                        target_waypoint:  None,
-                        target_alignment: Some(store::TargetAlignment {
-                            start_waypoint:   "MAIN/18/ILS".into(),
-                            end_waypoint:     "MAIN/18".into(),
-                            lookahead:        Duration::from_secs(20),
-                            activation_range: Distance::from_nm(0.2),
+                    nav_target:   store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                        yaw:              nav::YawTarget::Heading(Heading::NORTH),
+                        horiz_speed:      Speed::from_knots(250.),
+                        vert_rate:        Speed::from_fpm(1000.),
+                        expedite:         false,
+                        target_altitude:  Some(store::TargetAltitude {
+                            altitude: Position::from_amsl_feet(30000.),
+                            expedite: false,
                         }),
-                    }),
+                        target_waypoint:  Some(store::TargetWaypoint {
+                            waypoint: store::WaypointRef::Named("EXITS".into()),
+                        }),
+                        target_alignment: None,
+                    })),
                 }),
             ],
+        },
+        ui:    store::Ui {
+            camera: store::Camera::TwoDimension(store::Camera2d {
+                center:       Position::from_origin_nm(0., 0.),
+                up:           Heading::NORTH,
+                scale_axis:   store::AxisDirection::X,
+                scale_length: Distance::from_nm(50.),
+            }),
         },
     }
 }

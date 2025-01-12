@@ -28,8 +28,12 @@ pub struct Waypoint {
 pub enum DisplayType {
     /// A normal point on the map.
     Waypoint,
+    /// A VHF Omnidirectional Range station with Distance Measuring Equipment.
+    VorDme,
     /// A VHF Omnidirectional Range station.
     Vor,
+    /// A Distance Measuring Equipment station.
+    Dme,
     /// The waypoint should not be displayed on the map.
     /// Used for virtual waypoints.
     None,
@@ -55,10 +59,8 @@ pub struct Navaid {
     /// `Heading::NORTH..Heading::NORTH` is explicitly defined to cover all directions.
     pub heading_range: ops::Range<Heading>,
 
-    /// Minimum angle of the receiver relative to the navaid.
-    pub min_pitch: Angle<f32>,
-    /// Maximum angle of the receiver relative to the navaid.
-    pub max_pitch: Angle<f32>,
+    /// Minimum and maximum angles of the receiver relative to the navaid.
+    pub pitch_range: ops::Range<Angle<f32>>,
 
     /// Minimum horizontal distance of the receiver from the navaid.
     ///
@@ -66,6 +68,8 @@ pub struct Navaid {
     /// For example, Cat I localizers should have a longer min range than Cat III localizers.
     ///
     /// This value may fluctuate during ILS ground interference.
+    ///
+    /// For non-ILS navaids, this value should always be 0.
     pub min_dist_horizontal: Distance<f32>,
     /// Minimum vertical distance of the receiver from the navaid.
     ///
@@ -73,6 +77,8 @@ pub struct Navaid {
     /// For example, Cat I localizers should have a longer min range than Cat III localizers.
     ///
     /// This value may fluctuate during ILS ground interference.
+    ///
+    /// For non-ILS navaids, this value should always be 0.
     pub min_dist_vertical:   Distance<f32>,
 
     /// Maximum horizontal distance of the receiver from the navaid.
@@ -88,7 +94,13 @@ pub struct Navaid {
 ///
 /// Runways should always have a visual navaid.
 #[derive(Component)]
-pub struct Visual; // TODO add system to control max range based on visibility
+pub struct Visual {
+    // TODO add system to update Navaid horizontal range based on visibility
+    /// Maximum visual range to see the runway.
+    ///
+    /// The actual visual range is the minimum of this value and the actual visibility.
+    pub max_range: Distance<f32>,
+}
 
 /// Marks that the navaid entity has an ILS critical region subject to ground interference.
 #[derive(Component)]

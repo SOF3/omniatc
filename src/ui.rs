@@ -10,7 +10,6 @@ mod clock;
 mod message;
 mod object;
 mod runway;
-mod store;
 mod track;
 mod waypoint;
 
@@ -27,7 +26,6 @@ impl Plugin for Plug {
         app.add_plugins(object::Plug);
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
-        app.add_plugins(store::Plug);
         app.add_plugins(track::Plug);
 
         app.configure_sets(app::Update, SystemSets::RenderSpawn.before(SystemSets::RenderMove));

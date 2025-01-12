@@ -20,8 +20,8 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEvent>();
-        app.add_systems(app::Update, apply_forces_system.in_set(SystemSets::Machine));
-        app.add_systems(app::Update, rotate_object_system.in_set(SystemSets::Reconcile));
+        app.add_systems(app::Update, apply_forces_system.in_set(SystemSets::Aviate));
+        app.add_systems(app::Update, rotate_object_system.in_set(SystemSets::ReconcileForRead));
     }
 }
 
@@ -46,7 +46,7 @@ impl Control {
 }
 
 /// Structural limitations of a plane.
-#[derive(Component, serde::Serialize, serde::Deserialize)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Limits {
     // Pitch/vertical rate limits.
     /// Climb profile during expedited altitude increase.
@@ -126,7 +126,7 @@ impl Limits {
 }
 
 /// Speed limitations during a certain climb rate.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ClimbProfile {
     /// Vertical rate for this climb profile.
     /// A negative value indicates this is a descent profile.

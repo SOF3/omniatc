@@ -16,7 +16,7 @@ impl<T> Position<T> {
 
 impl Position<f32> {
     #[must_use]
-    pub fn from_amsl_feet(z: f32) -> Self { Position(Distance(z)) }
+    pub fn from_amsl_feet(z: f32) -> Self { Position(Distance::from_feet(z)) }
 }
 
 impl Position<Vec2> {
@@ -98,6 +98,11 @@ impl Position<Vec2> {
     pub fn x(self) -> Position<f32> { Position(self.0.x()) }
     #[must_use]
     pub fn y(self) -> Position<f32> { Position(self.0.y()) }
+
+    #[must_use]
+    pub fn with_altitude(self, altitude: Position<f32>) -> Position<Vec3> {
+        Position::new((self.get(), altitude.get()).into())
+    }
 }
 
 impl Position<Vec3> {
@@ -109,5 +114,5 @@ impl Position<Vec3> {
     #[must_use]
     pub fn horizontal(self) -> Position<Vec2> { Position(self.0.horizontal()) }
     #[must_use]
-    pub fn vertical(self) -> Position<f32> { Position(self.0.vertical()) }
+    pub fn altitude(self) -> Position<f32> { Position(self.0.vertical()) }
 }

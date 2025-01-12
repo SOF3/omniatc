@@ -24,12 +24,12 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEvent>();
-        app.add_systems(app::Update, update_airborne_system.in_set(SystemSets::Environ));
+        app.add_systems(app::Update, update_airborne_system.in_set(SystemSets::ExecuteEnviron));
         app.add_systems(
             app::Update,
-            move_object_system.after(update_airborne_system).in_set(SystemSets::Environ),
+            move_object_system.after(update_airborne_system).in_set(SystemSets::ExecuteEnviron),
         );
-        app.add_systems(app::Update, track_position_system.in_set(SystemSets::Reconcile));
+        app.add_systems(app::Update, track_position_system.in_set(SystemSets::ReconcileForRead));
     }
 }
 
@@ -47,8 +47,8 @@ pub struct Display {
 /// Objective for the flight.
 #[derive(Component)]
 pub enum Destination {
-    /// An outbound flight from the aerodrome.
-    Departure { aerodrome: Entity },
+    /// An outbound flight from the aerodrome to a specified waypoint.
+    Departure { aerodrome: Entity, dest_waypoint: Entity },
     /// An inbound flight to the aerodrome.
     Arrival { aerodrome: Entity },
     /// A local flight from `from` to `to`.
@@ -157,7 +157,7 @@ fn update_airborne_system(
         let position = object.position;
 
         let sea_level_temperature = STANDARD_SEA_LEVEL_TEMPERATURE; // TODO do we have temperature?
-        let pressure_altitude = position.vertical(); // TODO calibrate by pressure
+        let pressure_altitude = position.altitude(); // TODO calibrate by pressure
         let actual_temperature = sea_level_temperature
             - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE).get();
         let density_altitude = pressure_altitude

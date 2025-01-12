@@ -14,6 +14,7 @@ use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
 use omniatc_core::level;
 
+mod store;
 mod ui;
 
 fn main() {
@@ -27,6 +28,7 @@ fn main() {
             bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
             level::Plug,
             ui::Plug,
+            store::Plug,
         ))
         .configure_sets(app::Update, level::AllSystemSets.after(ui::SystemSets::Input))
         .configure_sets(app::Update, level::AllSystemSets.before(ui::SystemSets::RenderAll))

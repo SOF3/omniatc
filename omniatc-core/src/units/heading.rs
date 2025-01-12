@@ -147,6 +147,10 @@ impl Heading {
 
         a_self_dist.abs() < ab_dist * a_self_dist.signum()
     }
+
+    /// Returns the opposite direction of this heading.
+    #[must_use]
+    pub fn opposite(self) -> Self { self + Angle::STRAIGHT }
 }
 
 impl fmt::Debug for Heading {

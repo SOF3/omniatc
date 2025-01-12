@@ -247,8 +247,24 @@ macro_rules! decl_units {
             }
 
             #[must_use]
-            pub fn with_magnitude(self, magnitude: $ty<f32>) -> Self {
+            pub fn normalize_to_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
+            }
+
+            /// Returns a `Vec3` such that
+            /// the horizontal projection of the result is equal to `self`.
+            #[must_use]
+            pub fn projected_from_elevation_angle(self, angle: Angle<f32>) -> $ty<Vec3> {
+                self.with_vertical(self.magnitude_exact() * angle.tan())
+            }
+
+            /// Rotates the `horizontally()` of this vector upwards by `angle`.
+            /// The result has the same magnitude as `self`.
+            #[must_use]
+            pub fn rotate_with_elevation_angle(self, angle: Angle<f32>) -> $ty<Vec3> {
+                let horizontal = self * angle.cos();
+                let vertical = self.magnitude_exact() * angle.sin();
+                horizontal.with_vertical(vertical)
             }
         }
 
@@ -258,6 +274,7 @@ macro_rules! decl_units {
             #[must_use]
             pub fn y(self) -> $ty<f32> { $ty(self.0.y) }
 
+            /// Returns the horizontal projection of this vector.
             #[must_use]
             pub fn horizontal(self) -> $ty<Vec2> {
                 $ty(self.0.xy())
@@ -273,7 +290,7 @@ macro_rules! decl_units {
             }
 
             #[must_use]
-            pub fn with_magnitude(self, magnitude: $ty<f32>) -> Self {
+            pub fn normalize_to_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
             }
         }

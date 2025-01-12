@@ -247,7 +247,7 @@ fn write_route_status(
 
     write!(out, "{}", &object.display.name).unwrap();
     match *object.dest {
-        object::Destination::Departure { aerodrome: src } => {
+        object::Destination::Departure { aerodrome: src, .. } => {
             if let Ok(AerodromeStatusQueryItem {
                 display: aerodrome::Display { name, .. }, ..
             }) = aerodrome_query.get(src)
@@ -286,24 +286,24 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                 writeln!(
                     out,
                     "passing {:.0} feet, uncontrolled",
-                    (object.object.position.vertical().amsl()).into_feet(),
+                    (object.object.position.altitude().amsl()).into_feet(),
                 )
                 .unwrap();
             }
             Some(&nav::TargetAltitude { altitude: target, expedite }) => {
-                if (target - object.object.position.vertical()).abs() < Distance::from_feet(100.) {
+                if (target - object.object.position.altitude()).abs() < Distance::from_feet(100.) {
                     writeln!(
                         out,
                         "maintaining {:.0} feet",
-                        object.object.position.vertical().amsl().into_feet()
+                        object.object.position.altitude().amsl().into_feet()
                     )
                     .unwrap();
-                } else if target > object.object.position.vertical() {
+                } else if target > object.object.position.altitude() {
                     writeln!(
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting climb" } else { "climbing" },
-                        object.object.position.vertical().amsl().into_feet(),
+                        object.object.position.altitude().amsl().into_feet(),
                         target.amsl().into_feet(),
                     )
                     .unwrap();
@@ -312,7 +312,7 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting descent" } else { "descending" },
-                        object.object.position.vertical().amsl().into_feet(),
+                        object.object.position.altitude().amsl().into_feet(),
                         target.amsl().into_feet(),
                     )
                     .unwrap();

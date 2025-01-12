@@ -41,18 +41,20 @@ impl Plugin for Plug {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
 pub enum SystemSets {
+    /// Direct response to environmental changes such as wind, cloud base and visibility.
+    PrepareEnviron,
+    /// Systems representing communication operations of a plane.
+    Communicate,
     /// Systems executing a complex flight plan that decides navigation targets.
     Action,
     /// Systems simulating absolute position navigation.
     Navigate,
-    /// Systems simulating machine input control.
-    Pilot,
     /// Systems simulating machine effects on environmental parameters.
-    Machine,
-    /// Systems simulating environmental physics.
-    Environ,
-    /// Reconcile components not involved in simulation but useful for other modules to read.
-    Reconcile,
+    Aviate,
+    /// Systems simulating environmental physics such as wind.
+    ExecuteEnviron,
+    /// Reconcile aviation-related components not involved in simulation but useful for other modules to read.
+    ReconcileForRead,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]

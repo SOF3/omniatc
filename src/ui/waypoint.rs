@@ -73,6 +73,8 @@ fn spawn_waypoint_viewable_system(
 fn display_type_sprite(display_type: DisplayType) -> Option<&'static str> {
     match display_type {
         DisplayType::Vor => Some("sprites/vor.png"),
+        DisplayType::Dme => Some("sprites/dme.png"),
+        DisplayType::VorDme => Some("sprites/vor-dme.png"),
         DisplayType::Waypoint => Some("sprites/waypoint.png"),
         DisplayType::None | DisplayType::Runway => None,
     }
@@ -82,6 +84,8 @@ fn display_type_label_config(config: &Config, display_type: DisplayType) -> Opti
     match display_type {
         DisplayType::Waypoint => Some(&config.waypoint_label),
         DisplayType::Vor => Some(&config.vor_label),
+        DisplayType::Dme => Some(&config.dme_label),
+        DisplayType::VorDme => Some(&config.vor_dme_label),
         DisplayType::Runway => Some(&config.runway_label),
         DisplayType::None => None,
     }
@@ -98,6 +102,8 @@ pub struct Config {
     pub icon_size:      f32,
     pub waypoint_label: LabelConfig,
     pub vor_label:      LabelConfig,
+    pub dme_label:      LabelConfig,
+    pub vor_dme_label:  LabelConfig,
     pub runway_label:   LabelConfig,
 }
 
@@ -117,6 +123,16 @@ impl Default for Config {
                 anchor:   Anchor::BottomCenter,
             },
             vor_label:      LabelConfig {
+                size:     0.4,
+                distance: 30.,
+                anchor:   Anchor::BottomCenter,
+            },
+            dme_label:      LabelConfig {
+                size:     0.4,
+                distance: 30.,
+                anchor:   Anchor::BottomCenter,
+            },
+            vor_dme_label:  LabelConfig {
                 size:     0.4,
                 distance: 30.,
                 anchor:   Anchor::BottomCenter,

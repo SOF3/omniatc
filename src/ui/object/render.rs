@@ -265,11 +265,11 @@ impl ParentQueryDataItem<'_> {
                 self.resolve_color(a, params).mix(&self.resolve_color(b, params), *factor)
             }
             ColorScheme::Altitude(scale) => scale.get(
-                ((self.object.position.vertical().amsl()) / (TROPOPAUSE_ALTITUDE.amsl()))
+                ((self.object.position.altitude().amsl()) / (TROPOPAUSE_ALTITUDE.amsl()))
                     .clamp(0., 1.),
             ),
             ColorScheme::Destination { departure, arrival, ferry } => match *self.destination {
-                object::Destination::Departure { aerodrome } => {
+                object::Destination::Departure { aerodrome, .. } => {
                     let id = match params.aerodrome_query.get(aerodrome) {
                         Ok(&aerodrome::Display { id, .. }) => id,
                         _ => 0,
@@ -382,7 +382,7 @@ impl ParentQueryDataItem<'_> {
                 );
             }
             LabelElement::CurrentAltitude(unit) => {
-                writer.set_display(unit.convert(self.object.position.vertical().get()));
+                writer.set_display(unit.convert(self.object.position.altitude().get()));
             }
             LabelElement::CurrentHeading => {
                 if let Some(plane_control) = self.plane_control {

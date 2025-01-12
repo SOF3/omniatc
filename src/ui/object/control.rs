@@ -558,7 +558,7 @@ impl Controllable for SetAltitude {
         };
         let altitude = match target_altitude {
             Some(&nav::TargetAltitude { altitude, .. }) => altitude,
-            None => object.position.vertical(),
+            None => object.position.altitude(),
         };
 
         let altitude_ft = altitude.0.into_feet();

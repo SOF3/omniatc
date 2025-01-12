@@ -4,7 +4,7 @@ use std::io;
 use bevy::math::bounding::Aabb3d;
 use bevy::prelude::{
     BuildChildren, ChildBuild, Command as BevyCommand, DespawnRecursiveExt, Entity, EntityCommand,
-    With, World,
+    EntityWorldMut, With, World,
 };
 use bevy::utils::HashMap;
 
@@ -366,31 +366,60 @@ fn spawn_plane(
     world.entity_mut(plane_entity).insert(plane.nav_limits.clone());
 
     if let store::NavTarget::Airborne(target) = &plane.nav_target {
-        if let Some(target_altitude) = &target.target_altitude {
-            world.entity_mut(plane_entity).insert(nav::TargetAltitude {
-                altitude: target_altitude.altitude,
-                expedite: target_altitude.expedite,
-            });
-        }
+        insert_airborne_nav_targets(
+            &mut world.entity_mut(plane_entity),
+            aerodromes,
+            waypoints,
+            target,
+        )?;
+    }
 
-        if let Some(target_waypoint) = &target.target_waypoint {
-            let waypoint_entity =
-                resolve_waypoint_ref(aerodromes, waypoints, &target_waypoint.waypoint)?;
-            world.entity_mut(plane_entity).insert(nav::TargetWaypoint { waypoint_entity });
-        }
+    Ok(())
+}
 
-        if let Some(target_alignment) = &target.target_alignment {
-            let start_waypoint =
-                resolve_waypoint_ref(aerodromes, waypoints, &target_alignment.start_waypoint)?;
-            let end_waypoint =
-                resolve_waypoint_ref(aerodromes, waypoints, &target_alignment.end_waypoint)?;
-            world.entity_mut(plane_entity).insert(nav::TargetAlignment {
-                start_waypoint,
-                end_waypoint,
-                lookahead: target_alignment.lookahead,
-                activation_range: target_alignment.activation_range,
-            });
-        }
+fn insert_airborne_nav_targets(
+    plane_entity: &mut EntityWorldMut,
+    aerodromes: &AerodromeMap,
+    waypoints: &WaypointMap,
+    target: &store::AirborneNavTarget,
+) -> Result<(), Error> {
+    if let Some(target_altitude) = &target.target_altitude {
+        plane_entity.insert(nav::TargetAltitude {
+            altitude: target_altitude.altitude,
+            expedite: target_altitude.expedite,
+        });
+    }
+
+    if let Some(target_glide) = &target.target_glide {
+        let target_waypoint =
+            resolve_waypoint_ref(aerodromes, waypoints, &target_glide.target_waypoint)?;
+        plane_entity.insert(nav::TargetGlide {
+            target_waypoint,
+            glide_angle: target_glide.glide_angle,
+            min_pitch: target_glide.min_pitch,
+            max_pitch: target_glide.max_pitch,
+            lookahead: target_glide.lookahead,
+            expedite: target_glide.expedite,
+        });
+    }
+
+    if let Some(target_waypoint) = &target.target_waypoint {
+        let waypoint_entity =
+            resolve_waypoint_ref(aerodromes, waypoints, &target_waypoint.waypoint)?;
+        plane_entity.insert(nav::TargetWaypoint { waypoint_entity });
+    }
+
+    if let Some(target_alignment) = &target.target_alignment {
+        let start_waypoint =
+            resolve_waypoint_ref(aerodromes, waypoints, &target_alignment.start_waypoint)?;
+        let end_waypoint =
+            resolve_waypoint_ref(aerodromes, waypoints, &target_alignment.end_waypoint)?;
+        plane_entity.insert(nav::TargetAlignment {
+            start_waypoint,
+            end_waypoint,
+            lookahead: target_alignment.lookahead,
+            activation_range: target_alignment.activation_range,
+        });
     }
 
     Ok(())

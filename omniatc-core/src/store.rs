@@ -313,6 +313,7 @@ pub struct AirborneNavTarget {
     pub expedite:    bool,
 
     pub target_altitude:  Option<TargetAltitude>,
+    pub target_glide:     Option<TargetGlide>,
     pub target_waypoint:  Option<TargetWaypoint>,
     pub target_alignment: Option<TargetAlignment>,
 }
@@ -328,6 +329,25 @@ pub struct TargetAltitude {
     pub altitude: Position<f32>,
     /// Whether to expedite towards the altitude.
     pub expedite: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TargetGlide {
+    /// Target waypoint to aim at.
+    pub target_waypoint: WaypointRef,
+    /// Angle of depression of the glide path. Typically negative.
+    pub glide_angle:     Angle<f32>,
+    /// Most negative pitch to use.
+    pub min_pitch:       Angle<f32>,
+    /// Highest pitch to use.
+    pub max_pitch:       Angle<f32>,
+    /// Lookahead time for pure pursuit.
+    pub lookahead:       Duration,
+    /// Whether the aircraft should expedit climb/descent to intersect with the glidepath.
+    ///
+    /// If false, the min/max pitch is further restricted by the standard climb/descent rate.
+    /// If true, it is only restricted by the expedition rate (which would be the physical limit).
+    pub expedite:        bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

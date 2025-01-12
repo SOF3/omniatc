@@ -6,8 +6,9 @@ use bevy::prelude::{
     in_state, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
     ResMut, Resource, Single,
 };
+use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{aerodrome, nav, object};
-use omniatc_core::units::{Angle, Distance, TurnDirection};
+use omniatc_core::units::{Angle, Distance, Speed, TurnDirection};
 
 use crate::ui::{message, track, InputState, SystemSets};
 
@@ -208,6 +209,7 @@ struct ObjectStatusQuery {
     object:          &'static object::Object,
     airborne:        Option<&'static object::Airborne>,
     vel_target:      Option<&'static nav::VelocityTarget>,
+    target_glide:    Option<(&'static nav::TargetGlide, &'static nav::TargetGlideStatus)>,
     target_altitude: Option<&'static nav::TargetAltitude>,
 }
 
@@ -221,6 +223,7 @@ fn write_status_system(
     selected: Res<Selected>,
     object_query: Query<ObjectStatusQuery>,
     aerodrome_query: Query<AerodromeStatusQuery>,
+    waypoint_query: Query<&Waypoint>,
 ) {
     let status = &mut **status;
     let Selected { object_entity: Some(entity) } = *selected else { return };
@@ -233,7 +236,7 @@ fn write_status_system(
     out.clear();
 
     write_route_status(out, &object, &aerodrome_query);
-    write_altitude_status(out, &object);
+    write_altitude_status(out, &object, &waypoint_query);
     write_speed_status(out, &object);
     write_direction_status(out, &object);
 }
@@ -276,34 +279,96 @@ fn write_route_status(
     writeln!(out).unwrap();
 }
 
-fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
+#[allow(clippy::too_many_lines)] // we got some long string literals here
+fn write_altitude_status(
+    out: &mut String,
+    object: &ObjectStatusQueryItem,
+    waypoint_query: &Query<&Waypoint>,
+) {
     use std::fmt::Write;
+
+    let position = object.object.position;
 
     if object.airborne.is_some() {
         // TODO use pressure altitudes where appropriate
-        match object.target_altitude {
-            None => {
-                writeln!(
-                    out,
-                    "passing {:.0} feet, uncontrolled",
-                    (object.object.position.altitude().amsl()).into_feet(),
-                )
-                .unwrap();
-            }
-            Some(&nav::TargetAltitude { altitude: target, expedite }) => {
-                if (target - object.object.position.altitude()).abs() < Distance::from_feet(100.) {
+        match (object.target_glide, object.target_altitude) {
+            (
+                Some((
+                    &nav::TargetGlide { target_waypoint, glide_angle, .. },
+                    &nav::TargetGlideStatus {
+                        current_pitch,
+                        altitude_deviation,
+                        glidepath_distance,
+                    },
+                )),
+                _,
+            ) => {
+                let target_waypoint = match waypoint_query.get(target_waypoint) {
+                    Ok(waypoint) => waypoint.name.as_ref(),
+                    Err(err) => {
+                        bevy::log::warn!(
+                            "target_waypoint {target_waypoint:?} of TargetGlide cannot be \
+                             resolved: {err}",
+                        );
+                        ""
+                    }
+                };
+
+                if altitude_deviation < Distance::from_feet(-30.) {
+                    if current_pitch.is_zero() {
+                        writeln!(
+                            out,
+                            "maintaining {:.0} feet to intercept the {:.1} degrees glidepath \
+                             towards {target_waypoint} after {:.0} nautical miles",
+                            position.altitude().amsl().into_feet(),
+                            -glide_angle.into_degrees(),
+                            glidepath_distance.into_nm(),
+                        )
+                        .unwrap();
+                    } else {
+                        writeln!(
+                            out,
+                            "passing {:.0} feet, {:.0} feet below the {:.1} degeres glidepath \
+                             towards {target_waypoint}, {} at {:.1} degrees to intercept",
+                            position.altitude().amsl().into_feet(),
+                            -altitude_deviation.into_feet(),
+                            -glide_angle.into_degrees(),
+                            if current_pitch.is_positive() { "climbing" } else { "descending" },
+                            current_pitch.abs().into_degrees(),
+                        )
+                        .unwrap();
+                    }
+                } else if altitude_deviation >= Distance::from_feet(30.) {
                     writeln!(
                         out,
-                        "maintaining {:.0} feet",
-                        object.object.position.altitude().amsl().into_feet()
+                        "passing {:.0} feet, {:.0} feet above the {:.1} degrees glidepath towards \
+                         {target_waypoint}, descending at {:.1} degrees",
+                        position.altitude().amsl().into_feet(),
+                        altitude_deviation.into_feet(),
+                        -glide_angle.into_degrees(),
+                        -current_pitch.into_degrees(),
                     )
                     .unwrap();
-                } else if target > object.object.position.altitude() {
+                } else {
+                    writeln!(
+                        out,
+                        "passing {:.0} feet, on {:.1} degrees glidepath towards {target_waypoint}",
+                        position.altitude().amsl().into_feet(),
+                        -glide_angle.into_degrees(),
+                    )
+                    .unwrap();
+                }
+            }
+            (None, Some(&nav::TargetAltitude { altitude: target, expedite })) => {
+                if (target - position.altitude()).abs() < Distance::from_feet(100.) {
+                    writeln!(out, "maintaining {:.0} feet", position.altitude().amsl().into_feet())
+                        .unwrap();
+                } else if target > position.altitude() {
                     writeln!(
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting climb" } else { "climbing" },
-                        object.object.position.altitude().amsl().into_feet(),
+                        position.altitude().amsl().into_feet(),
                         target.amsl().into_feet(),
                     )
                     .unwrap();
@@ -312,11 +377,19 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
                         out,
                         "{} from {:.0} feet to {:.0} feet",
                         if expedite { "expediting descent" } else { "descending" },
-                        object.object.position.altitude().amsl().into_feet(),
+                        position.altitude().amsl().into_feet(),
                         target.amsl().into_feet(),
                     )
                     .unwrap();
                 }
+            }
+            (None, None) => {
+                writeln!(
+                    out,
+                    "passing {:.0} feet, uncontrolled",
+                    (position.altitude().amsl()).into_feet(),
+                )
+                .unwrap();
             }
         }
     }
@@ -325,13 +398,21 @@ fn write_altitude_status(out: &mut String, object: &ObjectStatusQueryItem) {
 fn write_speed_status(out: &mut String, object: &ObjectStatusQueryItem) {
     use std::fmt::Write;
 
-    writeln!(
+    let ground_speed = object.object.ground_speed;
+    write!(
         out,
-        "ground speed {:.1} knots towards {:.1} degrees",
-        object.object.ground_speed.magnitude_exact().into_knots(),
-        object.object.ground_speed.horizontal().heading().degrees(),
+        "ground speed {:.1} knots towards {:.1} degrees, ",
+        ground_speed.magnitude_exact().into_knots(),
+        ground_speed.horizontal().heading().degrees(),
     )
     .unwrap();
+    if ground_speed.vertical() >= Speed::from_fpm(50.) {
+        writeln!(out, "climbing at {:.0} fpm", ground_speed.vertical().into_fpm()).unwrap();
+    } else if ground_speed.vertical() <= Speed::from_fpm(-50.) {
+        writeln!(out, "descending at {:.0} fpm", -ground_speed.vertical().into_fpm()).unwrap();
+    } else {
+        writeln!(out, "maintaining altitude").unwrap();
+    }
 
     let Some(&object::Airborne { airspeed }) = object.airborne else { return };
     let airspeed = airspeed.horizontal().magnitude_exact().into_knots();

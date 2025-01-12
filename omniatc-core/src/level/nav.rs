@@ -19,6 +19,10 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(app::Update, altitude_control_system.in_set(SystemSets::Navigate));
+        app.add_systems(
+            app::Update,
+            glide_control_system.after(altitude_control_system).in_set(SystemSets::Navigate),
+        );
         app.add_systems(app::Update, ground_heading_control_system.in_set(SystemSets::Navigate));
         app.add_systems(
             app::Update,
@@ -105,6 +109,99 @@ fn altitude_control_system(
     });
 }
 
+/// Pitch towards a glidepath of depression angle `glide_angle` towards `target_waypoint`,
+/// without pitching beyond `min_pitch` (usually negative) and `max_pitch` (usually zero).
+/// until the angle of depression from the object to `target_waypoint`
+/// is within `glide_angle` &pm; `activation_range` (both of which should be positive),
+/// then attempt to maintain ground speed angle at `glide_angle` aiming at `target_waypoint`.
+///
+/// Overrides [`TargetAltitude`] if both are present.
+///
+/// This is implemented with a pure pursuit algorithm by
+/// pointing towards the glidepath position after `lookahead * ground_speed`.
+/// However, the direction of ground speed is not taken into account,
+/// which may result in confusing behavior if the object is not
+/// moving (almost) directly towards the waypoint.
+#[derive(Component)]
+#[require(TargetGlideStatus)]
+pub struct TargetGlide {
+    /// Target point to aim at.
+    pub target_waypoint: Entity,
+    /// Angle of depression of the glide path.
+    pub glide_angle:     Angle<f32>,
+    /// Most negative pitch to use.
+    pub min_pitch:       Angle<f32>,
+    /// Highest pitch to use.
+    pub max_pitch:       Angle<f32>,
+    /// Lookahead time for pure pursuit.
+    pub lookahead:       Duration,
+    /// Whether the aircraft should expedit climb/descent to intersect with the glidepath.
+    ///
+    /// If false, the min/max pitch is further restricted by the standard climb/descent rate.
+    /// If true, it is only restricted by the expedition rate (which would be the physical limit).
+    pub expedite:        bool,
+}
+
+#[derive(Component, Default)]
+pub struct TargetGlideStatus {
+    /// Actual pitch the object currently aims at to move towards the glidepath.
+    pub current_pitch:      Angle<f32>,
+    /// Vertical distance from the glidepath to object altitude.
+    /// A positive value means above glidescope.
+    pub altitude_deviation: Distance<f32>,
+    /// Horizontal distance from the object to its intersection point with the glidepath.
+    /// Positive if the intersection point is between the object and the target waypoint
+    /// (i.e. in front of the object),
+    /// negative if it is behind.
+    pub glidepath_distance: Distance<f32>,
+}
+
+fn glide_control_system(
+    time: Res<Time<time::Virtual>>,
+    mut object_query: Query<(&mut VelocityTarget, &TargetGlide, &mut TargetGlideStatus, &Object)>,
+    waypoint_query: Query<&Waypoint>,
+) {
+    if time.is_paused() {
+        return;
+    }
+
+    object_query.par_iter_mut().for_each(
+        |(mut signal, glide, mut glide_status, &Object { position, ground_speed })| {
+            let Ok(&Waypoint { position: target_position, .. }) =
+                waypoint_query.get(glide.target_waypoint)
+            else {
+                bevy::log::error!("Reference to non waypoint entity {:?}", glide.target_waypoint);
+                return;
+            };
+
+            // from current position to target waypoint
+            let direction = target_position - position;
+            let ground_speed = ground_speed.horizontal().magnitude_exact();
+
+            let horiz_distance = direction.horizontal().magnitude_exact();
+            let lookahead_distance = ground_speed * glide.lookahead;
+
+            let glide_tan = glide.glide_angle.tan();
+
+            // elevation of the aim point relative to target waypoint.
+            let aim_elevation = (horiz_distance - lookahead_distance) * -glide_tan;
+            // elevation of current object position relative to target waypoint.
+            let current_elevation = -direction.vertical();
+
+            let target_pitch = (aim_elevation - current_elevation)
+                .atan2(lookahead_distance)
+                .clamp(glide.min_pitch, glide.max_pitch);
+
+            glide_status.current_pitch = target_pitch;
+            glide_status.altitude_deviation = current_elevation + horiz_distance * glide_tan;
+            glide_status.glidepath_distance = horiz_distance + current_elevation / glide_tan;
+
+            signal.vert_rate = ground_speed * target_pitch.tan();
+            signal.expedite = glide.expedite;
+        },
+    );
+}
+
 /// Desired ground speed direction. Only applicable to airborne objects.
 ///
 /// Optional component to control target heading.
@@ -165,9 +262,14 @@ pub struct TargetWaypoint {
 }
 
 fn waypoint_control_system(
+    time: Res<Time<time::Virtual>>,
     mut object_query: Query<(&mut TargetGroundDirection, &TargetWaypoint, &Object)>,
     waypoint_query: Query<&Waypoint>,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, &Object { position, .. })| {
         let Ok(waypoint_pos) = waypoint_query.get(waypoint.waypoint_entity) else {
             bevy::log::error!("Invalid waypoint entity {:?}", waypoint.waypoint_entity);
@@ -179,8 +281,8 @@ fn waypoint_control_system(
 
 /// Maintain the current heading until the line segment between `start_waypoint` and `end_waypoint`
 /// is within the circle of radius `ground_speed * lookahead` around the object.
-/// The object is then set to direct towards the closest point in the circle intersecting the line segment
-/// closest to `end_waypoint`.
+/// The object is then set to direct towards the closest point in the circle
+/// intersecting the line segment closest to `end_waypoint`.
 ///
 /// Does not do anything if the orthogonal distance between the line and the current position
 /// exceeds `activation_range` or `ground_speed * lookahead`, whichever is lower.
@@ -200,9 +302,14 @@ pub struct TargetAlignment {
 }
 
 fn alignment_control_system(
+    time: Res<Time<time::Virtual>>,
     mut object_query: Query<(&mut TargetGroundDirection, &TargetAlignment, &Object)>,
     waypoint_query: Query<&Waypoint>,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     object_query.par_iter_mut().for_each(
         |(mut signal, target, &Object { position, ground_speed })| {
             let Ok(&Waypoint { position: start, .. }) = waypoint_query.get(target.start_waypoint)

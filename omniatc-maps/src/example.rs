@@ -8,7 +8,7 @@ use omniatc_core::units::{
 
 pub fn default_plane_limits() -> plane::Limits {
     plane::Limits {
-        max_vert_accel:    Accel::from_fpm_per_sec(1.),
+        max_vert_accel:    Accel::from_fpm_per_sec(200.),
         exp_climb:         plane::ClimbProfile {
             vert_rate: Speed::from_knots(30.),
             accel:     Accel::from_knots_per_sec(0.2),
@@ -128,8 +128,8 @@ pub fn file() -> store::File {
                     aircraft:     store::BaseAircraft {
                         name:         "ABC123".into(),
                         dest:         store::Destination::Arrival { aerodrome_code: "MAIN".into() },
-                        position:     Position::from_origin_nm(1., 15.),
-                        altitude:     Position::from_amsl_feet(5000.),
+                        position:     Position::from_origin_nm(2., 16.),
+                        altitude:     Position::from_amsl_feet(6500.),
                         ground_speed: Speed::from_knots(180.),
                         ground_dir:   Heading::from_degrees(200.),
                         vert_rate:    Speed::ZERO,
@@ -146,9 +146,19 @@ pub fn file() -> store::File {
                         horiz_speed:      Speed::from_knots(160.),
                         vert_rate:        Speed::from_fpm(0.),
                         expedite:         false,
-                        target_altitude:  Some(store::TargetAltitude {
-                            altitude: Position::from_amsl_feet(5000.),
-                            expedite: false,
+                        target_altitude:  None,
+                        target_glide:     Some(store::TargetGlide {
+                            target_waypoint: store::WaypointRef::RunwayThreshold(
+                                store::RunwayRef {
+                                    aerodrome_code: "MAIN".into(),
+                                    runway_name:    "18".into(),
+                                },
+                            ),
+                            glide_angle:     Angle::from_degrees(-3.),
+                            min_pitch:       Angle::from_degrees(-15.),
+                            max_pitch:       Angle::ZERO,
+                            lookahead:       Duration::from_secs(10),
+                            expedite:        false,
                         }),
                         target_waypoint:  None,
                         target_alignment: Some(store::TargetAlignment {
@@ -198,6 +208,7 @@ pub fn file() -> store::File {
                             altitude: Position::from_amsl_feet(30000.),
                             expedite: false,
                         }),
+                        target_glide:     None,
                         target_waypoint:  Some(store::TargetWaypoint {
                             waypoint: store::WaypointRef::Named("EXITS".into()),
                         }),

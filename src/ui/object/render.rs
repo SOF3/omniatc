@@ -294,7 +294,7 @@ impl ParentQueryDataItem<'_> {
         }
     }
 
-    #[allow(clippy::too_many_lines)] // all the clutter are in separate functions
+    #[allow(clippy::too_many_lines)] // all the clutter are in separate match arms
     fn write_label(
         &self,
         element: Option<&LabelElement>,

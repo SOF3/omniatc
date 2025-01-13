@@ -36,7 +36,7 @@ pub fn default_plane_limits() -> plane::Limits {
         },
         drag_coef:         3. / 500. / 500.,
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
-        max_yaw_accel:     AngularAccel::from_degrees_per_sec2(0.3),
+        max_yaw_accel:     AngularAccel::from_degrees_per_sec2(0.5),
     }
 }
 

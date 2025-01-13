@@ -96,26 +96,41 @@ struct ImportingMap(Option<Handle<MapAsset>>);
 
 fn load_imported_map_system(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     assets: Res<Assets<MapAsset>>,
     mut importing_map: ResMut<ImportingMap>,
     mut store: ResMut<PkvStore>,
     mut current_save_key: ResMut<CurrentSaveKey>,
 ) {
     let Some(ref handle) = importing_map.0 else { return };
+    match asset_server.get_load_state(handle) {
+        Some(asset::LoadState::Loaded) => {}
+        Some(asset::LoadState::Failed(err)) => {
+            bevy::log::error!("Asset load error: {err}");
+            importing_map.0 = None;
+            return;
+        }
+        _ => return,
+    }
 
     let Some(MapAsset(bytes, file)) = assets.get(handle) else { return };
     importing_map.0 = None;
 
-    let save_key =
-        format!("{}", SystemTime::UNIX_EPOCH.elapsed().expect("SystemTime is too old").as_millis());
+    let save_key = format!(
+        "{}",
+        current_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("SystemTime is too old")
+            .as_millis()
+    );
 
     let mut index: LocalIndex = store.get(LocalIndex::KEY).unwrap_or_default();
     index.saves.push_front(Save {
         key:      save_key.clone(),
         title:    file.meta.title.clone(),
         tags:     file.meta.tags.iter().cloned().collect(),
-        creation: SystemTime::now(),
-        modified: SystemTime::now(),
+        creation: current_time(),
+        modified: current_time(),
     });
 
     if let Err(err) = store.set(&save_key, &SaveWrapper { data: Cow::Borrowed(bytes) }) {
@@ -161,3 +176,13 @@ impl AssetLoader for MapAssetLoader {
         }
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+fn current_time() -> SystemTime {
+    use std::time::Duration;
+
+    SystemTime::UNIX_EPOCH + Duration::from_secs_f64(js_sys::Date::now() * 1e-3)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn current_time() -> SystemTime { SystemTime::now() }

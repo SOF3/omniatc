@@ -10,27 +10,27 @@ pub fn default_plane_limits() -> plane::Limits {
     plane::Limits {
         max_vert_accel:    Accel::from_fpm_per_sec(200.),
         exp_climb:         plane::ClimbProfile {
-            vert_rate: Speed::from_knots(30.),
+            vert_rate: Speed::from_fpm(3000.),
             accel:     Accel::from_knots_per_sec(0.2),
             decel:     Accel::from_knots_per_sec(-1.8),
         },
         std_climb:         plane::ClimbProfile {
-            vert_rate: Speed::from_knots(15.),
+            vert_rate: Speed::from_fpm(1500.),
             accel:     Accel::from_knots_per_sec(0.6),
             decel:     Accel::from_knots_per_sec(-1.4),
         },
         level:             plane::ClimbProfile {
-            vert_rate: Speed::from_knots(0.),
+            vert_rate: Speed::from_fpm(0.),
             accel:     Accel::from_knots_per_sec(1.),
             decel:     Accel::from_knots_per_sec(-1.),
         },
-        exp_descent:       plane::ClimbProfile {
-            vert_rate: Speed::from_knots(-15.),
+        std_descent:       plane::ClimbProfile {
+            vert_rate: Speed::from_fpm(-1500.),
             accel:     Accel::from_knots_per_sec(1.4),
             decel:     Accel::from_knots_per_sec(-0.6),
         },
-        std_descent:       plane::ClimbProfile {
-            vert_rate: Speed::from_knots(-30.),
+        exp_descent:       plane::ClimbProfile {
+            vert_rate: Speed::from_fpm(-3000.),
             accel:     Accel::from_knots_per_sec(1.8),
             decel:     Accel::from_knots_per_sec(-0.2),
         },

@@ -12,6 +12,8 @@ use bevy_pkv::PkvStore;
 use omniatc_core::store::{self, load};
 use serde::{Deserialize, Serialize};
 
+use crate::util::current_time;
+
 pub struct Plug;
 
 impl Plugin for Plug {
@@ -176,13 +178,3 @@ impl AssetLoader for MapAssetLoader {
         }
     }
 }
-
-#[cfg(target_arch = "wasm32")]
-fn current_time() -> SystemTime {
-    use std::time::Duration;
-
-    SystemTime::UNIX_EPOCH + Duration::from_secs_f64(js_sys::Date::now() * 1e-3)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn current_time() -> SystemTime { SystemTime::now() }

@@ -19,5 +19,5 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Self { Self { fast_forward_speed: 10. } }
+    fn default() -> Self { Self { fast_forward_speed: 20. } }
 }

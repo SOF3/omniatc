@@ -108,7 +108,7 @@ struct ScaleRulerProximalEdge;
 fn maintain_scale_ruler_system(
     config: Res<Config>,
     camera_query: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
-    window: Single<&Window>,
+    window: Option<Single<&Window>>,
     mut ruler_body: Single<
         (&mut Visibility, &mut Transform),
         (With<ScaleRulerBody>, Without<ScaleRulerLeftText>, Without<ScaleRulerRightText>),
@@ -131,6 +131,8 @@ fn maintain_scale_ruler_system(
         ),
     >,
 ) {
+    let Some(window) = window else { return };
+
     let vis = if config.ruler.is_some() { Visibility::Visible } else { Visibility::Hidden };
     *ruler_body.0 = vis;
     *ruler_left.0 = vis;

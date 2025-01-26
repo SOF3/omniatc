@@ -1,6 +1,7 @@
 use bevy::math::Vec2;
 
 use super::line_circle_intersect;
+use crate::math::range_steps;
 use crate::units::{Position, Squared};
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
@@ -26,7 +27,7 @@ fn line_circle_intersect_middle() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(2.),
+            Squared(4.),
             Position::new(Vec2::new(5., 5.)),
             Position::new(Vec2::new(15., -5.)),
         ),
@@ -39,7 +40,7 @@ fn line_circle_intersect_contain_start() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(2.),
+            Squared(4.),
             Position::new(Vec2::new(9., 1.)),
             Position::new(Vec2::new(19., 1.)),
         ),
@@ -71,4 +72,24 @@ fn line_circle_intersect_outside() {
         ),
         None,
     );
+}
+
+#[test]
+fn range_intervals_exact() {
+    assert_eq!(range_steps(0.0, 2.0, 0.5).collect::<Vec<_>>(), vec![0.0, 0.5, 1.0, 1.5, 2.0]);
+}
+
+#[test]
+fn range_intervals_excess() {
+    assert_eq!(range_steps(0.0, 2.3, 0.5).collect::<Vec<_>>(), vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.3]);
+}
+
+#[test]
+fn range_intervals_singleton() {
+    assert_eq!(range_steps(0.3, 0.3, 0.5).collect::<Vec<_>>(), vec![0.3]);
+}
+
+#[test]
+fn range_intervals_empty() {
+    assert_eq!(range_steps(0.3, 0.2, 0.5).collect::<Vec<_>>(), Vec::<f32>::new());
 }

@@ -1,11 +1,11 @@
-use std::ops;
+use std::{fmt, ops};
 
 use bevy::math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 
 use super::{Distance, Squared};
 use crate::math::SEA_ALTITUDE;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub struct Position<T>(pub Distance<T>);
 
 impl<T> Position<T> {
@@ -22,6 +22,31 @@ impl Position<f32> {
 impl Position<Vec2> {
     #[must_use]
     pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance(Vec2 { x, y })) }
+}
+
+impl fmt::Debug for Position<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Position")
+            .field("nm", &self.0 .0)
+            .field("feet", &self.0.into_feet())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Position<Vec2> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Position").field("x", &self.0 .0.x).field("y", &self.0 .0.y).finish()
+    }
+}
+
+impl fmt::Debug for Position<Vec3> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Position")
+            .field("x", &self.0 .0.x)
+            .field("y", &self.0 .0.y)
+            .field("z", &self.altitude().amsl().into_feet())
+            .finish()
+    }
 }
 
 impl<T: ops::AddAssign> ops::Add<Distance<T>> for Position<T> {

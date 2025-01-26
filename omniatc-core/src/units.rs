@@ -1,6 +1,6 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::time::Duration;
-use std::{iter, ops};
+use std::{fmt, iter, ops};
 
 use bevy::math::{Dir2, Dir3, NormedVectorSpace, Vec2, Vec3, Vec3Swizzles, VectorSpace};
 
@@ -31,7 +31,7 @@ macro_rules! decl_units {
         ,
     )*) => { $(
         $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+        #[derive(Clone, Copy, PartialEq, PartialOrd, Default)]
         #[derive(serde::Serialize, serde::Deserialize)]
         pub struct $ty<T>(pub T);
 
@@ -334,6 +334,22 @@ macro_rules! decl_units {
                     $int_dt(self.0 * other.as_secs_f32())
                 }
             }
+
+            impl ops::Div<$ty<f32>> for $int_dt<f32> {
+                type Output = Duration;
+
+                fn div(self, other: $ty<f32>) -> Duration {
+                    Duration::from_secs_f32(self.0 / other.0)
+                }
+            }
+
+            impl<T: ops::Div<f32, Output = T>> ops::Div<Duration> for $int_dt<T> {
+                type Output = $ty<T>;
+
+                fn div(self, other: Duration) -> $ty<T> {
+                    $ty(self.0 / other.as_secs_f32())
+                }
+            }
         )?
     )* };
 }
@@ -366,36 +382,116 @@ decl_units! {
     AngularAccel[Rate<AngularSpeed>],
 }
 
+impl fmt::Debug for Distance<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Distance")
+            .field("nm", &self.into_nm())
+            .field("feet", &self.into_feet())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Distance<Vec2> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Distance")
+            .field("x.nm", &self.x().into_nm())
+            .field("y.nm", &self.y().into_nm())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Distance<Vec3> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Distance")
+            .field("x.nm", &self.x().into_nm())
+            .field("y.nm", &self.y().into_nm())
+            .field("vertical.feet", &self.vertical().into_feet())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Speed<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Speed")
+            .field("knots", &self.into_knots())
+            .field("fpm", &self.into_fpm())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Speed<Vec2> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Speed")
+            .field("x.knots", &self.x().into_knots())
+            .field("y.knots", &self.y().into_knots())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Speed<Vec3> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Speed")
+            .field("x.knots", &self.x().into_knots())
+            .field("y.knots", &self.y().into_knots())
+            .field("vertical.fpm", &self.vertical().into_fpm())
+            .finish()
+    }
+}
+
+impl fmt::Debug for Accel<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Accel").field("knots/s", &self.into_knots_per_sec()).finish()
+    }
+}
+
+impl fmt::Debug for Angle<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Angle").field("degrees", &self.into_degrees()).finish()
+    }
+}
+
+impl fmt::Debug for AngularSpeed<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AngularSpeed").field("degrees/s", &self.into_degrees_per_sec()).finish()
+    }
+}
+
+impl fmt::Debug for AngularAccel<f32> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AngularAccel").field("degrees/s2", &self.into_degrees_per_sec2()).finish()
+    }
+}
+
 impl Distance<f32> {
     #[must_use]
-    pub fn into_nm(self) -> f32 { self.0 }
+    pub const fn into_nm(self) -> f32 { self.0 }
 
     #[must_use]
-    pub fn from_nm(nm: f32) -> Self { Self(nm) }
+    pub const fn from_nm(nm: f32) -> Self { Self(nm) }
 
     #[must_use]
-    pub fn into_feet(self) -> f32 { self.0 * FEET_PER_NM }
+    pub const fn into_feet(self) -> f32 { self.0 * FEET_PER_NM }
 
     #[must_use]
-    pub fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
+    pub const fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
 
     #[must_use]
-    pub fn into_mile(self) -> f32 { self.0 * MILES_PER_NM }
+    pub const fn into_mile(self) -> f32 { self.0 * MILES_PER_NM }
 
     #[must_use]
-    pub fn from_mile(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
+    pub const fn from_mile(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
 
     #[must_use]
-    pub fn into_meters(self) -> f32 { self.0 * METERS_PER_NM }
+    pub const fn into_meters(self) -> f32 { self.0 * METERS_PER_NM }
 
     #[must_use]
-    pub fn from_meters(meters: f32) -> Self { Self(meters / METERS_PER_NM) }
+    pub const fn from_meters(meters: f32) -> Self { Self(meters / METERS_PER_NM) }
 
     #[must_use]
-    pub fn into_km(self) -> f32 { self.0 * (METERS_PER_NM / 1000.) }
+    pub const fn into_km(self) -> f32 { self.0 * (METERS_PER_NM / 1000.) }
 
     #[must_use]
-    pub fn from_km(meters: f32) -> Self { Self(meters / (METERS_PER_NM / 1000.)) }
+    pub const fn from_km(meters: f32) -> Self { Self(meters / (METERS_PER_NM / 1000.)) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {

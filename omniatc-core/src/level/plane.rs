@@ -11,9 +11,7 @@ use bevy::time::{self, Time};
 use super::nav::{self, VelocityTarget, YawTarget};
 use super::object::Object;
 use super::{object, SystemSets};
-use crate::units::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection,
-};
+use crate::units::{Accel, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection};
 
 pub struct Plug;
 
@@ -47,100 +45,11 @@ impl Control {
 
 /// Structural limitations of a plane.
 #[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Limits {
-    // Pitch/vertical rate limits.
-    /// Climb profile during expedited altitude increase.
-    ///
-    /// `exp_climb.vert_rate` may be negative during stall.
-    pub exp_climb:      ClimbProfile,
-    /// Climb profile during standard altitude increase.
-    pub std_climb:      ClimbProfile,
-    /// Climb profile during no altitude change intended.
-    ///
-    /// The `vert_rate` field is typically 0,
-    /// but could be changed during uncontrolled scenarios like engine failure.
-    pub level:          ClimbProfile,
-    /// Climb profile during standard altitude decrease.
-    pub std_descent:    ClimbProfile,
-    /// Climb profile during expedited altitude decrease.
-    pub exp_descent:    ClimbProfile,
-    /// Maximum absolute change rate for vertical rate acceleration.
-    pub max_vert_accel: Accel<f32>,
-
-    // Forward limits.
-    /// Absolute change rate for airborne horizontal acceleration. Always positive.
-    pub accel_change_rate: AccelRate<f32>, // ah yes we have d^3/dt^3 now...
-    /// Drag coefficient, in nm^-1.
-    ///
-    /// Acceleration is subtracted by `drag_coef * airspeed^2`.
-    /// Note that the dimension is inconsistent
-    /// since airspeed^2 is nm^2/h^2 but acceleration is nm/h/s.
-    ///
-    /// Simple formula to derive a reasonable drag coefficient:
-    /// `level.accel / (max cruise speed in kt)^2`.
-    pub drag_coef:         f32,
-
-    // Z axis rotation limits.
-    /// Max absolute rate of change of yaw speed.
-    pub max_yaw_accel: AngularAccel<f32>,
-}
-
-impl Limits {
-    /// Returns the maximum horizontal acceleration rate at the given climb rate.
-    ///
-    /// The returned value could be negative.
-    #[must_use]
-    pub fn accel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
-        self.find_field(climb_rate, |profile| profile.accel)
-    }
-
-    /// Returns the maximum horizontal deceleration rate at the given descent rate.
-    /// The returned value is negative.
-    #[must_use]
-    pub fn decel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
-        self.find_field(climb_rate, |profile| profile.decel)
-    }
-
-    fn find_field(
-        &self,
-        climb_rate: Speed<f32>,
-        field: impl Fn(&ClimbProfile) -> Accel<f32>,
-    ) -> Accel<f32> {
-        if climb_rate < self.exp_descent.vert_rate {
-            return field(&self.exp_descent);
-        }
-
-        for pair in
-            [&self.exp_descent, &self.std_descent, &self.level, &self.std_climb, &self.exp_climb]
-                .windows(2)
-        {
-            let &[left, right] = pair else { unreachable!() };
-            if climb_rate < right.vert_rate {
-                let ratio = climb_rate.ratio_between(left.vert_rate, right.vert_rate);
-                return field(left).lerp(field(right), ratio);
-            }
-        }
-
-        field(&self.exp_climb)
-    }
-}
-
-/// Speed limitations during a certain climb rate.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct ClimbProfile {
-    /// Vertical rate for this climb profile.
-    /// A negative value indicates this is a descent profile.
-    pub vert_rate: Speed<f32>,
-    /// Standard horizontal acceleration rate when requested.
-    pub accel:     Accel<f32>,
-    /// Standard horizontal deceleration rate.
-    /// The value is negative.
-    pub decel:     Accel<f32>,
-}
+pub struct Limits {}
 
 pub struct SpawnCommand {
     pub control: Option<Control>,
-    pub limits:  Limits,
+    pub limits:  nav::Limits,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -186,7 +95,6 @@ fn apply_forces_system(
     mut plane_query: Query<(
         &mut VelocityTarget,
         &mut Control,
-        &Limits,
         &nav::Limits,
         &mut object::Airborne,
     )>,
@@ -195,22 +103,19 @@ fn apply_forces_system(
         return;
     }
 
-    plane_query.par_iter_mut().for_each(
-        |(mut target, mut control, limits, nav_limits, mut airborne)| {
-            // All components are always changed. Deref first to avoid borrowck issues.
-            maintain_yaw(&time, &mut target, nav_limits, &mut control, limits, &airborne);
-            maintain_accel(&time, &target, &mut control, limits, &mut airborne);
-            maintain_vert(&time, &target, limits, &mut airborne);
-        },
-    );
+    plane_query.par_iter_mut().for_each(|(mut target, mut control, limits, mut airborne)| {
+        // All components are always changed. Deref first to avoid borrowck issues.
+        maintain_yaw(&time, &mut target, &mut control, limits, &airborne);
+        maintain_accel(&time, &target, &mut control, limits, &mut airborne);
+        maintain_vert(&time, &target, limits, &mut airborne);
+    });
 }
 
 fn maintain_yaw(
     time: &Time<time::Virtual>,
     target: &mut VelocityTarget,
-    nav_limits: &nav::Limits,
     control: &mut Control,
-    limits: &Limits,
+    limits: &nav::Limits,
     airborne: &object::Airborne,
 ) {
     let current_yaw = airborne.airspeed.horizontal().heading();
@@ -234,8 +139,8 @@ fn maintain_yaw(
                 AngularSpeed(0.)
             } else {
                 match dir {
-                    TurnDirection::CounterClockwise => -nav_limits.max_yaw_speed,
-                    TurnDirection::Clockwise => nav_limits.max_yaw_speed,
+                    TurnDirection::CounterClockwise => -limits.max_yaw_speed,
+                    TurnDirection::Clockwise => limits.max_yaw_speed,
                 }
             }
         }
@@ -254,8 +159,8 @@ fn maintain_yaw(
             }
 
             match direction {
-                TurnDirection::CounterClockwise => -nav_limits.max_yaw_speed,
-                TurnDirection::Clockwise => nav_limits.max_yaw_speed,
+                TurnDirection::CounterClockwise => -limits.max_yaw_speed,
+                TurnDirection::Clockwise => limits.max_yaw_speed,
             }
         }
     };
@@ -284,7 +189,7 @@ fn maintain_accel(
     time: &Time<time::Virtual>,
     target: &VelocityTarget,
     control: &mut Control,
-    limits: &Limits,
+    limits: &nav::Limits,
     airborne: &mut object::Airborne,
 ) {
     enum ThrottleAction {
@@ -374,7 +279,7 @@ fn maintain_accel(
 fn maintain_vert(
     time: &Time<time::Virtual>,
     target: &VelocityTarget,
-    limits: &Limits,
+    limits: &nav::Limits,
     airborne: &mut object::Airborne,
 ) {
     let desired_vert_rate = if target.expedite {

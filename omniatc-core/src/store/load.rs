@@ -8,6 +8,7 @@ use bevy::prelude::{
 };
 use bevy::utils::HashMap;
 
+use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
 use crate::level::{aerodrome, nav, object, plane, runway, wind};
@@ -359,20 +360,19 @@ fn spawn_plane(
             yaw_speed:   plane.control.yaw_speed,
             horiz_accel: plane.control.horiz_accel,
         }),
-        limits:  plane.plane_limits.clone(),
+        limits:  plane.limits.clone(),
     }
     .apply(plane_entity, world);
 
-    world.entity_mut(plane_entity).insert(plane.nav_limits.clone());
+    let mut plane_ref = world.entity_mut(plane_entity);
+    plane_ref.insert(plane.limits.clone());
 
     if let store::NavTarget::Airborne(target) = &plane.nav_target {
-        insert_airborne_nav_targets(
-            &mut world.entity_mut(plane_entity),
-            aerodromes,
-            waypoints,
-            target,
-        )?;
+        insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
     }
+
+    insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
+    route::RunCurrentNode.apply(plane_entity, world);
 
     Ok(())
 }
@@ -422,6 +422,46 @@ fn insert_airborne_nav_targets(
         });
     }
 
+    Ok(())
+}
+
+fn insert_route(
+    plane_entity: &mut EntityWorldMut,
+    aerodromes: &AerodromeMap,
+    waypoints: &WaypointMap,
+    route: &store::Route,
+) -> Result<(), Error> {
+    let route_rt = route
+        .nodes
+        .iter()
+        .map(|node| {
+            Ok(match *node {
+                store::RouteNode::DirectWaypoint {
+                    ref waypoint,
+                    distance,
+                    proximity,
+                    altitude,
+                } => route::Node::DirectWaypoint(route::DirectWaypointNode {
+                    waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
+                    distance,
+                    proximity,
+                    altitude,
+                }),
+                store::RouteNode::SetAirspeed { goal, error } => {
+                    route::Node::SetAirspeed(route::SetAirspeedNode { speed: goal, error })
+                }
+                store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
+                    route::Node::StartSetAltitude(route::StartSetAltitudeNode {
+                        altitude: goal,
+                        error,
+                        expedite,
+                    })
+                }
+            })
+        })
+        .collect::<Result<Route, Error>>()?;
+
+    plane_entity.insert(route_rt);
     Ok(())
 }
 

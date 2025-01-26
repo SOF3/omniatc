@@ -3,12 +3,15 @@
 // we don't really want to read the mathematical constants in this file.
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
-use bevy::math::Vec2;
+use core::fmt;
+use std::{cmp, iter, ops};
+
+use bevy::math::{Dir2, Vec2};
 
 mod consts;
 pub use consts::*;
 
-use crate::units::{Distance, Position, Squared};
+use crate::units::{Distance, Position, Speed, Squared};
 
 #[cfg(test)]
 mod tests;
@@ -43,4 +46,50 @@ pub fn line_circle_intersect(
         let high = ((-b + discrim.sqrt()) / a / 2.).min(1.);
         Some([low, high]).filter(|_| low <= high)
     }
+}
+
+pub trait Between<U>: PartialOrd<U> {
+    fn between_inclusive(&self, min: &U, max: &U) -> bool { self >= min && self <= max }
+}
+
+impl<T: PartialOrd<U>, U> Between<U> for T {}
+
+#[must_use]
+pub fn solve_expected_ground_speed(
+    true_airspeed: Speed<f32>,
+    wind: Speed<Vec2>,
+    ground_dir: Dir2,
+) -> Speed<f32> {
+    let wind_dot_ground = wind.x() * ground_dir.x + wind.y() * ground_dir.y;
+    wind_dot_ground
+        + (true_airspeed.squared() - wind.magnitude_squared() - wind_dot_ground.squared()).sqrt()
+}
+
+/// Returns `start`, `start+interval`, `start+interval+interval`, ... until `end`.
+/// The second last item is greater than or equal to `end - interval` and not equal to `end`.
+///
+/// # Panics
+/// Panics if `interval` is not a finite positive or negative value.
+pub fn range_steps<T, U>(mut start: T, end: T, interval: U) -> impl Iterator<Item = T> + Clone
+where
+    T: Copy + PartialOrd + ops::AddAssign<U>,
+    U: fmt::Debug + Copy + Default + PartialOrd,
+{
+    let more_extreme = match interval.partial_cmp(&U::default()) {
+        Some(cmp::Ordering::Less) => |a: T, b: T| a <= b,
+        Some(cmp::Ordering::Greater) => |a, b| a >= b,
+        _ => panic!("interval {interval:?} must be a finite positive or negative"),
+    };
+
+    let mut fuse = Some(end).filter(|_| more_extreme(end, start));
+
+    iter::from_fn(move || {
+        let output = start;
+        if more_extreme(output, end) {
+            fuse.take()
+        } else {
+            start += interval;
+            Some(output)
+        }
+    })
 }

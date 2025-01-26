@@ -4,7 +4,8 @@ use bevy::math::Vec2;
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
 
-use crate::level::{nav, plane};
+use crate::level::nav;
+use crate::level::route::WaypointProximity;
 use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
 pub mod load;
@@ -259,12 +260,11 @@ pub enum Object {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Plane {
-    pub aircraft:     BaseAircraft,
-    pub control:      PlaneControl,
-    #[allow(clippy::struct_field_names)]
-    pub plane_limits: plane::Limits,
-    pub nav_limits:   nav::Limits,
-    pub nav_target:   NavTarget,
+    pub aircraft:   BaseAircraft,
+    pub control:    PlaneControl,
+    pub limits:     nav::Limits,
+    pub nav_target: NavTarget,
+    pub route:      Route,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -368,6 +368,42 @@ pub struct TargetAlignment {
     /// within which direction control is activated for alignment.
     /// This is used to avoid prematurely turning directly towards the localizer.
     pub activation_range: Distance<f32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Route {
+    pub nodes: Vec<RouteNode>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RouteNode {
+    /// Direct to a waypoint.
+    DirectWaypoint {
+        /// Waypoint to horizontally navigate to.
+        waypoint:  WaypointRef,
+        /// The node is considered complete when
+        /// the horizontal distance between the object and the waypoint is less than this value.
+        distance:  Distance<f32>,
+        /// Whether the object is allowed to complete this node early when in proximity.
+        proximity: WaypointProximity,
+        /// Start pitching at standard rate *during or before* this node,
+        /// approximately reaching this altitude by the time the specified waypoint is reached.
+        altitude:  Option<Position<f32>>,
+    },
+    /// Adjust throttle until the airspeed is reached.
+    SetAirspeed {
+        goal:  Speed<f32>,
+        /// If `Some`, this node blocks until the airspeed is within `goal` &pm; `error`.
+        error: Option<Speed<f32>>,
+    },
+    /// Pitch until the altitude is reached.
+    StartPitchToAltitude {
+        goal:     Position<f32>,
+        /// If `Some`, this node blocks until the altitude is within `goal` &pm; `error`.
+        error:    Option<Distance<f32>>,
+        expedite: bool,
+        // TODO pressure altitude?
+    },
 }
 
 /// References a position.

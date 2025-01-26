@@ -12,7 +12,10 @@ use super::waypoint::Waypoint;
 use super::{object, SystemSets};
 use crate::math::line_circle_intersect;
 use crate::pid;
-use crate::units::{Angle, AngularSpeed, Distance, Heading, Position, Speed, TurnDirection};
+use crate::units::{
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
+    TurnDirection,
+};
 
 pub struct Plug;
 
@@ -36,9 +39,8 @@ impl Plugin for Plug {
 
 /// Current target states of the airspeed vector.
 ///
-/// This optional component is omitted when the plane is not airborne.
+/// This optional component is removed when the plane is not airborne.
 #[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-#[require(Limits)]
 pub struct VelocityTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
@@ -52,12 +54,101 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Limits {
     /// Minimum horizontal indicated airspeed.
     pub min_horiz_speed: Speed<f32>,
     /// Max absolute yaw speed.
     pub max_yaw_speed:   AngularSpeed<f32>,
+
+    // Pitch/vertical rate limits.
+    /// Climb profile during expedited altitude increase.
+    ///
+    /// `exp_climb.vert_rate` may be negative during stall.
+    pub exp_climb:      ClimbProfile,
+    /// Climb profile during standard altitude increase.
+    pub std_climb:      ClimbProfile,
+    /// Climb profile during no altitude change intended.
+    ///
+    /// The `vert_rate` field is typically 0,
+    /// but could be changed during uncontrolled scenarios like engine failure.
+    pub level:          ClimbProfile,
+    /// Climb profile during standard altitude decrease.
+    pub std_descent:    ClimbProfile,
+    /// Climb profile during expedited altitude decrease.
+    pub exp_descent:    ClimbProfile,
+    /// Maximum absolute change rate for vertical rate acceleration.
+    pub max_vert_accel: Accel<f32>,
+
+    // Forward limits.
+    /// Absolute change rate for airborne horizontal acceleration. Always positive.
+    pub accel_change_rate: AccelRate<f32>, // ah yes we have d^3/dt^3 now...
+    /// Drag coefficient, in nm^-1.
+    ///
+    /// Acceleration is subtracted by `drag_coef * airspeed^2`.
+    /// Note that the dimension is inconsistent
+    /// since airspeed^2 is nm^2/h^2 but acceleration is nm/h/s.
+    ///
+    /// Simple formula to derive a reasonable drag coefficient:
+    /// `level.accel / (max cruise speed in kt)^2`.
+    pub drag_coef:         f32,
+
+    // Z axis rotation limits.
+    /// Max absolute rate of change of yaw speed.
+    pub max_yaw_accel: AngularAccel<f32>,
+}
+
+impl Limits {
+    /// Returns the maximum horizontal acceleration rate at the given climb rate.
+    ///
+    /// The returned value could be negative.
+    #[must_use]
+    pub fn accel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
+        self.find_field(climb_rate, |profile| profile.accel)
+    }
+
+    /// Returns the maximum horizontal deceleration rate at the given descent rate.
+    /// The returned value is negative.
+    #[must_use]
+    pub fn decel(&self, climb_rate: Speed<f32>) -> Accel<f32> {
+        self.find_field(climb_rate, |profile| profile.decel)
+    }
+
+    fn find_field(
+        &self,
+        climb_rate: Speed<f32>,
+        field: impl Fn(&ClimbProfile) -> Accel<f32>,
+    ) -> Accel<f32> {
+        if climb_rate < self.exp_descent.vert_rate {
+            return field(&self.exp_descent);
+        }
+
+        for pair in
+            [&self.exp_descent, &self.std_descent, &self.level, &self.std_climb, &self.exp_climb]
+                .windows(2)
+        {
+            let &[left, right] = pair else { unreachable!() };
+            if climb_rate < right.vert_rate {
+                let ratio = climb_rate.ratio_between(left.vert_rate, right.vert_rate);
+                return field(left).lerp(field(right), ratio);
+            }
+        }
+
+        field(&self.exp_climb)
+    }
+}
+
+/// Speed limitations during a certain climb rate.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct ClimbProfile {
+    /// Vertical rate for this climb profile.
+    /// A negative value indicates this is a descent profile.
+    pub vert_rate: Speed<f32>,
+    /// Standard horizontal acceleration rate when requested.
+    pub accel:     Accel<f32>,
+    /// Standard horizontal deceleration rate.
+    /// The value is negative.
+    pub decel:     Accel<f32>,
 }
 
 /// Target yaw change.

@@ -218,7 +218,9 @@ fn altitude_control_system(
 pub struct TargetGlide {
     /// Target point to aim at.
     pub target_waypoint: Entity,
-    /// Angle of depression of the glide path.
+    /// Angle of elevation of the glide path.
+    ///
+    /// Negative if the glide is a descent.
     pub glide_angle:     Angle<f32>,
     /// Most negative pitch to use.
     pub min_pitch:       Angle<f32>,

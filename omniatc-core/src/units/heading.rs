@@ -156,7 +156,7 @@ impl Heading {
 impl fmt::Debug for Heading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Heading")
-            .field("radians", &self.radians())
+            .field("radians", &self.radians().0)
             .field("degrees", &self.degrees())
             .finish()
     }

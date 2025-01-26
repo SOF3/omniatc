@@ -37,7 +37,7 @@ pub fn default_plane_limits() -> nav::Limits {
         },
         drag_coef:         3. / 500. / 500.,
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
-        max_yaw_accel:     AngularAccel::from_degrees_per_sec2(0.5),
+        max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
     }
 }
 
@@ -186,6 +186,13 @@ pub fn file() -> store::File {
                                 distance:  Distance::from_nm(1.),
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  None,
+                            },
+                            store::RouteNode::AlignRunway {
+                                runway:   store::RunwayRef {
+                                    aerodrome_code: "MAIN".into(),
+                                    runway_name:    "18".into(),
+                                },
+                                expedite: true,
                             },
                         ],
                     },

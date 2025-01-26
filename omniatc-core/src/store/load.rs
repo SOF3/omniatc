@@ -193,6 +193,8 @@ fn spawn_runway(
     }
     .apply(localizer_waypoint, world);
 
+    world.entity_mut(runway_entity).insert(runway::LocalizerWaypointRef { localizer_waypoint });
+
     SpawnedRunway { runway: runway_entity, localizer_waypoint }
 }
 
@@ -457,12 +459,32 @@ fn insert_route(
                         expedite,
                     })
                 }
+                store::RouteNode::AlignRunway { ref runway, expedite } => {
+                    route::Node::AlignRunway(route::AlignRunwayNode {
+                        runway: resolve_runway_ref(aerodromes, runway)?.runway,
+                        expedite,
+                    })
+                }
             })
         })
         .collect::<Result<Route, Error>>()?;
 
     plane_entity.insert(route_rt);
     Ok(())
+}
+
+fn resolve_runway_ref<'a>(
+    aerodromes: &'a AerodromeMap,
+    store::RunwayRef { aerodrome_code, runway_name }: &store::RunwayRef,
+) -> Result<&'a SpawnedRunway, Error> {
+    let aerodrome = aerodromes.resolve(aerodrome_code)?;
+    let Some(runway) = aerodrome.runways.get(runway_name) else {
+        return Err(Error::UnresolvedRunway {
+            aerodrome: aerodrome_code.clone(),
+            runway:    runway_name.clone(),
+        });
+    };
+    Ok(runway)
 }
 
 fn resolve_waypoint_ref(
@@ -472,25 +494,11 @@ fn resolve_waypoint_ref(
 ) -> Result<Entity, Error> {
     match waypoint_ref {
         store::WaypointRef::Named(name) => waypoints.resolve(name),
-        store::WaypointRef::RunwayThreshold(store::RunwayRef { aerodrome_code, runway_name }) => {
-            let aerodrome = aerodromes.resolve(aerodrome_code)?;
-            let Some(runway) = aerodrome.runways.get(runway_name) else {
-                return Err(Error::UnresolvedRunway {
-                    aerodrome: aerodrome_code.clone(),
-                    runway:    runway_name.clone(),
-                });
-            };
-            Ok(runway.runway)
+        store::WaypointRef::RunwayThreshold(runway_ref) => {
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway)
         }
-        store::WaypointRef::LocalizerStart(store::RunwayRef { aerodrome_code, runway_name }) => {
-            let aerodrome = aerodromes.resolve(aerodrome_code)?;
-            let Some(runway) = aerodrome.runways.get(runway_name) else {
-                return Err(Error::UnresolvedRunway {
-                    aerodrome: aerodrome_code.clone(),
-                    runway:    runway_name.clone(),
-                });
-            };
-            Ok(runway.localizer_waypoint)
+        store::WaypointRef::LocalizerStart(runway_ref) => {
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.localizer_waypoint)
         }
     }
 }

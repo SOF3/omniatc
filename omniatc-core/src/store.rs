@@ -404,6 +404,10 @@ pub enum RouteNode {
         expedite: bool,
         // TODO pressure altitude?
     },
+    AlignRunway {
+        runway:   RunwayRef,
+        expedite: bool,
+    },
 }
 
 /// References a position.

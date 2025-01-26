@@ -1,25 +1,42 @@
 use std::collections::VecDeque;
 use std::mem;
+use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::SystemState;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
-    Commands, Component, Entity, EntityCommand, EntityRef, IntoSystemConfigs, Query, World,
+    Commands, Component, Entity, EntityCommand, EntityRef, IntoSystemConfigs, Query, Res, World,
 };
+use bevy::time::{self, Time};
 use serde::{Deserialize, Serialize};
 
 use super::object::{self, GroundSpeedCalculator, Object};
+use super::runway::{self, Runway};
 use super::waypoint::Waypoint;
 use super::{nav, SystemSets};
 use crate::level::object::RefAltitudeType;
 use crate::math::Between;
-use crate::units::{Distance, Heading, Position, Speed};
+use crate::units::{Angle, Distance, Heading, Position, Speed};
 
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
 /// in order to reach the required configured altitude set in the future.
 const ALTITUDE_CHANGE_TRIGGER_WINDOW: Distance<f32> = Distance::from_nm(1.);
+
+/// Frequency of re-executing the route plan for each object.
+const REFRESH_INTERVAL: Duration = Duration::from_secs(5);
+
+/// [Activation range](nav::TargetAlignment::activation_range) for `AlignRunway` nodes.
+///
+/// This constant has relatively longer activation range
+/// compared to the default one triggered by explicit user command,
+/// because the object is expected to immediately start aligning
+/// by the time the `AlignRunway` node becomes active.
+const ALIGN_RUNWAY_ACTIVATION_RANGE: Distance<f32> = Distance::from_nm(0.5);
+
+/// [Lookahead duration](nav::TargetAlignment::lookahead) for `AlignRunway` nodes.
+const ALIGN_RUNWAY_LOOKAHEAD: Duration = Duration::from_secs(10);
 
 pub struct Plug;
 
@@ -27,7 +44,12 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             app::Update,
-            (fly_over_trigger_system, fly_by_trigger_system, distance_trigger_system)
+            (
+                fly_over_trigger_system,
+                fly_by_trigger_system,
+                time_trigger_system,
+                distance_trigger_system,
+            )
                 .in_set(SystemSets::Action),
         );
     }
@@ -130,6 +152,7 @@ impl EntityCommand for ClearAllNodes {
     }
 }
 
+// TODO possible optimization: run this in systems with parallelization.
 fn run_current_node(world: &mut World, entity: Entity) {
     loop {
         {
@@ -138,7 +161,7 @@ fn run_current_node(world: &mut World, entity: Entity) {
 
             match current_node {
                 None => break clear_all_triggers(world, entity),
-                Some(node) => match node.run_current_node(world, entity) {
+                Some(node) => match node.run_as_current_node(world, entity) {
                     RunNodeResult::PendingTrigger => break,
                     RunNodeResult::NodeDone => {
                         let mut entity_ref = world.entity_mut(entity);
@@ -154,6 +177,14 @@ fn run_current_node(world: &mut World, entity: Entity) {
     }
 
     update_altitude(world, entity);
+
+    let time_elapsed = world.resource::<Time<time::Virtual>>().elapsed();
+    let mut entity_ref = world.entity_mut(entity);
+    let mut trigger = entity_ref
+        .insert_if_new(TimeTrigger(time_elapsed))
+        .get_mut::<TimeTrigger>()
+        .expect("inserted if missing");
+    trigger.0 = time_elapsed + REFRESH_INTERVAL;
 }
 
 fn update_altitude(world: &mut World, entity: Entity) {
@@ -330,7 +361,7 @@ fn clear_all_triggers(world: &mut World, entity: Entity) {
 
 #[portrait::make]
 trait NodeKind: Copy {
-    fn run_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult;
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult;
 
     /// Whether the node configures the object heading.
     fn configures_heading(self, _world: &World) -> Option<ConfiguresHeading> { None }
@@ -392,7 +423,7 @@ pub struct DirectWaypointNode {
 }
 
 impl NodeKind for DirectWaypointNode {
-    fn run_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
         let Self { waypoint, distance, .. } = self;
 
         world.entity_mut(entity).insert(nav::TargetWaypoint { waypoint_entity: waypoint });
@@ -464,7 +495,7 @@ pub struct SetAirspeedNode {
 }
 
 impl NodeKind for SetAirspeedNode {
-    fn run_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
         let current_airspeed =
             SystemState::<object::GetAirspeed>::new(world).get(world).get_airspeed(entity);
 
@@ -500,7 +531,7 @@ pub struct StartSetAltitudeNode {
 }
 
 impl NodeKind for StartSetAltitudeNode {
-    fn run_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
         let mut entity_ref = world.entity_mut(entity);
         let current_altitude =
             entity_ref.get::<Object>().expect("entity must be an Object").position.altitude();
@@ -518,6 +549,54 @@ impl NodeKind for StartSetAltitudeNode {
     fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }
 
+#[derive(Clone, Copy)]
+pub struct AlignRunwayNode {
+    /// The runway waypoint entity.
+    pub runway:   Entity,
+    /// Whether to allow descent expedition to align with the glidepath.
+    pub expedite: bool,
+}
+
+impl NodeKind for AlignRunwayNode {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+        let Some(&Runway { glide_angle, .. }) = world.get::<Runway>(self.runway) else {
+            bevy::log::error!("AlignRunwayNode references non-runway entity {:?}", self.runway);
+            return RunNodeResult::PendingTrigger;
+        };
+        let Some(&runway::LocalizerWaypointRef { localizer_waypoint }) = world.get(self.runway)
+        else {
+            bevy::log::error!("Runway {:?} has no LocalizerWaypointRef", self.runway);
+            return RunNodeResult::PendingTrigger;
+        };
+
+        let mut entity_ref = world.entity_mut(entity);
+        entity_ref.remove::<(nav::TargetWaypoint, nav::TargetAltitude)>().insert((
+            nav::TargetAlignment {
+                start_waypoint:   localizer_waypoint,
+                end_waypoint:     self.runway,
+                activation_range: ALIGN_RUNWAY_ACTIVATION_RANGE,
+                lookahead:        ALIGN_RUNWAY_LOOKAHEAD,
+            },
+            nav::TargetGlide {
+                target_waypoint: self.runway,
+                glide_angle:     -glide_angle,
+                // the actual minimum pitch is regulated by maximum descent rate.
+                min_pitch:       -Angle::RIGHT,
+                max_pitch:       Angle::ZERO,
+                lookahead:       ALIGN_RUNWAY_LOOKAHEAD,
+                expedite:        self.expedite,
+            },
+        ));
+
+        RunNodeResult::NodeDone
+    }
+
+    fn configures_heading(self, world: &World) -> Option<ConfiguresHeading> {
+        let runway = world.get::<Runway>(self.runway)?;
+        Some(ConfiguresHeading::Heading(Heading::from_vec2(runway.usable_length.0)))
+    }
+}
+
 /// An entry in the flight plan.
 #[derive(Clone, Copy)]
 #[portrait::derive(NodeKind with portrait::derive_delegate)]
@@ -525,6 +604,7 @@ pub enum Node {
     DirectWaypoint(DirectWaypointNode),
     SetAirspeed(SetAirspeedNode),
     StartSetAltitude(StartSetAltitudeNode),
+    AlignRunway(AlignRunwayNode),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -546,10 +626,15 @@ struct FlyOverTrigger {
 }
 
 fn fly_over_trigger_system(
+    time: Res<Time<time::Virtual>>,
     waypoint_query: Query<&Waypoint>,
     object_query: Query<(Entity, &Object, &FlyOverTrigger)>,
     mut commands: Commands,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     object_query.iter().for_each(
         |(object_entity, &Object { position: current_pos, .. }, trigger)| {
             let Ok(&Waypoint { position: current_target, .. }) =
@@ -578,10 +663,15 @@ enum FlyByCompletionCondition {
 }
 
 fn fly_by_trigger_system(
+    time: Res<Time<time::Virtual>>,
     waypoint_query: Query<&Waypoint>,
     object_query: Query<(Entity, &Object, &nav::Limits, &FlyByTrigger)>,
     mut commands: Commands,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     object_query.iter().for_each(
         |(
             object_entity,
@@ -641,15 +731,35 @@ fn fly_by_trigger_system(
 }
 
 #[derive(Component)]
+struct TimeTrigger(Duration);
+
+fn time_trigger_system(
+    time: Res<Time<time::Virtual>>,
+    mut object_query: Query<(Entity, &TimeTrigger)>,
+    mut commands: Commands,
+) {
+    object_query.iter_mut().for_each(|(object_entity, trigger)| {
+        if trigger.0 >= time.elapsed() {
+            commands.entity(object_entity).queue(RunCurrentNode);
+        }
+    });
+}
+
+#[derive(Component)]
 struct DistanceTrigger {
     remaining_distance: Distance<f32>,
     last_observed_pos:  Position<Vec2>,
 }
 
 fn distance_trigger_system(
+    time: Res<Time<time::Virtual>>,
     mut object_query: Query<(Entity, &Object, &mut DistanceTrigger)>,
     mut commands: Commands,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     object_query.iter_mut().for_each(|(object_entity, object, mut trigger)| {
         let last_pos = mem::replace(&mut trigger.last_observed_pos, object.position.horizontal());
         trigger.remaining_distance -= last_pos.distance_exact(object.position.horizontal());

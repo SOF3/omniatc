@@ -55,6 +55,8 @@ pub struct Runway {
     pub display_width: Distance<f32>,
 
     /// Standard angle of depression for the glide path.
+    ///
+    /// Always positive.
     pub glide_angle: Angle<f32>,
 }
 
@@ -83,6 +85,13 @@ pub struct SpawnEvent(pub Entity);
 pub struct LocalizerWaypoint {
     /// The runway that the waypoint is associated with.
     pub runway_ref: Entity,
+}
+
+/// Component on Runway entities referencing the [`LocalizerWaypoint`].
+#[derive(Component)]
+pub struct LocalizerWaypointRef {
+    /// The localizer waypoint entity.
+    pub localizer_waypoint: Entity,
 }
 
 fn maintain_localizer_waypoint_system(

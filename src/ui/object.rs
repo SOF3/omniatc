@@ -58,9 +58,10 @@ impl Default for Config {
             plane_sprite_size:         0.7,
             color_scheme:              ColorScheme::Mixed {
                 a:      Box::new(ColorScheme::Destination {
-                    departure: vec![Color::srgb(1., 0., 0.)],
-                    arrival:   vec![Color::srgb(0., 1., 0.)],
-                    ferry:     vec![Color::srgb(0., 0., 1.)],
+                    departure:   ColorScale { pieces: vec![Color::srgb(0., 0., 1.)] },
+                    climb:       Color::WHITE,
+                    arrival:     vec![Color::srgb(0., 1., 0.)],
+                    any_landing: Color::srgb(1., 0., 0.),
                 }),
                 b:      Box::new(ColorScheme::Altitude(ColorScale {
                     pieces: vec![Color::WHITE, Color::srgb(0.2, 0.2, 0.2)],
@@ -105,12 +106,15 @@ impl Default for Config {
 pub enum ColorScheme {
     /// Colors for departures and arrivals from/to different aerodromes have different colors.
     Destination {
-        /// A departure from aerodrome #n uses color `departure[n.min(departure.len() - 1)]`.
-        departure: Vec<Color>,
+        /// A departure to waypoint at heading theta relative to the origin
+        /// uses `scale.get(theta / Angle::FULL)`.
+        departure:   ColorScale,
+        /// A departure that has passed the required waypoint but still needs further climb.
+        climb:       Color,
         /// An arrival to aerodrome #n uses color `arrival[n.min(arrival.len() - 1)]`.
-        arrival:   Vec<Color>,
-        /// A ferry to aerodrome #n uses color `ferry[n.min(ferry.len() - 1)]`.
-        ferry:     Vec<Color>,
+        arrival:     Vec<Color>,
+        /// An object that just requires landing.
+        any_landing: Color,
     },
     /// Color changes as the altitude increases.
     Altitude(ColorScale),

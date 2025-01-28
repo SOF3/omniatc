@@ -144,7 +144,7 @@ pub fn file() -> store::File {
                 store::Object::Plane(store::Plane {
                     aircraft:   store::BaseAircraft {
                         name:         "ABC123".into(),
-                        dest:         store::Destination::Arrival { aerodrome_code: "MAIN".into() },
+                        dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
                         position:     Position::from_origin_nm(2., -16.),
                         altitude:     Position::from_amsl_feet(12000.),
                         ground_speed: Speed::from_knots(280.),
@@ -200,9 +200,12 @@ pub fn file() -> store::File {
                 store::Object::Plane(store::Plane {
                     aircraft:   store::BaseAircraft {
                         name:         "ADE127".into(),
-                        dest:         store::Destination::Departure {
-                            aerodrome_code: "MAIN".into(),
-                            dest_waypoint:  "EXITS".into(),
+                        dest:         store::Destination::ReachWaypoint {
+                            min_altitude:       Some(Position::from_amsl_feet(18000.)),
+                            waypoint_proximity: Some((
+                                store::WaypointRef::Named("EXITS".into()),
+                                Distance::from_nm(1.),
+                            )),
                         },
                         position:     Position::from_origin_nm(10., -1.),
                         altitude:     Position::from_amsl_feet(8000.),

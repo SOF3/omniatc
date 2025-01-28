@@ -16,9 +16,10 @@ use bevy::prelude::{
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d, Sprite};
 use bevy::text::{Text2d, TextColor, TextSpan};
 use bevy::time::Time;
+use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{aerodrome, nav, object, plane};
 use omniatc_core::math::TROPOPAUSE_ALTITUDE;
-use omniatc_core::units::{Angle, AngularSpeed, TurnDirection};
+use omniatc_core::units::{Angle, AngularSpeed, Heading, Position, TurnDirection};
 
 use super::{select, ColorScheme, Config, LabelElement, LabelLine};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -256,6 +257,7 @@ fn maintain_label(
 #[derive(SystemParam)]
 struct ResolveColorParams<'w, 's> {
     aerodrome_query: Query<'w, 's, &'static aerodrome::Display>,
+    waypoint_query:  Query<'w, 's, &'static Waypoint>,
 }
 
 impl ParentQueryDataItem<'_> {
@@ -268,28 +270,31 @@ impl ParentQueryDataItem<'_> {
                 ((self.object.position.altitude().amsl()) / (TROPOPAUSE_ALTITUDE.amsl()))
                     .clamp(0., 1.),
             ),
-            ColorScheme::Destination { departure, arrival, ferry } => match *self.destination {
-                object::Destination::Departure { aerodrome, .. } => {
-                    let id = match params.aerodrome_query.get(aerodrome) {
-                        Ok(&aerodrome::Display { id, .. }) => id,
-                        _ => 0,
-                    };
-                    departure[(id as usize).min(departure.len() - 1)]
-                }
-                object::Destination::Arrival { aerodrome } => {
+            ColorScheme::Destination { departure, climb, arrival, any_landing } => match *self
+                .destination
+            {
+                object::Destination::Landing { aerodrome } => {
                     let id = match params.aerodrome_query.get(aerodrome) {
                         Ok(&aerodrome::Display { id, .. }) => id,
                         _ => 0,
                     };
                     arrival[(id as usize).min(arrival.len() - 1)]
                 }
-                object::Destination::Ferry { to_aerodrome, .. } => {
-                    let id = match params.aerodrome_query.get(to_aerodrome) {
-                        Ok(&aerodrome::Display { id, .. }) => id,
-                        _ => 0,
+                object::Destination::VacateAnyRunway => *any_landing,
+                object::Destination::ReachWaypoint {
+                    waypoint_proximity: Some((waypoint, _)),
+                    ..
+                } => {
+                    let Ok(&Waypoint { position, .. }) = params.waypoint_query.get(waypoint) else {
+                        bevy::log::error!("Reference to unknown waypoint {waypoint:?}");
+                        return Color::default();
                     };
-                    ferry[(id as usize).min(ferry.len() - 1)]
+                    let s = Heading::from_vec2((position.horizontal() - Position::ORIGIN).0)
+                        .radians_nonnegative()
+                        / Angle::FULL;
+                    departure.get(s)
                 }
+                object::Destination::ReachWaypoint { .. } => *climb,
             },
         }
     }

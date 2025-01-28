@@ -15,11 +15,15 @@ impl<T> Position<T> {
 }
 
 impl Position<f32> {
+    pub const SEA_LEVEL: Self = Self(Distance(0.));
+
     #[must_use]
     pub fn from_amsl_feet(z: f32) -> Self { Position(Distance::from_feet(z)) }
 }
 
 impl Position<Vec2> {
+    pub const ORIGIN: Self = Self(Distance(Vec2::new(0., 0.)));
+
     #[must_use]
     pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance(Vec2 { x, y })) }
 }

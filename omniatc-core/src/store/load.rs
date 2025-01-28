@@ -320,26 +320,21 @@ fn spawn_plane(
         ))
         .id();
 
-    let destination = match &plane.aircraft.dest {
-        store::Destination::Departure { aerodrome_code, dest_waypoint } => {
+    let destination = match plane.aircraft.dest {
+        store::Destination::Landing { ref aerodrome_code } => {
             let aerodrome = aerodromes.resolve(aerodrome_code)?;
-            let waypoint = waypoints.resolve(dest_waypoint)?;
-            object::Destination::Departure {
-                aerodrome:     aerodrome.aerodrome_entity,
-                dest_waypoint: waypoint,
-            }
+            object::Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
         }
-        store::Destination::Arrival { aerodrome_code } => {
-            let aerodrome = aerodromes.resolve(aerodrome_code)?;
-            object::Destination::Arrival { aerodrome: aerodrome.aerodrome_entity }
-        }
-        store::Destination::Ferry { source_aerodrome_code, dest_aerodrome_code } => {
-            let source = aerodromes.resolve(source_aerodrome_code)?;
-            let dest = aerodromes.resolve(dest_aerodrome_code)?;
-            object::Destination::Ferry {
-                from_aerodrome: source.aerodrome_entity,
-                to_aerodrome:   dest.aerodrome_entity,
-            }
+        store::Destination::VacateAnyRunway => object::Destination::VacateAnyRunway,
+        store::Destination::ReachWaypoint { min_altitude, ref waypoint_proximity } => {
+            let waypoint_proximity = waypoint_proximity
+                .as_ref()
+                .map(|&(ref waypoint, dist)| {
+                    let waypoint = resolve_waypoint_ref(aerodromes, waypoints, waypoint)?;
+                    Ok((waypoint, dist))
+                })
+                .transpose()?;
+            object::Destination::ReachWaypoint { min_altitude, waypoint_proximity }
         }
     };
 

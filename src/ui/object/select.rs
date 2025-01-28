@@ -6,6 +6,8 @@ use bevy::prelude::{
     in_state, Entity, EventReader, EventWriter, IntoSystemConfigs, KeyCode, NextState, Query, Res,
     ResMut, Resource, Single,
 };
+use itertools::Itertools;
+use omniatc_core::level::route::{self, Route};
 use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{aerodrome, nav, object};
 use omniatc_core::units::{Angle, Distance, Speed, TurnDirection};
@@ -211,6 +213,7 @@ struct ObjectStatusQuery {
     vel_target:      Option<&'static nav::VelocityTarget>,
     target_glide:    Option<(&'static nav::TargetGlide, &'static nav::TargetGlideStatus)>,
     target_altitude: Option<&'static nav::TargetAltitude>,
+    route:           &'static Route,
 }
 
 #[derive(QueryData)]
@@ -235,7 +238,7 @@ fn write_status_system(
     let out = status.get_mut(message::StatusType::ObjectInfo);
     out.clear();
 
-    write_route_status(out, &object, &aerodrome_query);
+    write_route_status(out, &object, &aerodrome_query, &waypoint_query);
     write_altitude_status(out, &object, &waypoint_query);
     write_speed_status(out, &object);
     write_direction_status(out, &object);
@@ -245,35 +248,53 @@ fn write_route_status(
     out: &mut String,
     object: &ObjectStatusQueryItem,
     aerodrome_query: &Query<AerodromeStatusQuery>,
+    waypoint_query: &Query<&Waypoint>,
 ) {
     use std::fmt::Write;
 
     write!(out, "{}", &object.display.name).unwrap();
     match *object.dest {
-        object::Destination::Departure { aerodrome: src, .. } => {
+        object::Destination::Landing { aerodrome } => {
             if let Ok(AerodromeStatusQueryItem {
                 display: aerodrome::Display { name, .. }, ..
-            }) = aerodrome_query.get(src)
-            {
-                write!(out, " from {name}").unwrap();
-            }
-        }
-        object::Destination::Arrival { aerodrome: dest } => {
-            if let Ok(AerodromeStatusQueryItem {
-                display: aerodrome::Display { name, .. }, ..
-            }) = aerodrome_query.get(dest)
+            }) = aerodrome_query.get(aerodrome)
             {
                 write!(out, " to {name}").unwrap();
             }
         }
-        object::Destination::Ferry { from_aerodrome: src, to_aerodrome: dest } => {
-            if let Ok(
-                [AerodromeStatusQueryItem { display: aerodrome::Display { name: from, .. }, .. }, AerodromeStatusQueryItem { display: aerodrome::Display { name: to, .. }, .. }],
-            ) = aerodrome_query.get_many([src, dest])
-            {
-                write!(out, " from {from} to {to}").unwrap();
+        object::Destination::VacateAnyRunway => out.push_str(" to any runway"),
+        object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {
+            if let Some((waypoint, _)) = waypoint_proximity {
+                if let Ok(Waypoint { name, .. }) = waypoint_query.get(waypoint) {
+                    write!(out, " to {name}").unwrap();
+                }
+                if let Some(min_altitude) = min_altitude {
+                    write!(out, " above {:.0} ft", min_altitude.amsl().into_feet()).unwrap();
+                }
+            } else if let Some(min_altitude) = min_altitude {
+                write!(out, " towards {:.0} ft", min_altitude.amsl().into_feet()).unwrap();
             }
         }
+    }
+
+    let waypoints = object
+        .route
+        .iter()
+        .filter_map(|node| match node {
+            route::Node::DirectWaypoint(node) => Some(node.waypoint),
+            route::Node::AlignRunway(node) => Some(node.runway),
+            _ => None,
+        })
+        .map(|waypoint| match waypoint_query.get(waypoint) {
+            Ok(Waypoint { name, .. }) => name,
+            Err(err) => {
+                bevy::log::error!("Nonexistent waypoint {waypoint:?} in route: {err}");
+                "?"
+            }
+        })
+        .join(" -> ");
+    if !waypoints.is_empty() {
+        write!(out, " through {waypoints}").unwrap();
     }
 
     writeln!(out).unwrap();

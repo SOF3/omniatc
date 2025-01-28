@@ -270,7 +270,7 @@ pub struct Plane {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BaseAircraft {
     pub name:         String,
-    pub dest:         Destination, // TODO
+    pub dest:         Destination,
     pub position:     Position<Vec2>,
     pub altitude:     Position<f32>,
     /// Speed of ground projection displacement.
@@ -280,11 +280,22 @@ pub struct BaseAircraft {
     pub vert_rate:    Speed<f32>,
 }
 
+/// Condition for the completion of control of an object.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Destination {
-    Departure { aerodrome_code: String, dest_waypoint: String },
-    Arrival { aerodrome_code: String },
-    Ferry { source_aerodrome_code: String, dest_aerodrome_code: String },
+    /// Object can be handed over upon vacating a runway in the specific aerodrome.
+    Landing { aerodrome_code: String },
+    /// Object can be handed over upon vacating any runway.
+    VacateAnyRunway,
+    // TODO: apron/taxiway arrival.
+    /// Reach a given waypoint and a given altitude.
+    ///
+    /// Either condition is set to `None` upon completion.
+    /// The control of the object is completed when both are `None`.
+    ReachWaypoint {
+        min_altitude:       Option<Position<f32>>,
+        waypoint_proximity: Option<(WaypointRef, Distance<f32>)>,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]

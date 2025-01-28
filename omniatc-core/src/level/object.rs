@@ -20,6 +20,9 @@ use crate::math::{
 };
 use crate::units::{Distance, Position, Speed};
 
+mod dest;
+pub use dest::Destination;
+
 #[cfg(test)]
 mod tests;
 
@@ -46,22 +49,6 @@ pub struct Marker;
 pub struct Display {
     /// Label of the object, used for identification and lookup.
     pub name: String,
-}
-
-/// Objective for the flight.
-#[derive(Component)]
-pub enum Destination {
-    /// An outbound flight from the aerodrome to a specified waypoint.
-    Departure { aerodrome: Entity, dest_waypoint: Entity },
-    /// An inbound flight to the aerodrome.
-    Arrival { aerodrome: Entity },
-    /// A local flight from `from` to `to`.
-    Ferry {
-        /// Source aerodrome.
-        from_aerodrome: Entity,
-        /// Destination aerodrome.
-        to_aerodrome:   Entity,
-    },
 }
 
 #[derive(Component)]

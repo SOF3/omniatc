@@ -15,9 +15,11 @@ precommit-checks = []
 [dependencies]
 ciborium = "0.2.2"
 enum-map = "2.7.3"
-itertools = "0.13.0"
+itertools = "0.14.0"
+ordered-float = "4.6.0"
 portrait = "0.3.1"
 serde = { workspace = true, features = ["derive"] }
+smallvec = "1.13.2"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2.0.11"
 
@@ -28,3 +30,6 @@ features = [
 	"bevy_state",
 	"bevy_text",
 ]
+
+[dev-dependencies]
+paste = "1.0.15"

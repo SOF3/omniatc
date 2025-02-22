@@ -19,7 +19,7 @@ use bevy::time::Time;
 use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{aerodrome, nav, object, plane};
 use omniatc_core::math::TROPOPAUSE_ALTITUDE;
-use omniatc_core::units::{Angle, AngularSpeed, Heading, Position, TurnDirection};
+use omniatc_core::units::{Angle, AngularSpeed, Distance, Heading, Position, TurnDirection};
 
 use super::{select, ColorScheme, Config, LabelElement, LabelLine};
 use crate::ui::{billboard, SystemSets, Zorder};
@@ -109,7 +109,7 @@ fn spawn_plane_viewable_system(
                         Text2d::new(""),
                         billboard::MaintainScale { size: config.label_size },
                         billboard::MaintainRotation,
-                        billboard::Label { distance: 50. },
+                        billboard::Label { offset: Distance::ZERO, distance: 50. },
                         Anchor::TopRight,
                         LabelViewable,
                         LabelSpan,
@@ -153,7 +153,7 @@ struct ParentQueryData {
     nav_altitude: Option<&'static nav::TargetAltitude>,
 }
 
-#[allow(clippy::too_many_arguments)] // TODO we need to split up this system a bit
+#[expect(clippy::too_many_arguments)] // TODO we need to split up this system a bit
 fn maintain_viewable_system(
     time: Res<Time>,
     config: Res<Config>,
@@ -256,7 +256,7 @@ fn maintain_label(
 
 #[derive(SystemParam)]
 struct ResolveColorParams<'w, 's> {
-    aerodrome_query: Query<'w, 's, &'static aerodrome::Display>,
+    aerodrome_query: Query<'w, 's, &'static aerodrome::Aerodrome>,
     waypoint_query:  Query<'w, 's, &'static Waypoint>,
 }
 
@@ -275,7 +275,7 @@ impl ParentQueryDataItem<'_> {
             {
                 object::Destination::Landing { aerodrome } => {
                     let id = match params.aerodrome_query.get(aerodrome) {
-                        Ok(&aerodrome::Display { id, .. }) => id,
+                        Ok(&aerodrome::Aerodrome { id, .. }) => id,
                         _ => 0,
                     };
                     arrival[(id as usize).min(arrival.len() - 1)]
@@ -299,7 +299,7 @@ impl ParentQueryDataItem<'_> {
         }
     }
 
-    #[allow(clippy::too_many_lines)] // all the clutter are in separate match arms
+    #[expect(clippy::too_many_lines)] // all the clutter are in separate match arms
     fn write_label(
         &self,
         element: Option<&LabelElement>,

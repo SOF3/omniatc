@@ -204,7 +204,7 @@ fn maintain_accel(
     let max_decel = limits.decel(airborne.airspeed.vertical())
         - Accel(limits.drag_coef * current_speed.0.powi(2));
 
-    #[allow(clippy::collapsible_else_if)]
+    #[expect(clippy::collapsible_else_if)]
     let desired_action = if target.horiz_speed >= current_speed {
         if control.horiz_accel.is_negative() {
             // We are slower than we want to be and we are even further decelerating,

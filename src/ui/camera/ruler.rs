@@ -181,7 +181,7 @@ fn maintain_scale_ruler_system(
 
     let sample_distance = distal_world_pos.distance(sample_world_pos);
     let log2 = sample_distance.log2();
-    #[allow(clippy::cast_possible_truncation)] // log2 output is within bounds
+    #[expect(clippy::cast_possible_truncation)] // log2 output is within bounds
     let ruler_distance = if (log2 % 1. + 1.) % 1. < 0.5 {
         2f32.powi(log2.floor() as i32)
     } else {

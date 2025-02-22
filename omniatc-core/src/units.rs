@@ -32,8 +32,22 @@ macro_rules! decl_units {
     )*) => { $(
         $(#[$meta])*
         #[derive(Clone, Copy, PartialEq, PartialOrd, Default)]
-        #[derive(serde::Serialize, serde::Deserialize)]
+        #[derive(serde::Serialize)]
         pub struct $ty<T>(pub T);
+
+        impl<'de, T: serde::Deserialize<'de> + IsFinite> serde::Deserialize<'de> for $ty<T> {
+            fn deserialize<D: serde::de::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                use serde::de::Error;
+
+                let value = T::deserialize(d)?;
+
+                if !value.is_finite() {
+                    return Err(D::Error::custom("non-finite quantity"));
+                }
+
+                Ok(Self(value))
+            }
+        }
 
         impl<T: Copy> Unit for $ty<T> {
             type Value = T;
@@ -149,7 +163,15 @@ macro_rules! decl_units {
         }
 
         impl<T: NormedVectorSpace> $ty<T> {
-            pub fn magnitude_cmp(self) -> impl PartialOrd<$ty<f32>> { SquaredNorm(self.0.norm_squared()) }
+            /// Returns a wrapper that can be compared with another quantity directly
+            /// without explicit squaring.
+            pub fn magnitude_cmp(self) -> impl PartialOrd + PartialOrd<$ty<f32>> { SquaredNorm(self.0.norm_squared()) }
+
+            /// Converts the quantity into a fully-ordered type representing its magnitude.
+            ///
+            /// # Errors
+            /// Returns error if the squared magnitude evaluates to NaN.
+            pub fn magnitude_ord(self) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> { ordered_float::NotNan::new(self.0.norm_squared()) }
 
             pub fn magnitude_squared(self) -> Squared<$ty<f32>> { Squared(self.0.norm_squared()) }
 
@@ -175,6 +197,11 @@ macro_rules! decl_units {
             #[must_use]
             pub fn abs(self) -> Self {
                 Self(self.0.abs())
+            }
+
+            #[must_use]
+            pub fn copysign(self, other: Self) -> Self {
+                Self(self.0.copysign(other.0))
             }
 
             #[must_use]
@@ -494,6 +521,38 @@ impl Distance<f32> {
     pub const fn from_km(meters: f32) -> Self { Self(meters / (METERS_PER_NM / 1000.)) }
 }
 
+impl Distance<Vec2> {
+    #[must_use]
+    pub const fn into_nm(self) -> Vec2 { self.0 }
+
+    #[must_use]
+    pub const fn vec2_from_nm(nm: Vec2) -> Self { Self(nm) }
+
+    #[must_use]
+    pub fn into_feet(self) -> Vec2 { self.0 * FEET_PER_NM }
+
+    #[must_use]
+    pub fn vec2_from_feet(feet: Vec2) -> Self { Self(feet / FEET_PER_NM) }
+
+    #[must_use]
+    pub fn into_mile(self) -> Vec2 { self.0 * MILES_PER_NM }
+
+    #[must_use]
+    pub fn vec2_from_mile(mile: Vec2) -> Self { Self(mile / MILES_PER_NM) }
+
+    #[must_use]
+    pub fn into_meters(self) -> Vec2 { self.0 * METERS_PER_NM }
+
+    #[must_use]
+    pub fn vec2_from_meters(meters: Vec2) -> Self { Self(meters / METERS_PER_NM) }
+
+    #[must_use]
+    pub fn into_km(self) -> Vec2 { self.0 * (METERS_PER_NM / 1000.) }
+
+    #[must_use]
+    pub fn vec2_from_km(meters: Vec2) -> Self { Self(meters / (METERS_PER_NM / 1000.)) }
+}
+
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
     #[must_use]
     pub fn into_knots(self) -> T { self.0 * 3600. }
@@ -557,4 +616,20 @@ impl AngularAccel<f32> {
 
     #[must_use]
     pub fn from_degrees_per_sec2(degrees: f32) -> Self { Self(degrees.to_radians()) }
+}
+
+pub trait IsFinite: Copy {
+    fn is_finite(self) -> bool;
+}
+
+impl IsFinite for f32 {
+    fn is_finite(self) -> bool { f32::is_finite(self) }
+}
+
+impl IsFinite for Vec2 {
+    fn is_finite(self) -> bool { Vec2::is_finite(self) }
+}
+
+impl IsFinite for Vec3 {
+    fn is_finite(self) -> bool { Vec3::is_finite(self) }
 }

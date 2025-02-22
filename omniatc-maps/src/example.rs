@@ -1,3 +1,4 @@
+use bevy::math::Vec2;
 use omniatc_core::level::nav;
 use omniatc_core::level::route::WaypointProximity;
 use omniatc_core::store;
@@ -70,28 +71,236 @@ pub fn file() -> store::File {
                 }],
             },
             aerodromes:  vec![store::Aerodrome {
-                code:      "MAIN".into(),
-                full_name: "Main Airport".into(),
-                runways:   vec![store::Runway {
-                    name:                       "18".into(),
-                    elevation:                  Position::from_amsl_feet(0.),
-                    touchdown_position:         Position::from_origin_nm(0., 0.),
-                    heading:                    Heading::SOUTH,
-                    landing_distance_available: Distance::from_meters(3000.),
-                    touchdown_displacement:     Distance::from_meters(160.),
-                    glide_angle:                Angle::from_degrees(3.),
-                    width:                      Distance::from_feet(60.),
-                    max_visual_distance:        Distance::from_nm(3.),
-                    ils:                        Some(store::Localizer {
-                        half_width:       Angle::from_degrees(3.),
-                        min_pitch:        Angle::ZERO,
-                        max_pitch:        Angle::RIGHT,
-                        horizontal_range: Distance::from_nm(20.),
-                        vertical_range:   Distance::from_feet(6000.),
-                        visual_range:     Distance::from_meters(200.),
-                        decision_height:  Distance::from_feet(100.),
-                    }),
-                }],
+                code:           "MAIN".into(),
+                full_name:      "Main Airport".into(),
+                elevation:      Position::from_amsl_feet(300.),
+                ground_network: store::GroundNetwork {
+                    taxiways: vec![
+                        store::Taxiway {
+                            name:      "A".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., 0.)),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -3000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "A1".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., 0.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "A2".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -500.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "A3".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -2500.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "A4".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -3000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "B".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., 0.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -3000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "B1".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(1., 0.),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., 0.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "B2".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -500.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "B3".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -2500.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "B4".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -3000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "T".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -1000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -1000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "U".into(),
+                            endpoints: vec![
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(200., -2000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -2000.)),
+                            ],
+                            width:     Distance::from_meters(80.),
+                        },
+                    ],
+                    aprons:   [
+                        ('N', Heading::NORTH, Distance::from_meters(-800.)),
+                        ('S', Heading::SOUTH, Distance::from_meters(-1200.)),
+                        ('N', Heading::NORTH, Distance::from_meters(-1800.)),
+                        ('S', Heading::SOUTH, Distance::from_meters(-2200.)),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .flat_map(|(row, (prefix, heading, Distance(y)))| {
+                        (-2..=2)
+                            .map(move |x_offset: i16| {
+                                let Distance(x) = Distance::from_meters(200.) * f32::from(x_offset);
+                                (
+                                    prefix,
+                                    heading,
+                                    Position::from_origin_nm(0.5, 0.) + Distance(Vec2 { x, y }),
+                                )
+                            })
+                            .enumerate()
+                            .map(move |(index, (prefix, heading, position))| store::Apron {
+                                name: format!("{prefix}{:02}", row * 5 + index + 1),
+                                position,
+                                forward_heading: heading,
+                                width: Distance::from_meters(80.),
+                            })
+                    })
+                    .collect(),
+                },
+                runways:        vec![
+                    store::RunwayPair {
+                        width:          Distance::from_feet(60.),
+                        forward_start:  Position::from_origin_nm(0., 0.),
+                        forward:        store::Runway {
+                            name:                   "18R".into(),
+                            touchdown_displacement: Distance::from_meters(160.),
+                            stopway:                Distance::ZERO,
+                            glide_angle:            Angle::from_degrees(3.),
+                            max_visual_distance:    Distance::from_nm(3.),
+                            ils:                    Some(store::Localizer {
+                                half_width:       Angle::from_degrees(3.),
+                                min_pitch:        Angle::ZERO,
+                                max_pitch:        Angle::RIGHT,
+                                horizontal_range: Distance::from_nm(20.),
+                                vertical_range:   Distance::from_feet(6000.),
+                                visual_range:     Distance::from_meters(200.),
+                                decision_height:  Distance::from_feet(100.),
+                            }),
+                        },
+                        backward_start: Position::from_origin_nm(0., 0.)
+                            + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                        backward:       store::Runway {
+                            name:                   "36L".into(),
+                            touchdown_displacement: Distance::from_meters(160.),
+                            stopway:                Distance::ZERO,
+                            glide_angle:            Angle::from_degrees(3.),
+                            max_visual_distance:    Distance::from_nm(3.),
+                            ils:                    Some(store::Localizer {
+                                half_width:       Angle::from_degrees(3.),
+                                min_pitch:        Angle::ZERO,
+                                max_pitch:        Angle::RIGHT,
+                                horizontal_range: Distance::from_nm(20.),
+                                vertical_range:   Distance::from_feet(6000.),
+                                visual_range:     Distance::from_meters(200.),
+                                decision_height:  Distance::from_feet(100.),
+                            }),
+                        },
+                    },
+                    store::RunwayPair {
+                        width:          Distance::from_feet(60.),
+                        forward_start:  Position::from_origin_nm(1., 0.),
+                        forward:        store::Runway {
+                            name:                   "18L".into(),
+                            touchdown_displacement: Distance::from_meters(160.),
+                            stopway:                Distance::ZERO,
+                            glide_angle:            Angle::from_degrees(3.),
+                            max_visual_distance:    Distance::from_nm(3.),
+                            ils:                    Some(store::Localizer {
+                                half_width:       Angle::from_degrees(3.),
+                                min_pitch:        Angle::ZERO,
+                                max_pitch:        Angle::RIGHT,
+                                horizontal_range: Distance::from_nm(20.),
+                                vertical_range:   Distance::from_feet(6000.),
+                                visual_range:     Distance::from_meters(200.),
+                                decision_height:  Distance::from_feet(100.),
+                            }),
+                        },
+                        backward_start: Position::from_origin_nm(1., 0.)
+                            + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                        backward:       store::Runway {
+                            name:                   "36R".into(),
+                            touchdown_displacement: Distance::from_meters(160.),
+                            stopway:                Distance::ZERO,
+                            glide_angle:            Angle::from_degrees(3.),
+                            max_visual_distance:    Distance::from_nm(3.),
+                            ils:                    Some(store::Localizer {
+                                half_width:       Angle::from_degrees(3.),
+                                min_pitch:        Angle::ZERO,
+                                max_pitch:        Angle::RIGHT,
+                                horizontal_range: Distance::from_nm(20.),
+                                vertical_range:   Distance::from_feet(6000.),
+                                visual_range:     Distance::from_meters(200.),
+                                decision_height:  Distance::from_feet(100.),
+                            }),
+                        },
+                    },
+                ],
             }],
             waypoints:   vec![
                 store::Waypoint {
@@ -190,7 +399,7 @@ pub fn file() -> store::File {
                             store::RouteNode::AlignRunway {
                                 runway:   store::RunwayRef {
                                     aerodrome_code: "MAIN".into(),
-                                    runway_name:    "18".into(),
+                                    runway_name:    "18L".into(),
                                 },
                                 expedite: true,
                             },

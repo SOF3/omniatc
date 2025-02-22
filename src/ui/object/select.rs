@@ -66,7 +66,7 @@ fn start_search_system(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn incremental_search_system(
     mut inputs: EventReader<KeyboardInput>,
     mut input_state: ResMut<NextState<InputState>>,
@@ -218,7 +218,7 @@ struct ObjectStatusQuery {
 
 #[derive(QueryData)]
 struct AerodromeStatusQuery {
-    display: &'static aerodrome::Display,
+    display: &'static aerodrome::Aerodrome,
 }
 
 fn write_status_system(
@@ -256,7 +256,7 @@ fn write_route_status(
     match *object.dest {
         object::Destination::Landing { aerodrome } => {
             if let Ok(AerodromeStatusQueryItem {
-                display: aerodrome::Display { name, .. }, ..
+                display: aerodrome::Aerodrome { name, .. }, ..
             }) = aerodrome_query.get(aerodrome)
             {
                 write!(out, " to {name}").unwrap();
@@ -300,7 +300,7 @@ fn write_route_status(
     writeln!(out).unwrap();
 }
 
-#[allow(clippy::too_many_lines)] // we got some long string literals here
+#[expect(clippy::too_many_lines)] // we got some long string literals here
 fn write_altitude_status(
     out: &mut String,
     object: &ObjectStatusQueryItem,

@@ -136,42 +136,81 @@ pub struct Wind {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Aerodrome {
     /// Aerodrome short display name.
-    pub code:      String,
+    pub code:           String,
     /// Aerodrome long display name.
-    pub full_name: String,
+    pub full_name:      String,
+    /// Elevation of ground structures of the aerodrome.
+    pub elevation:      Position<f32>,
+    /// Ground paths of an aerodrome, such as taxiways and aprons.
+    pub ground_network: GroundNetwork,
     /// Runways for the aerodrome.
-    pub runways:   Vec<Runway>,
+    pub runways:        Vec<RunwayPair>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GroundNetwork {
+    pub taxiways: Vec<Taxiway>,
+    pub aprons:   Vec<Apron>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Taxiway {
+    pub name:      String,
+    /// Points of the taxiway.
+    ///
+    /// Must have at least two points.
+    /// A taxiway may be composed of more than two points
+    /// if it is curved.
+    pub endpoints: Vec<Position<Vec2>>,
+    /// Width of the taxiway.
+    pub width:     Distance<f32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Apron {
+    pub name:            String,
+    /// Position of aircraft when parked at the apron.
+    pub position:        Position<Vec2>,
+    /// Heading of aircraft when parked at the apron.
+    pub forward_heading: Heading,
+    /// Width of the apron.
+    pub width:           Distance<f32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RunwayPair {
+    /// Width of the runway. Only affects display.
+    pub width:          Distance<f32>,
+    /// Longest takeoff starting position for the forward runway.
+    pub forward_start:  Position<Vec2>,
+    /// Other details of the forward runway.
+    pub forward:        Runway,
+    /// Longest takeoff starting position for the backward runway.
+    pub backward_start: Position<Vec2>,
+    /// Other details of the backward runway.
+    pub backward:       Runway,
+}
+
+/// Full runway structure: backward stopway + {forward start} + forward displacement + main +
+/// backward displacement + {backward start} + forward stopway
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Runway {
     /// Runway identifier, e.g. "13R".
     ///
     /// Should not include the aerodrome name.
-    pub name:                       String,
-    /// Elevation of the runway.
-    pub elevation:                  Position<f32>,
-    /// Position of the touchdown marker.
-    pub touchdown_position:         Position<Vec2>,
-    /// Heading of the runway.
-    pub heading:                    Heading,
-    /// Declared landing distance available.
-    /// Extended from touchdown position in the runway heading direction.
-    pub landing_distance_available: Distance<f32>,
-    /// Length of the displaced threshold.
-    /// The actual runway length is extended *behind* the touchdown position
-    /// for this length.
-    pub touchdown_displacement:     Distance<f32>,
+    pub name:                   String,
+    /// Distance of the displaced threshold from runway start.
+    pub touchdown_displacement: Distance<f32>,
+    /// Length of stopway behind the runway end (i.e. start of the opposite runway).
+    pub stopway:                Distance<f32>,
+
     /// Glide angle for the approach path.
-    pub glide_angle:                Angle<f32>,
-    /// Width of the runway. Only affects display.
-    pub width:                      Distance<f32>,
+    pub glide_angle:         Angle<f32>,
     /// Maximum distance from which the runway is visible during CAVOK conditions,
     /// allowing the aircraft to commence visual approach.
-    pub max_visual_distance:        Distance<f32>,
-
+    pub max_visual_distance: Distance<f32>,
     /// ILS information, if any.
-    pub ils: Option<Localizer>,
+    pub ils:                 Option<Localizer>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

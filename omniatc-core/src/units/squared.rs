@@ -129,6 +129,7 @@ impl<U: Unit<Value = f32>> Squared<U> {
 
 /// A wrapper type for squared distance,
 /// used to compare with other distances without the pow2 boilerplate.
+#[derive(PartialEq, PartialOrd)]
 pub(super) struct SquaredNorm(pub(super) f32);
 
 impl<U: Unit<Value = f32>> PartialEq<U> for SquaredNorm {

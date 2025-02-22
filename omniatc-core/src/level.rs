@@ -8,6 +8,7 @@ use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 pub mod aerodrome;
+pub mod ground;
 pub mod nav;
 pub mod object;
 pub mod plane;
@@ -30,12 +31,14 @@ impl Plugin for Plug {
             app.configure_sets(app::Update, before.before(after));
         }
 
+        app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug);
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
         app.add_plugins(route::Plug);
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
+        app.add_plugins(ground::Plug);
     }
 }
 

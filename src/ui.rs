@@ -7,9 +7,11 @@ use strum::IntoEnumIterator;
 mod billboard;
 mod camera;
 mod clock;
+mod ground;
 mod message;
 mod object;
 mod runway;
+mod shapes;
 mod track;
 mod waypoint;
 
@@ -19,10 +21,12 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_state::<InputState>();
 
+        app.add_plugins(shapes::Plug);
         app.add_plugins(camera::Plug);
         app.add_plugins(message::Plug);
         app.add_plugins(clock::Plug);
         app.add_plugins(billboard::Plug);
+        app.add_plugins(ground::Plug);
         app.add_plugins(object::Plug);
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
@@ -81,6 +85,7 @@ pub enum InputState {
 #[repr(u32)]
 pub enum Zorder {
     Terrain,
+    GroundSegmentCenterline,
     RunwayStrip,
     Localizer,
     LocalizerGlidePoint,
@@ -96,7 +101,7 @@ pub enum Zorder {
 }
 
 impl Zorder {
-    #[allow(clippy::cast_precision_loss)] // the number of items is small
+    #[expect(clippy::cast_precision_loss)] // the number of items is small
     pub const fn into_z(self) -> f32 {
         (self as u32 as f32) / (<Self as strum::EnumCount>::COUNT as f32)
     }

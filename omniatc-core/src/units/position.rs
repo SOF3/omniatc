@@ -5,8 +5,14 @@ use bevy::math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use super::{Distance, Squared};
 use crate::math::SEA_ALTITUDE;
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
 pub struct Position<T>(pub Distance<T>);
+
+impl<'de, T: serde::Deserialize<'de> + super::IsFinite> serde::Deserialize<'de> for Position<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        <Distance<T> as serde::Deserialize<'de>>::deserialize(d).map(Self)
+    }
+}
 
 impl<T> Position<T> {
     pub const fn new(value: T) -> Self { Position(Distance(value)) }
@@ -26,6 +32,14 @@ impl Position<Vec2> {
 
     #[must_use]
     pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance(Vec2 { x, y })) }
+
+    #[must_use]
+    pub fn midpoint(self, other: Self) -> Self {
+        Self::from_origin_nm(
+            self.get().x.midpoint(other.get().x),
+            self.get().y.midpoint(other.get().y),
+        )
+    }
 }
 
 impl fmt::Debug for Position<f32> {
@@ -91,8 +105,17 @@ impl<T: VectorSpace> Position<T> {
 }
 
 impl<T: ops::SubAssign + NormedVectorSpace> Position<T> {
-    pub fn distance_cmp(self, other: Self) -> impl PartialOrd<Distance<f32>> {
+    /// Returns a wrapper that can be compared with a linear distance quantity.
+    pub fn distance_cmp(self, other: Self) -> impl PartialOrd + PartialOrd<Distance<f32>> {
         (self - other).magnitude_cmp()
+    }
+
+    /// Converts the distance into a fully-ordered type.
+    ///
+    /// # Errors
+    /// Returns error if the squared distance evaluates to NaN.
+    pub fn distance_ord(self, other: Self) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> {
+        (self - other).magnitude_ord()
     }
 
     pub fn distance_squared(self, other: Self) -> Squared<Distance<f32>> {

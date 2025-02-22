@@ -261,7 +261,7 @@ impl Controllable for SetSpeed {
             return Err("Object is not piloted".into());
         };
 
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let speed = horiz_speed.into_knots() as u16;
         Ok(Self { initial: speed, speed })
     }
@@ -317,7 +317,7 @@ impl SetHeading {
                 .take(3)
                 .enumerate()
                 .map(
-                    #[allow(clippy::cast_possible_truncation)]
+                    #[expect(clippy::cast_possible_truncation)]
                     |(exp, digit)| digit * 10u16.pow(exp as u32),
                 )
                 .sum::<u16>()
@@ -398,7 +398,7 @@ impl Controllable for SetHeading {
             initial_heading: target_heading,
             heading: target_heading,
             digits: Vec::new(),
-            #[allow(clippy::cast_possible_truncation)]
+            #[expect(clippy::cast_possible_truncation)]
             rotation_offset: match dir {
                 Some(dir) => current_heading.distance(target_heading, dir).into_degrees() as i16,
                 None => 0,
@@ -476,7 +476,7 @@ enum SetAltitudeCurrent {
 impl SetAltitude {
     fn resolve_ft(&self) -> f32 {
         match self.current {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(clippy::cast_precision_loss)]
             SetAltitudeCurrent::Relative(diff) => self.initial + diff as f32,
             SetAltitudeCurrent::OneDigit(thousands) | SetAltitudeCurrent::TwoDigit(thousands) => {
                 f32::from(thousands) * 1000.

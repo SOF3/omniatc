@@ -142,10 +142,10 @@ pub struct ColorScale {
 
 impl ColorScale {
     /// Resolves the color for the given value.
-    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // checked: [0, 1] * [0, n-1] -> [0, n-1]
+    #[expect(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // checked: [0, 1] * [0, n-1] -> [0, n-1]
     pub fn get(&self, value: f32) -> Color {
         let segments = self.pieces.len() - 1;
-        #[allow(clippy::cast_precision_loss)] // assuming self.pieces is reasonably small
+        #[expect(clippy::cast_precision_loss)] // assuming self.pieces is reasonably small
         let position = value.clamp(0., 1.) * (segments as f32);
         let left = &self.pieces[position.floor() as usize];
         let right = &self.pieces[position.ceil() as usize];

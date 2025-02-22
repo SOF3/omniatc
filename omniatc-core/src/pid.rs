@@ -16,7 +16,6 @@ impl State {
     pub fn new(params: Params) -> Self { Self { params, prev_error: 0. } }
 }
 
-#[allow(clippy::struct_field_names)]
 pub struct Params {
     pub p_gain: f32,
     pub i_gain: f32,

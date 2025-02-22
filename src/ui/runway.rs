@@ -121,7 +121,7 @@ fn spawn_viewable_system(
             // x = width, y = length
             Transform {
                 translation: Zorder::RunwayStrip.pos2_to_translation(
-                    runway.display_start.horizontal().lerp(runway.display_end.horizontal(), 0.5),
+                    runway.display_start.horizontal().midpoint(runway.display_end.horizontal()),
                 ),
                 rotation:    (runway.display_end - runway.display_start)
                     .horizontal()
@@ -174,9 +174,9 @@ fn maintain_localizer_viewable_system(
         // Orientation: x = line width, y = localizer length
         tf.translation = Zorder::Localizer.pos2_to_translation(
             waypoint.position.horizontal()
-                - runway.usable_length.normalize_to_magnitude(localizer_length) * 0.5,
+                - runway.landing_length.normalize_to_magnitude(localizer_length) * 0.5,
         );
-        tf.rotation = runway.usable_length.heading().into_rotation_quat();
+        tf.rotation = runway.landing_length.heading().into_rotation_quat();
         tf.scale = Vec3::new(config.localizer_width * camera.scale().y, localizer_length.0, 1.);
     });
 }
@@ -197,11 +197,11 @@ fn maintain_glide_point_system(
             &LocalizerDisplayLength(localizer_length),
             &GlidePointOwnerRef(owner_ref),
         )| {
-            #[allow(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
+            #[expect(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
             let first_mult = (waypoint.position.altitude().amsl() / config.glide_point_density)
                 .ceil() as i32
                 + 1;
-            #[allow(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
+            #[expect(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
             let last_mult = ((waypoint.position.altitude()
                 + localizer_length * runway.glide_angle.tan())
             .amsl()
@@ -219,7 +219,7 @@ fn maintain_glide_point_system(
             }
 
             for point in 0..point_count {
-                #[allow(
+                #[expect(
                     clippy::cast_precision_loss,
                     clippy::cast_possible_truncation,
                     clippy::cast_possible_wrap
@@ -229,7 +229,7 @@ fn maintain_glide_point_system(
                 let distance = (altitude - waypoint.position.altitude()) / runway.glide_angle.tan();
                 let pos = Zorder::LocalizerGlidePoint.pos2_to_translation(
                     waypoint.position.horizontal()
-                        - runway.usable_length.normalize_to_magnitude(distance),
+                        - runway.landing_length.normalize_to_magnitude(distance),
                 );
 
                 if let Some(&point_entity) = children.get(point) {

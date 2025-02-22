@@ -1,6 +1,5 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
-use bevy::math::Vec3;
 use bevy::prelude::{
     BuildChildren, ChildBuild, Commands, Component, EventReader, IntoSystemConfigs, Query, Res,
     Resource, Transform, Visibility,
@@ -8,6 +7,7 @@ use bevy::prelude::{
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use omniatc_core::level::waypoint::{self, DisplayType, Waypoint};
+use omniatc_core::units::Position;
 
 use super::{billboard, SystemSets, Zorder};
 
@@ -34,17 +34,14 @@ fn spawn_waypoint_viewable_system(
     for &waypoint::SpawnEvent(entity) in events.read() {
         let waypoint = waypoint_query.get(entity).expect("waypoint was just spawned");
 
-        commands
-            .entity(entity)
-            .insert((
-                Transform::from_translation(waypoint.position.get().with_z(0.)),
-                Visibility::Visible,
-            ))
-            .with_children(|b| {
+        commands.entity(entity).insert((Transform::IDENTITY, Visibility::Visible)).with_children(
+            |b| {
                 if let Some(sprite_path) = display_type_sprite(waypoint.display_type) {
                     b.spawn((
                         Sprite::from_image(asset_server.load(sprite_path)),
-                        Transform::from_translation(Vec3::ZERO.with_z(Zorder::Waypoint.into_z())),
+                        Transform::from_translation(
+                            waypoint.position.get().with_z(Zorder::Waypoint.into_z()),
+                        ),
                         billboard::MaintainScale { size: config.icon_size },
                         billboard::MaintainRotation,
                         IconViewable,
@@ -57,16 +54,20 @@ fn spawn_waypoint_viewable_system(
                     b.spawn((
                         Text2d::new(waypoint.name.clone()),
                         Transform::from_translation(
-                            Vec3::ZERO.with_z(Zorder::WaypointLabel.into_z()),
+                            waypoint.position.get().with_z(Zorder::WaypointLabel.into_z()),
                         ),
                         billboard::MaintainScale { size: label_config.size },
                         billboard::MaintainRotation,
-                        billboard::Label { distance: label_config.distance },
+                        billboard::Label {
+                            offset:   waypoint.position.horizontal() - Position::ORIGIN,
+                            distance: label_config.distance,
+                        },
                         Anchor::BottomCenter,
                         LabelViewable,
                     ));
                 }
-            });
+            },
+        );
     }
 }
 

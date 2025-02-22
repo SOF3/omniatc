@@ -1,7 +1,9 @@
 use std::f32::consts::{FRAC_PI_2, PI};
+use std::hash::Hash;
 use std::{fmt, ops};
 
 use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
+use ordered_float::{FloatIsNan, NotNan};
 
 use super::Angle;
 
@@ -73,6 +75,15 @@ impl Heading {
     /// Returns the heading in radians in the range `-STRAIGHT < value <= STRAIGHT`.
     #[must_use]
     pub fn radians(self) -> Angle<f32> { self.0 }
+
+    /// Returns the heading as an ordered value.
+    ///
+    /// The returned value is defined to be ordered by the minimum angular displacement required
+    /// to rotate an arbitrary but constant heading to the receiver in clockwise direction.
+    ///
+    /// # Errors
+    /// Returns an error if the heading is NaN.
+    pub fn as_ordered(self) -> Result<impl Copy + Ord + Hash, FloatIsNan> { NotNan::new(self.0 .0) }
 
     /// Returns the heading in radians in the range `0 <= value < FULL`.
     #[must_use]
@@ -215,4 +226,15 @@ pub enum TurnDirection {
     CounterClockwise,
     /// A right, clockwise turn generating positive yaw speed.
     Clockwise,
+}
+
+impl ops::Neg for TurnDirection {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        match self {
+            TurnDirection::CounterClockwise => TurnDirection::Clockwise,
+            TurnDirection::Clockwise => TurnDirection::CounterClockwise,
+        }
+    }
 }

@@ -1,20 +1,27 @@
 use std::borrow::Cow;
+use std::f32::consts;
 use std::io;
 
 use bevy::math::bounding::Aabb3d;
+use bevy::math::Vec2;
 use bevy::prelude::{
     BuildChildren, ChildBuild, Command as BevyCommand, DespawnRecursiveExt, Entity, EntityCommand,
     EntityWorldMut, With, World,
 };
 use bevy::utils::HashMap;
+use itertools::Itertools;
 
 use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
-use crate::level::{aerodrome, nav, object, plane, runway, wind};
-use crate::math::SEA_ALTITUDE;
+use crate::level::{aerodrome, ground, nav, object, plane, runway, wind};
+use crate::math::sweep::LineSweeper;
+use crate::math::{sweep, SEA_ALTITUDE};
 use crate::store;
-use crate::units::{Angle, Distance, Heading};
+use crate::units::{Angle, Distance, Heading, Position};
+
+#[cfg(test)]
+mod tests;
 
 pub enum Source {
     Raw(Cow<'static, [u8]>),
@@ -89,21 +96,51 @@ fn spawn_aerodromes(
                 .spawn((
                     store::LoadedEntity,
                     bevy::core::Name::new(format!("Aerodrome: {}", aerodrome.code)),
-                    aerodrome::Display {
+                    aerodrome::Aerodrome {
                         id:   aerodrome_id,
                         code: aerodrome.code.clone(),
                         name: aerodrome.full_name.clone(),
                     },
                 ))
                 .id();
+            world.send_event(aerodrome::SpawnEvent(aerodrome_entity));
 
-            let runway_entities = aerodrome
-                .runways
-                .iter()
-                .map(|runway| {
-                    (runway.name.clone(), spawn_runway(world, aerodrome, runway, aerodrome_entity))
-                })
-                .collect::<HashMap<_, _>>();
+            let mut runway_entities = HashMap::new();
+            for runway_pair in &aerodrome.runways {
+                runway_entities.insert(
+                    runway_pair.forward.name.clone(),
+                    spawn_runway(
+                        world,
+                        aerodrome,
+                        runway_pair.width,
+                        &runway_pair.forward,
+                        runway_pair.forward_start,
+                        runway_pair.backward_start,
+                        aerodrome_entity,
+                    ),
+                );
+                runway_entities.insert(
+                    runway_pair.backward.name.clone(),
+                    spawn_runway(
+                        world,
+                        aerodrome,
+                        runway_pair.width,
+                        &runway_pair.backward,
+                        runway_pair.backward_start,
+                        runway_pair.forward_start,
+                        aerodrome_entity,
+                    ),
+                );
+            }
+
+            spawn_ground_segments(
+                world,
+                &aerodrome.ground_network,
+                &aerodrome.runways,
+                &runway_entities,
+                aerodrome_entity,
+                aerodrome.elevation,
+            )?;
 
             Ok((
                 aerodrome.code.clone(),
@@ -140,7 +177,10 @@ struct SpawnedRunway {
 fn spawn_runway(
     world: &mut World,
     aerodrome: &store::Aerodrome,
+    runway_width: Distance<f32>,
     runway: &store::Runway,
+    start_pos: Position<Vec2>,
+    end_pos: Position<Vec2>,
     aerodrome_entity: Entity,
 ) -> SpawnedRunway {
     let runway_entity = world
@@ -150,29 +190,31 @@ fn spawn_runway(
         ))
         .id();
 
+    let heading = Heading::from_vec2((end_pos - start_pos).0);
+    let touchdown_position = (start_pos + runway.touchdown_displacement * heading.into_dir2())
+        .with_altitude(aerodrome.elevation);
+
     runway::SpawnCommand {
         waypoint: Waypoint {
             name:         runway.name.clone(),
             display_type: waypoint::DisplayType::Runway,
-            position:     runway.touchdown_position.with_altitude(runway.elevation),
+            position:     touchdown_position,
         },
         runway:   Runway {
-            aerodrome:     aerodrome_entity,
-            usable_length: runway.landing_distance_available * runway.heading.into_dir2(),
-            glide_angle:   runway.glide_angle,
-            display_start: (runway.touchdown_position
-                - runway.touchdown_displacement * runway.heading.into_dir2())
-            .with_altitude(runway.elevation),
-            display_end:   (runway.touchdown_position
-                + runway.landing_distance_available * runway.heading.into_dir2())
-            .with_altitude(runway.elevation),
-            display_width: runway.width,
+            aerodrome:      aerodrome_entity,
+            landing_length: (end_pos - start_pos).normalize_to_magnitude(
+                start_pos.distance_exact(end_pos) - runway.touchdown_displacement,
+            ),
+            glide_angle:    runway.glide_angle,
+            display_start:  start_pos.with_altitude(aerodrome.elevation),
+            display_end:    end_pos.with_altitude(aerodrome.elevation),
+            display_width:  runway_width,
         },
     }
     .apply(runway_entity, world);
 
     world.entity_mut(runway_entity).with_children(|b| {
-        spawn_runway_navaids(b, runway);
+        spawn_runway_navaids(b, heading, runway);
     });
 
     let localizer_waypoint = world
@@ -186,8 +228,8 @@ fn spawn_runway(
         waypoint: Waypoint {
             name:         format!("ILS:{}/{}", aerodrome.code, runway.name),
             display_type: waypoint::DisplayType::None,
-            position:     runway.touchdown_position.with_altitude(runway.elevation)
-                + (runway.max_visual_distance * runway.heading.opposite().into_dir2())
+            position:     touchdown_position
+                + (runway.max_visual_distance * heading.opposite().into_dir2())
                     .projected_from_elevation_angle(runway.glide_angle),
         },
     }
@@ -198,7 +240,7 @@ fn spawn_runway(
     SpawnedRunway { runway: runway_entity, localizer_waypoint }
 }
 
-fn spawn_runway_navaids(b: &mut impl ChildBuild, runway: &store::Runway) {
+fn spawn_runway_navaids(b: &mut impl ChildBuild, heading: Heading, runway: &store::Runway) {
     b.spawn((
         waypoint::Navaid {
             heading_range:       Heading::NORTH..Heading::NORTH,
@@ -215,8 +257,8 @@ fn spawn_runway_navaids(b: &mut impl ChildBuild, runway: &store::Runway) {
     if let Some(ils) = &runway.ils {
         b.spawn((
             waypoint::Navaid {
-                heading_range:       (runway.heading.opposite() - ils.half_width)
-                    ..(runway.heading.opposite() + ils.half_width),
+                heading_range:       (heading.opposite() - ils.half_width)
+                    ..(heading.opposite() + ils.half_width),
                 pitch_range:         ils.min_pitch..ils.max_pitch,
                 min_dist_horizontal: ils.visual_range,
                 min_dist_vertical:   ils.decision_height,
@@ -226,6 +268,266 @@ fn spawn_runway_navaids(b: &mut impl ChildBuild, runway: &store::Runway) {
             waypoint::HasCriticalRegion {},
         ));
     }
+}
+
+const GROUND_EPSILON: Distance<f32> = Distance::from_meters(1.);
+
+fn collect_non_apron_ground_lines(
+    ground_network: &store::GroundNetwork,
+    runway_pairs: &[store::RunwayPair],
+    runways: &HashMap<String, SpawnedRunway>,
+) -> Vec<GroundLine> {
+    runway_pairs
+        .iter()
+        .map(|pair| {
+            let forward_runway = runways
+                .get(&pair.forward.name)
+                .expect("all declared runways have been inserted into `runways`");
+            let backward_runway = runways
+                .get(&pair.backward.name)
+                .expect("all declared runways have been inserted into `runways`");
+            GroundLine {
+                label: ground::SegmentLabel::RunwayPair([
+                    forward_runway.runway,
+                    backward_runway.runway,
+                ]),
+                width: pair.width,
+                alpha: pair.forward_start
+                    + (pair.forward_start - pair.backward_start)
+                        .normalize_to_magnitude(pair.backward.stopway),
+                beta:  pair.backward_start
+                    + (pair.backward_start - pair.forward_start)
+                        .normalize_to_magnitude(pair.forward.stopway),
+            }
+        })
+        .chain(ground_network.taxiways.iter().flat_map(|taxiway| {
+            taxiway.endpoints.iter().tuple_windows().map(|(&alpha, &beta)| GroundLine {
+                label: ground::SegmentLabel::Taxiway { name: taxiway.name.clone() },
+                width: taxiway.width,
+                alpha,
+                beta,
+            })
+        }))
+        .collect()
+}
+
+fn generate_apron_lines(
+    ground_network: &store::GroundNetwork,
+    lines: &mut Vec<GroundLine>,
+) -> Result<(), Error> {
+    let mut aprons: Vec<_> = ground_network
+        .aprons
+        .iter()
+        .map(|apron| {
+            let heading = apron
+                .forward_heading
+                .opposite()
+                .as_ordered()
+                .map_err(|_| Error::NonFiniteFloat("apron forward_heading"))?;
+            Ok((heading, apron))
+        })
+        .collect::<Result<_, Error>>()?;
+    aprons.sort_by_key(|apron| apron.0);
+
+    let non_apron_lines_len = lines.len();
+    lines.extend(aprons.iter().map(|(_, apron)| GroundLine {
+        label: ground::SegmentLabel::Apron { name: apron.name.clone() },
+        width: apron.width,
+        alpha: apron.position,
+        beta:  apron.position, // we will update this later
+    }));
+    let (non_apron_lines, apron_lines) = lines.split_at_mut(non_apron_lines_len);
+
+    for (apron_index, &(_apron_back, apron)) in aprons.iter().enumerate() {
+        let sweeper = LineSweeper::new(
+            |index| match index.0.checked_sub(1) {
+                None => sweep::Line {
+                    alpha:          apron.position,
+                    beta:           apron.position
+                        - Distance::from_nm(100.) * apron.forward_heading.into_dir2(),
+                    need_intersect: true,
+                },
+                Some(non_apron_index) => {
+                    let line = &non_apron_lines[non_apron_index];
+                    sweep::Line {
+                        alpha:          line.alpha,
+                        beta:           line.beta,
+                        need_intersect: false,
+                    }
+                }
+            },
+            non_apron_lines.len() + 1,
+            GROUND_EPSILON,
+            apron.forward_heading.opposite().into_dir2(),
+        )
+        .map_err(Error::GroundSweep)?;
+
+        let intersect = sweeper
+            .intersections_after(apron.position)
+            .next()
+            .ok_or_else(|| Error::UnreachableApron(apron.name.clone()))?;
+        // previously inited with a dummy value
+        apron_lines[apron_index].beta = intersect.position;
+    }
+
+    Ok(())
+}
+
+struct IntersectGroup {
+    index:    usize,
+    position: Position<Vec2>,
+    lines:    Vec<sweep::LineIndex>,
+}
+
+fn find_ground_intersects(lines: &[GroundLine]) -> Result<Vec<IntersectGroup>, Error> {
+    let intersects: Vec<_> = LineSweeper::new(
+        |index| {
+            let line = &lines[index.0];
+            sweep::Line {
+                alpha:          line.alpha,
+                beta:           line.beta,
+                need_intersect: true,
+            }
+        },
+        lines.len(),
+        Distance::from_meters(0.1),
+        Heading::from_radians(Angle(consts::E)).into_dir2(), // an arbitrary direction to avoid duplicates
+    )
+    .map_err(Error::GroundSweep)?
+    .intersections_merged()
+    .enumerate()
+    .map(|(group_index, group)| {
+        let mut position = group[0].position;
+        #[expect(clippy::cast_precision_loss)] // `i` is expected to be small
+        for (i, intersect) in group[1..].iter().enumerate() {
+            position = position.lerp(intersect.position, 1. / (i + 1) as f32);
+        }
+
+        let mut lines = Vec::new();
+        for intersect in &group {
+            for line in intersect.lines {
+                if !lines.contains(&line) {
+                    lines.push(line);
+                }
+            }
+        }
+
+        IntersectGroup { index: group_index, position, lines }
+    })
+    .collect();
+    Ok(intersects)
+}
+
+struct GroundSegment {
+    alpha: GroundSegmentEndpoint,
+    beta:  GroundSegmentEndpoint,
+    line:  sweep::LineIndex,
+}
+
+#[derive(Clone)]
+struct GroundSegmentEndpoint {
+    position: Position<Vec2>,
+    group:    Option<usize>,
+}
+
+fn ground_lines_to_segments(
+    lines: &[GroundLine],
+    all_intersect_groups: &[IntersectGroup],
+) -> Result<Vec<GroundSegment>, Error> {
+    let mut line_to_intersects_map = HashMap::<_, Vec<_>>::new();
+    for group in all_intersect_groups {
+        for line in &group.lines {
+            let alpha_dist = group
+                .position
+                .distance_ord(lines[line.0].alpha)
+                .map_err(|_| Error::NonFiniteFloat("evaluated intersection point"))?;
+            line_to_intersects_map.entry(line).or_default().push((alpha_dist, group));
+        }
+    }
+
+    let mut segments = Vec::new();
+
+    for (line_index, line) in lines.iter().enumerate() {
+        let line_index = sweep::LineIndex(line_index);
+        let intersects = line_to_intersects_map
+            .get_mut(&line_index)
+            .map_or_else(Default::default, |vec| &mut vec[..]);
+        intersects.sort_by_key(|&(alpha_dist, _)| alpha_dist);
+
+        let alpha_endpoint = intersects
+            .first()
+            .is_none_or(|&(_, group)| group.position.distance_cmp(line.alpha) > GROUND_EPSILON)
+            .then_some(GroundSegmentEndpoint { position: line.alpha, group: None });
+        let beta_endpoint = intersects
+            .last()
+            .is_none_or(|&(_, group)| group.position.distance_cmp(line.beta) > GROUND_EPSILON)
+            .then_some(GroundSegmentEndpoint { position: line.beta, group: None });
+
+        segments.extend(
+            alpha_endpoint
+                .into_iter()
+                .chain(intersects.iter().map(|&(_, group)| GroundSegmentEndpoint {
+                    position: group.position,
+                    group:    Some(group.index),
+                }))
+                .chain(beta_endpoint)
+                .tuple_windows()
+                .map(|(alpha, beta)| GroundSegment { alpha, beta, line: line_index }),
+        );
+    }
+
+    Ok(segments)
+}
+
+fn spawn_ground_segments(
+    world: &mut World,
+    ground_network: &store::GroundNetwork,
+    runway_pairs: &[store::RunwayPair],
+    runways: &HashMap<String, SpawnedRunway>,
+    aerodrome_entity: Entity,
+    elevation: Position<f32>,
+) -> Result<(), Error> {
+    let mut lines = collect_non_apron_ground_lines(ground_network, runway_pairs, runways);
+    generate_apron_lines(ground_network, &mut lines)?;
+    let intersect_groups = find_ground_intersects(&lines)?;
+    let segments = ground_lines_to_segments(&lines, &intersect_groups)?;
+
+    let endpoints: Vec<_> = intersect_groups
+        .iter()
+        .map(|group| {
+            let entity = world.spawn_empty().set_parent(aerodrome_entity).id();
+            ground::SpawnEndpoint { position: group.position }.apply(entity, world);
+            entity
+        })
+        .collect();
+
+    for segment in segments {
+        let [alpha_endpoint, beta_endpoint] = [&segment.alpha, &segment.beta].map(|endpoint| {
+            if let Some(index) = endpoint.group {
+                endpoints[index]
+            } else {
+                let entity = world.spawn_empty().set_parent(aerodrome_entity).id();
+                ground::SpawnEndpoint { position: endpoint.position }.apply(entity, world);
+                entity
+            }
+        });
+
+        let segment_entity = world.spawn_empty().set_parent(aerodrome_entity).id();
+        ground::SpawnSegment {
+            segment: ground::Segment { alpha: alpha_endpoint, beta: beta_endpoint, elevation },
+            label:   lines[segment.line.0].label.clone(),
+        }
+        .apply(segment_entity, world);
+    }
+
+    Ok(())
+}
+
+struct GroundLine {
+    label: ground::SegmentLabel,
+    width: Distance<f32>,
+    alpha: Position<Vec2>,
+    beta:  Position<Vec2>,
 }
 
 fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<WaypointMap, Error> {
@@ -510,6 +812,14 @@ pub enum Error {
     UnresolvedRunway { aerodrome: String, runway: String },
     #[error("No waypoint called {0:?}")]
     UnresolvedWaypoint(String),
+    #[error("Non-finite value encountered at {0}")]
+    NonFiniteFloat(&'static str),
+    #[error(
+        "The backward direction of apron {0} does not intersect with any taxiways within 100nm"
+    )]
+    UnreachableApron(String),
+    #[error("Resolve ground lines: {0}")]
+    GroundSweep(sweep::Error),
 }
 
 type VecResult<T> = Result<Vec<T>, Error>;

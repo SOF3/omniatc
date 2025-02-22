@@ -1,10 +1,11 @@
 use bevy::app::{self, App, Plugin};
-use bevy::math::{Vec3, Vec3Swizzles};
+use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
     Camera2d, Component, GlobalTransform, IntoSystemConfigs, Query, Single, Transform, With,
 };
 use bevy::sprite::Anchor;
 use bevy::text::Text2d;
+use omniatc_core::units::Distance;
 
 use super::SystemSets;
 
@@ -34,6 +35,7 @@ pub struct MaintainRotation;
 #[derive(Component)]
 #[require(Text2d)]
 pub struct Label {
+    pub offset:   Distance<Vec2>,
     pub distance: f32,
 }
 
@@ -45,7 +47,7 @@ fn translate_label_system(
 
     query.iter_mut().for_each(|(bb, anchor, mut tf)| {
         let offset = camera.affine().matrix3 * Vec3::from((anchor.as_vec(), 0.));
-        tf.translation = ((offset * bb.distance).xy(), tf.translation.z).into();
+        tf.translation = (bb.offset.0 + (offset * bb.distance).xy(), tf.translation.z).into();
     });
 }
 

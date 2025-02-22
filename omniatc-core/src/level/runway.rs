@@ -3,6 +3,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Children, Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Without, World,
 };
+use smallvec::SmallVec;
 
 use super::waypoint::{self, Waypoint};
 use super::SystemSets;
@@ -32,20 +33,16 @@ pub struct Runway {
     /// The aerodrome that this runway belongs to.
     pub aerodrome: Entity,
 
-    /// Usable runway length.
+    /// Usable runway length for landings.
     ///
-    /// Only used to determine takeoff/landing feasibility.
+    /// Only used to determine landing feasibility.
     /// Does not affect display.
     ///
-    /// A plane must initiate takeoff at `waypoint.position + k * usable_length`
+    /// A plane must touch down at `waypoint.position + k * landing_length`
     /// for some `0 <= k < 1`
-    /// such that `(1 - k) * usable_length.length()` exceeds the minimum takeoff distance.
-    ///
-    /// A plane must touch down at `waypoint.position + k * usable_length`
-    /// for some `0 <= k < 1`
-    /// such that braking over `(1 - k) * usable_length.length()`
+    /// such that braking over `(1 - k) * landing_length.length()`
     /// allows the plane to reduce to taxi speed.
-    pub usable_length: Distance<Vec2>,
+    pub landing_length: Distance<Vec2>,
 
     /// Starting point of the rendered runway.
     pub display_start: Position<Vec3>,
@@ -103,7 +100,7 @@ fn maintain_localizer_waypoint_system(
         |(waypoint_entity, mut waypoint, &LocalizerWaypoint { runway_ref })| {
             let Ok((
                 &Waypoint { position: runway_position, .. },
-                &Runway { usable_length, glide_angle, .. },
+                &Runway { landing_length, glide_angle, .. },
                 children,
             )) = runway_query.get(runway_ref)
             else {
@@ -122,9 +119,15 @@ fn maintain_localizer_waypoint_system(
             }
 
             waypoint.position = runway_position
-                + usable_length
+                + landing_length
                     .normalize_to_magnitude(-range)
                     .projected_from_elevation_angle(glide_angle);
         },
     );
+}
+
+/// List of ground segment entities that make up the ground structure of this runway.
+#[derive(Component)]
+pub struct GroundSegmentList {
+    pub segments: SmallVec<[Entity; 8]>,
 }

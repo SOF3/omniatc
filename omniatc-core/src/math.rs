@@ -6,13 +6,13 @@
 use core::fmt;
 use std::{cmp, iter, ops};
 
-use bevy::math::{Dir2, Vec2};
-
-mod consts;
-pub use consts::*;
+use bevy::math::{Dir2, Mat2, Vec2};
 
 use crate::units::{Distance, Position, Speed, Squared};
 
+mod consts;
+pub use consts::*;
+pub mod sweep;
 #[cfg(test)]
 mod tests;
 
@@ -66,7 +66,7 @@ pub fn solve_expected_ground_speed(
 }
 
 /// Returns `start`, `start+interval`, `start+interval+interval`, ... until `end`.
-/// The second last item is greater than or equal to `end - interval` and not equal to `end`.
+/// The second last item is between `end - interval` and `end`, and is not equal to `end`.
 ///
 /// # Panics
 /// Panics if `interval` is not a finite positive or negative value.
@@ -92,4 +92,12 @@ where
             Some(output)
         }
     })
+}
+
+/// Solve `(t1, t2)` for `s1 + d1 * t1 == s2 + d2 * t2`.
+#[must_use]
+pub fn line_intersect(s1: Vec2, d1: Vec2, s2: Vec2, d2: Vec2) -> (f32, f32) {
+    let mat = Mat2::from_cols(d1, -d2);
+    let t = mat.inverse() * (s2 - s1);
+    (t.x, t.y)
 }

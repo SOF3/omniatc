@@ -163,7 +163,12 @@ pub struct Taxiway {
     /// if it is curved.
     pub endpoints: Vec<Position<Vec2>>,
     /// Width of the taxiway.
+    ///
+    /// This refers to the clear area around the taxiway.
+    /// Objects with width exceeding this value cannot enter the taxiway.
     pub width:     Distance<f32>,
+    /// Maximum speed on the taxiway.
+    pub max_speed: Speed<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -301,7 +306,7 @@ pub enum Object {
 pub struct Plane {
     pub aircraft:   BaseAircraft,
     pub control:    PlaneControl,
-    pub limits:     nav::Limits,
+    pub limits:     nav::FlightLimits,
     pub nav_target: NavTarget,
     pub route:      Route,
 }
@@ -454,10 +459,99 @@ pub enum RouteNode {
         expedite: bool,
         // TODO pressure altitude?
     },
+    /// Align with the runway and touchdown.
+    ///
+    /// This node blocks until a successful touchdown or a pilot-initiated go-around.
+    ///
+    /// # Successful touchdown
+    /// Upon successful touchdown, the target ground speed is set to 0,
+    /// then the next node is executed.
+    /// If no taxiing nodes are found, the aircraft will stop on the runway.
+    ///
+    /// # Go-around
+    /// Upon go-around initiation, the entire route is cleared.
+    /// The target navigation is set to the `go_around` configuration,
+    /// then the current node completes.
     AlignRunway {
-        runway:   RunwayRef,
-        expedite: bool,
+        /// The runway to land on.
+        runway:         RunwayRef,
+        /// Whether to expedite altitude change to align with glidepath.
+        expedite:       bool,
+        /// Final approach configuration.
+        final_approach: FinalApproach,
+        /// Go-around procedure.
+        go_around:      GoAround,
     },
+    /// Enter the specified segment at the earliest possible intersection on the current segment.
+    ///
+    /// At each intersection point, the object searches for segments satisfying all of below:
+    /// - segment label is equal to one of the items in `label`.
+    /// - segment direction is within `dir` &pm; `dir_range`.
+    /// - object ground speed is below segment speed limit.
+    /// - object width is below segment width limit.
+    ///
+    /// If such a segment is found, the object enters the segment and completes the current node.
+    /// Otherwise, it enters an arbitrary segment with the same segment label
+    /// as the one it is currently in if possible.
+    /// If there is still no segment found, the object holds short at the end of the current segment
+    /// before entering the width of any other taxiways at the intersection.
+    TryEnterSegment {
+        /// The label of the segment to enter.
+        label: Vec<SegmentLabel>,
+        /// The approximate direction to turn to after entering the new segment.
+        dir:   Heading,
+        /// Maximum deviation from `dir`.
+        dir_range: Angle<f32>,
+        /// Maximum ground speed when there are no obstacles.
+        speed: Speed<f32>,
+    },
+    /// Holds short upon encountering the specified segment.
+    ///
+    /// At each intersection point, if any of the intersecting segments matches `label`,
+    /// the object holds short at the end of the current segment
+    /// before entering the width of any other taxiways at the intersection.
+    /// Otherwise, it follows segments of the same label, similar to `TryEnterSegment`.
+    ///
+    /// This node blocks until the aircraft stops at an intersection
+    /// with a segment matching `label`.
+    HoldShortSegment {
+        label: SegmentLabel,
+        /// Maximum ground speed when there are no obstacles.
+        speed: Speed<f32>,
+    },
+}
+
+/// Identifies one or multiple ground segments.
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SegmentLabel {
+    Runway {
+        /// Name of either runway.
+        name: String,
+    },
+    Taxiway {
+        name: String,
+    },
+    Apron {
+        name: String,
+    },
+}
+
+/// Final approach configuration.
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct FinalApproach {
+    /// Distance from touchdown to start adjusting speed to final approach speed.
+    pub distance: Distance<f32>,
+    /// Airspeed to adjust to when final approach is reached.
+    pub speed:    Speed<f32>,
+}
+
+/// Go-around procedure.
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct GoAround {
+    /// Initial altitude to climb to when go-around is initiated.
+    pub altitude: Position<f32>,
+    /// Initial target speed when go-around is initiated.
+    pub speed:    Speed<f32>,
 }
 
 /// References a position.

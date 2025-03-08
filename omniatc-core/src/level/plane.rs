@@ -49,7 +49,7 @@ pub struct Limits {}
 
 pub struct SpawnCommand {
     pub control: Option<Control>,
-    pub limits:  nav::Limits,
+    pub limits:  nav::FlightLimits,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -95,7 +95,7 @@ fn apply_forces_system(
     mut plane_query: Query<(
         &mut VelocityTarget,
         &mut Control,
-        &nav::Limits,
+        &nav::FlightLimits,
         &mut object::Airborne,
     )>,
 ) {
@@ -115,7 +115,7 @@ fn maintain_yaw(
     time: &Time<time::Virtual>,
     target: &mut VelocityTarget,
     control: &mut Control,
-    limits: &nav::Limits,
+    limits: &nav::FlightLimits,
     airborne: &object::Airborne,
 ) {
     let current_yaw = airborne.airspeed.horizontal().heading();
@@ -189,7 +189,7 @@ fn maintain_accel(
     time: &Time<time::Virtual>,
     target: &VelocityTarget,
     control: &mut Control,
-    limits: &nav::Limits,
+    limits: &nav::FlightLimits,
     airborne: &mut object::Airborne,
 ) {
     enum ThrottleAction {
@@ -279,7 +279,7 @@ fn maintain_accel(
 fn maintain_vert(
     time: &Time<time::Virtual>,
     target: &VelocityTarget,
-    limits: &nav::Limits,
+    limits: &nav::FlightLimits,
     airborne: &mut object::Airborne,
 ) {
     let desired_vert_rate = if target.expedite {

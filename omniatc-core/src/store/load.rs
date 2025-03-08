@@ -756,11 +756,22 @@ fn insert_route(
                         expedite,
                     })
                 }
-                store::RouteNode::AlignRunway { ref runway, expedite } => {
+                store::RouteNode::AlignRunway { ref runway, expedite, final_approach, go_around } => {
                     route::Node::AlignRunway(route::AlignRunwayNode {
                         runway: resolve_runway_ref(aerodromes, runway)?.runway,
                         expedite,
+                        final_approach: Some(route::FinalApproach {
+                            distance: final_approach.distance,
+                            speed: final_approach.speed,
+                        }),
+                        go_around: route::GoAround { altitude: go_around.altitude, speed: go_around.speed},
                     })
+                }
+                store::RouteNode::TryEnterSegment { ref label, dir, dir_range, speed } => {
+                    todo!()
+                }
+                store::RouteNode::HoldShortSegment { ref label, speed } => {
+                    todo!()
                 }
             })
         })

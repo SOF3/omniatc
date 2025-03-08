@@ -53,14 +53,9 @@ pub struct VelocityTarget {
     pub expedite:    bool,
 }
 
-/// Limits for setting velocity target.
+/// Limits for setting velocity target for airborne navigation.
 #[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Limits {
-    /// Minimum horizontal indicated airspeed.
-    pub min_horiz_speed: Speed<f32>,
-    /// Max absolute yaw speed.
-    pub max_yaw_speed:   AngularSpeed<f32>,
-
+pub struct FlightLimits {
     // Pitch/vertical rate limits.
     /// Climb profile during expedited altitude increase.
     ///
@@ -80,7 +75,15 @@ pub struct Limits {
     /// Maximum absolute change rate for vertical rate acceleration.
     pub max_vert_accel: Accel<f32>,
 
+    /// Minimum height above the runway above which the aircraft must decide whethre to go-around.
+    ///
+    /// This should be lower than the ILS decision height caused by poor visibility.
+    /// Typical reasons include runway not clear, plane too fast, etc.
+    pub go_around_height: Distance<f32>,
+
     // Forward limits.
+    /// Minimum horizontal indicated airspeed.
+    pub min_horiz_speed: Speed<f32>,
     /// Absolute change rate for airborne horizontal acceleration. Always positive.
     pub accel_change_rate: AccelRate<f32>, // ah yes we have d^3/dt^3 now...
     /// Drag coefficient, in nm^-1.
@@ -94,11 +97,40 @@ pub struct Limits {
     pub drag_coef:         f32,
 
     // Z axis rotation limits.
+    /// Max absolute yaw speed.
+    pub max_yaw_speed:   AngularSpeed<f32>,
     /// Max absolute rate of change of yaw speed.
     pub max_yaw_accel: AngularAccel<f32>,
 }
 
-impl Limits {
+/// Limits for pathfinding for ground navigation.
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GroundLimits {
+    /// The size of the object, used for maintaining ground separation.
+    ///
+    /// The actual separation box of the object can be assumed as a rectangle `length * width`,
+    /// where the center of the rectangle is the object position,
+    /// and the `length` side is parallel to the object heading.
+    pub length: Distance<f32>,
+    /// Minimum taxiway width required for the object to enter.
+    pub width: Distance<f32>,
+
+    /// Maximum acceleration. Ground objects are assumed to have unlimited acceleration rate.
+    pub max_accel: Accel<f32>,
+    /// Maximum braking deceleration.
+    /// Ground objects are assumed to have unlimited deceleration rate.
+    ///
+    /// This value is always negative.
+    pub max_decel: Accel<f32>,
+    /// Maximum speed that can be assigned to the object.
+    pub max_speed: Speed<f32>,
+    /// Maximum angular speed.
+    ///
+    /// This affects the speed of objects switching between intersections.
+    pub turn_rate: AngularSpeed<f32>,
+}
+
+impl FlightLimits {
     /// Returns the maximum horizontal acceleration rate at the given climb rate.
     ///
     /// The returned value could be negative.

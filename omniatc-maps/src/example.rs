@@ -6,8 +6,8 @@ use omniatc_core::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
 };
 
-pub fn default_plane_limits() -> nav::Limits {
-    nav::Limits {
+pub fn default_plane_limits() -> nav::FlightLimits {
+    nav::FlightLimits {
         min_horiz_speed:   Speed::from_knots(120.),
         max_yaw_speed:     AngularSpeed::from_degrees_per_sec(3.),
         max_vert_accel:    Accel::from_fpm_per_sec(200.),
@@ -384,11 +384,19 @@ pub fn file() -> store::File {
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  None,
                             },
+                            store::RouteNode::SetAirspeed {
+                                goal:  Speed::from_knots(250.),
+                                error: None,
+                            },
                             store::RouteNode::DirectWaypoint {
                                 waypoint:  store::WaypointRef::Named("TBASE".into()),
                                 distance:  Distance::from_nm(1.),
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  Some(Position::from_amsl_feet(4000.)),
+                            },
+                            store::RouteNode::SetAirspeed {
+                                goal:  Speed::from_knots(200.),
+                                error: None,
                             },
                             store::RouteNode::DirectWaypoint {
                                 waypoint:  store::WaypointRef::Named("APPCH".into()),
@@ -396,12 +404,24 @@ pub fn file() -> store::File {
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  None,
                             },
+                            store::RouteNode::SetAirspeed {
+                                goal:  Speed::from_knots(180.),
+                                error: None,
+                            },
                             store::RouteNode::AlignRunway {
-                                runway:   store::RunwayRef {
+                                runway:         store::RunwayRef {
                                     aerodrome_code: "MAIN".into(),
-                                    runway_name:    "18L".into(),
+                                    runway_name:    "18R".into(),
                                 },
-                                expedite: true,
+                                expedite:       true,
+                                final_approach: store::FinalApproach {
+                                    distance: Distance::from_nm(0.3),
+                                    speed:    Speed::from_knots(140.),
+                                },
+                                go_around:      store::GoAround {
+                                    altitude: Distance::from_feet(3000.),
+                                    speed:    Speed::from_knots(200.),
+                                },
                             },
                         ],
                     },

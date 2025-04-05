@@ -11,7 +11,7 @@ use bevy::prelude::{
 use bevy::utils::HashMap;
 use itertools::Itertools;
 
-use crate::level::route::{self, Route};
+use crate::level::route::{self, Schedule};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
 use crate::level::{aerodrome, ground, nav, object, plane, runway, wind};
@@ -671,7 +671,7 @@ fn spawn_plane(
     }
 
     insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
-    route::RunCurrentNode.apply(plane_entity, world);
+    route::ResyncTrigger.apply(plane_entity, world);
 
     Ok(())
 }
@@ -734,7 +734,8 @@ fn insert_route(
         .nodes
         .iter()
         .map(|node| {
-            Ok(match *node {
+            todo!()
+            /*Ok(match *node {
                 store::RouteNode::DirectWaypoint {
                     ref waypoint,
                     distance,
@@ -762,9 +763,9 @@ fn insert_route(
                         expedite,
                     })
                 }
-            })
+            })*/
         })
-        .collect::<Result<Route, Error>>()?;
+        .collect::<Result<Schedule, Error>>()?;
 
     plane_entity.insert(route_rt);
     Ok(())

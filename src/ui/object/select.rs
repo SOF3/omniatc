@@ -7,7 +7,7 @@ use bevy::prelude::{
     ResMut, Resource, Single,
 };
 use itertools::Itertools;
-use omniatc_core::level::route::{self, Route};
+use omniatc_core::level::route::{self, Schedule};
 use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{aerodrome, nav, object};
 use omniatc_core::units::{Angle, Distance, Speed, TurnDirection};
@@ -213,7 +213,7 @@ struct ObjectStatusQuery {
     vel_target:      Option<&'static nav::VelocityTarget>,
     target_glide:    Option<(&'static nav::TargetGlide, &'static nav::TargetGlideStatus)>,
     target_altitude: Option<&'static nav::TargetAltitude>,
-    route:           &'static Route,
+    route:           &'static Schedule,
 }
 
 #[derive(QueryData)]

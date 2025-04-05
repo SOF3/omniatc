@@ -10,7 +10,10 @@ description = "Core game logic"
 [features]
 default = ["dev"]
 dev = []
+
+# For development only
 precommit-checks = []
+rust-analyzer = []
 
 [dependencies]
 ciborium = "0.2.2"

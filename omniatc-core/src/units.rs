@@ -365,6 +365,7 @@ macro_rules! decl_units {
             impl ops::Div<$ty<f32>> for $int_dt<f32> {
                 type Output = Duration;
 
+            /// Panics if the result is negative.
                 fn div(self, other: $ty<f32>) -> Duration {
                     Duration::from_secs_f32(self.0 / other.0)
                 }

@@ -30,7 +30,10 @@ description = "Yet another ATC simulator"
 default = ["dev"]
 dev = ["inspect", "bevy/dynamic_linking", "omniatc-core/dev"]
 inspect = ["dep:bevy-inspector-egui"]
+
+# For development only
 precommit-checks = []
+rust-analyzer = []
 
 [dependencies]
 omniatc-core.workspace = true

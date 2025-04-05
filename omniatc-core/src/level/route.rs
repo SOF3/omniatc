@@ -1,23 +1,14 @@
 use std::collections::VecDeque;
-use std::mem;
+use std::convert;
+use std::marker::PhantomData;
 use std::time::Duration;
 
-use bevy::app::{self, App, Plugin};
-use bevy::ecs::system::SystemState;
-use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{
-    Commands, Component, Entity, EntityCommand, EntityRef, IntoSystemConfigs, Query, Res, World,
-};
-use bevy::time::{self, Time};
-use serde::{Deserialize, Serialize};
+use bevy::app::{App, Plugin};
+use bevy::math::Vec2;
+use bevy::prelude::{Component, Entity, EntityCommand, World};
 
-use super::object::{self, GroundSpeedCalculator, Object};
-use super::runway::{self, Runway};
-use super::waypoint::Waypoint;
 use super::{nav, SystemSets};
-use crate::level::object::RefAltitudeType;
-use crate::math::Between;
-use crate::units::{Angle, Distance, Heading, Position, Speed};
+use crate::units::{Distance, Position, Speed};
 
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
@@ -38,734 +29,375 @@ const ALIGN_RUNWAY_ACTIVATION_RANGE: Distance<f32> = Distance::from_nm(0.5);
 /// [Lookahead duration](nav::TargetAlignment::lookahead) for `AlignRunway` nodes.
 const ALIGN_RUNWAY_LOOKAHEAD: Duration = Duration::from_secs(10);
 
+mod altitude;
+// mod heading;
+// mod passive;
+// mod speed;
+mod trigger;
+
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            app::Update,
-            (
-                fly_over_trigger_system,
-                fly_by_trigger_system,
-                time_trigger_system,
-                distance_trigger_system,
-            )
-                .in_set(SystemSets::Action),
-        );
-    }
+    fn build(&self, app: &mut App) { app.add_plugins(trigger::Plug); }
 }
 
-/// Stores the flight plan of the object.
+/// A predefined template of schedule nodes.
 ///
-/// Always manipulate through commands e.g. [`Push`], [`ClearAll`], etc.
-#[derive(Component, Default)]
-pub struct Route {
-    current:    Option<Node>, // promoted to its own field to improve cache locality.
-    next_queue: VecDeque<Node>,
+/// Each template is an individual entity.
+#[derive(Component)]
+pub struct RouteTemplate {
+    altitude_control: Channel<altitude::Control>,
+    // speed_control:    Channel<speed::Control>,
+    // heading_control:  Channel<heading::Control>,
+    // passive:          Channel<passive::Passive>,
 }
 
-impl Route {
-    pub fn push(&mut self, node: Node) {
-        if self.current.is_none() {
-            self.current = Some(node);
-        } else {
-            self.next_queue.push_back(node);
-        }
-    }
+pub struct ResyncTrigger;
 
-    #[must_use]
-    pub fn current(&self) -> Option<&Node> { self.current.as_ref() }
-
-    #[must_use]
-    pub fn next(&self) -> Option<&Node> { self.next_queue.front() }
-
-    pub fn shift(&mut self) -> Option<Node> {
-        let ret = self.current.take();
-        self.current = self.next_queue.pop_front();
-        ret
-    }
-
-    #[must_use]
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Node> + Clone {
-        self.current.iter().chain(self.next_queue.iter())
-    }
-
-    #[must_use]
-    pub fn get(&self, index: usize) -> Option<&Node> {
-        match index.checked_sub(1) {
-            Some(queue_offset) => self.next_queue.get(queue_offset),
-            None => self.current.as_ref(),
-        }
-    }
-}
-
-impl FromIterator<Node> for Route {
-    fn from_iter<I: IntoIterator<Item = Node>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        Self { current: iter.next(), next_queue: iter.collect() }
-    }
-}
-
-pub struct PushNode(pub Node);
-
-impl EntityCommand for PushNode {
+impl EntityCommand for ResyncTrigger {
     fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-        let mut route =
-            entity_ref.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
-        route.push(self.0);
-
-        run_current_node(world, entity);
-    }
-}
-
-pub struct NextNode;
-
-impl EntityCommand for NextNode {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-        let mut route = entity_ref.get_mut::<Route>().expect("just inserted");
-        route.shift();
-
-        run_current_node(world, entity);
-    }
-}
-
-/// Recompute the triggers for the route, used after the entire route got replaced.
-pub struct RunCurrentNode;
-
-impl EntityCommand for RunCurrentNode {
-    fn apply(self, entity: Entity, world: &mut World) { run_current_node(world, entity); }
-}
-
-pub struct ClearAllNodes;
-
-impl EntityCommand for ClearAllNodes {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-        if let Some(mut route) = entity_ref.get_mut::<Route>() {
-            route.current = None;
-            route.next_queue.clear();
-
-            run_current_node(world, entity);
-        }
-    }
-}
-
-// TODO possible optimization: run this in systems with parallelization.
-fn run_current_node(world: &mut World, entity: Entity) {
-    loop {
-        {
-            let current_node =
-                world.entity(entity).get::<Route>().and_then(|route| route.current());
-
-            match current_node {
-                None => break clear_all_triggers(world, entity),
-                Some(node) => match node.run_as_current_node(world, entity) {
-                    RunNodeResult::PendingTrigger => break,
-                    RunNodeResult::NodeDone => {
-                        let mut entity_ref = world.entity_mut(entity);
-                        let mut route = entity_ref
-                            .get_mut::<Route>()
-                            .expect("route should not be shifted by run_current_node");
-                        route.shift();
-                        continue;
-                    }
-                },
-            }
-        };
-    }
-
-    update_altitude(world, entity);
-
-    let time_elapsed = world.resource::<Time<time::Virtual>>().elapsed();
-    let mut entity_ref = world.entity_mut(entity);
-    let mut trigger = entity_ref
-        .insert_if_new(TimeTrigger(time_elapsed))
-        .get_mut::<TimeTrigger>()
-        .expect("inserted if missing");
-    trigger.0 = time_elapsed + REFRESH_INTERVAL;
-}
-
-fn update_altitude(world: &mut World, entity: Entity) {
-    let mut gs_calc = SystemState::<GroundSpeedCalculator>::new(world);
-
-    let entity_ref = world.entity(entity);
-    if let Some(route) = entity_ref.get::<Route>() {
-        match plan_altitude(world, &entity_ref, route, &mut gs_calc) {
-            PlanAltitudeResult::None => {
-                world.entity_mut(entity).remove::<DistanceTrigger>();
-            }
-            PlanAltitudeResult::Immediate { altitude, expedite } => {
-                world
-                    .entity_mut(entity)
-                    .remove::<DistanceTrigger>()
-                    .insert(nav::TargetAltitude { altitude, expedite });
-            }
-            PlanAltitudeResult::DelayedTrigger { distance, eventual_target_altitude } => {
-                let pos = entity_ref
-                    .get::<Object>()
-                    .expect("checked numerous times at this stage")
-                    .position;
-
-                if let Some(&nav::TargetAltitude { altitude: current_target, expedite }) =
-                    entity_ref.get()
-                {
-                    #[expect(clippy::float_cmp)] // comparison of constant signums is fine
-                    if (current_target - pos.altitude()).signum()
-                        == (eventual_target_altitude - pos.altitude()).signum()
-                    {
-                        // No need to wait since we are already moving towards that direction.
-                        // Just disable expedite if necessary since we have plenty of time there.
-                        if expedite {
-                            world
-                                .entity_mut(entity)
-                                .get_mut::<nav::TargetAltitude>()
-                                .expect("checked above")
-                                .expedite = false;
-                        }
-                        return;
+        'retry_all: loop {
+            'next_channel: for f in Schedule::channels() {
+                'retry_channel: loop {
+                    match f.resync_channel(world, entity) {
+                        ResyncChannelResult::Done => continue 'next_channel,
+                        ResyncChannelResult::RetryThisChannel => continue 'retry_channel,
+                        ResyncChannelResult::RetryAllChannels => continue 'retry_all,
                     }
                 }
-
-                world.entity_mut(entity).insert(DistanceTrigger {
-                    remaining_distance: distance,
-                    last_observed_pos:  pos.horizontal(),
-                });
             }
+
+            return;
         }
     }
 }
 
-#[derive(Debug)]
-enum PlanAltitudeResult {
-    None,
-    Immediate {
-        altitude: Position<f32>,
-        expedite: bool,
-    },
-    DelayedTrigger {
-        distance:                 Distance<f32>,
-        eventual_target_altitude: Position<f32>,
-    },
-}
-
-fn plan_altitude(
-    world: &World,
-    entity_ref: &EntityRef,
-    route: &Route,
-    gs_calc: &mut SystemState<GroundSpeedCalculator>,
-) -> PlanAltitudeResult {
-    struct PathSegment {
-        start:    Position<Vec2>,
-        end:      Position<Vec2>,
-        airspeed: Speed<f32>, // TODO take airspeed reduction time into account
-    }
-
-    let current_position = entity_ref.get::<Object>().expect("entity must be an Object").position;
-    let Some(&object::Airborne { airspeed: current_airspeed }) = entity_ref.get() else {
-        // no need to plan altitude if we are not airborne yet
-        return PlanAltitudeResult::None;
-    };
-
-    let Some((target_node_index, DesiredAltitude::Desired(target_position))) =
-        route.iter().enumerate().map(|(index, node)| (index, node.desired_altitude(world))).find(
-            |(_, desired)| {
-                matches!(desired, DesiredAltitude::Desired(_) | DesiredAltitude::NotRequired)
-            },
-        )
-    else {
-        return PlanAltitudeResult::None;
-    };
-
-    let mut segments = Vec::new();
-
-    let mut next_segment_speed = current_airspeed.magnitude_exact();
-    let mut next_segment_start = current_position.horizontal();
-
-    for node in route.iter().take(target_node_index + 1) {
-        if let Some(speed) = node.configures_airspeed(world) {
-            next_segment_speed = speed;
-        }
-
-        if let Some(pos) = node.configures_position(world) {
-            let start = mem::replace(&mut next_segment_start, pos);
-            segments.push(PathSegment { start, end: pos, airspeed: next_segment_speed });
-        }
-    }
-
-    let Some(limits) = entity_ref.get::<nav::Limits>() else {
-        bevy::log::warn_once!("Cannot plan altitude for object {} without limits", entity_ref.id());
-        return if target_node_index == 0 {
-            PlanAltitudeResult::Immediate { altitude: target_position.altitude(), expedite: false }
-        } else {
-            PlanAltitudeResult::None
+fn resync_channel<T: ChannelType>(
+    world: &mut World,
+    entity: Entity,
+    field: impl Fn(&mut Schedule) -> &mut Channel<T>,
+) -> ResyncChannelResult {
+    let pending_condition;
+    let current_node = {
+        let mut object = world.entity_mut(entity);
+        let Some(mut schedule) = object.get_mut::<Schedule>() else {
+            bevy::log::error!("ResyncTrigger invoked on an unschedulable object");
+            return ResyncChannelResult::Done;
         };
+
+        pending_condition = schedule.pending_condition;
+
+        let channel = field(&mut *schedule);
+        channel.nodes.pop_front()
     };
 
-    let std_rate = if target_position.altitude() > current_position.altitude() {
-        limits.std_climb.vert_rate
-    } else {
-        limits.std_descent.vert_rate
-    };
+    let Some(mut current_node) = current_node else { return ResyncChannelResult::Done };
 
-    let mut segment_altitude = target_position.altitude();
-    for (segment_index, segment) in segments.iter().enumerate().rev() {
-        const SAMPLE_DENSITY: Distance<f32> = Distance::from_nm(1.);
-
-        let new_altitude = gs_calc.get(world).estimate_altitude_change(
-            [segment.start, segment.end],
-            std_rate,
-            segment.airspeed,
-            segment_altitude,
-            RefAltitudeType::End,
-            SAMPLE_DENSITY,
-        );
-
-        // assume more or less constant vertical:horizontal speed ratio.
-        let ratio = current_position.altitude().ratio_between(new_altitude, segment_altitude);
-        if ratio >= 0. {
-            // we have found the segment where the altitude change should begin
-            return if segment_index == 0 {
-                let distance = segment.start.distance_exact(segment.end) * ratio;
-                if distance < ALTITUDE_CHANGE_TRIGGER_WINDOW {
-                    // start changing altitude as we are almost at the starting point
-                    PlanAltitudeResult::Immediate {
-                        altitude: target_position.altitude(),
-                        expedite: false,
-                    }
-                } else {
-                    PlanAltitudeResult::DelayedTrigger {
-                        distance:                 distance - ALTITUDE_CHANGE_TRIGGER_WINDOW,
-                        eventual_target_altitude: target_position.altitude(),
-                    }
-                }
+    let resync = match current_node {
+        NodeOrFlow::Node(ref mut node) => node.resync(world, entity),
+        NodeOrFlow::Wait { until } => {
+            if pending_condition <= until {
+                NodeResync::Pending
             } else {
-                // Object not yet at the trigger segment,
-                // wait for replan after route nodes shift
-                PlanAltitudeResult::None
-            };
-        }
-
-        // else, expected trigger point is before this segment
-        segment_altitude = new_altitude;
-    }
-
-    // expedite altitude change since we are already past expected trigger point
-    PlanAltitudeResult::Immediate { altitude: target_position.altitude(), expedite: true }
-}
-
-fn clear_all_triggers(world: &mut World, entity: Entity) {
-    world.entity_mut(entity).remove::<(FlyByTrigger, FlyOverTrigger)>();
-}
-
-#[portrait::make]
-trait NodeKind: Copy {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult;
-
-    /// Whether the node configures the object heading.
-    fn configures_heading(self, _world: &World) -> Option<ConfiguresHeading> { None }
-
-    /// Whether the node expects an altitude to be reached.
-    fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::Inconclusive }
-
-    /// Whether the node configures the object airspeed.
-    fn configures_airspeed(self, _world: &World) -> Option<Speed<f32>> { None }
-
-    /// Whether the node expects to lead an object to a position.
-    ///
-    /// This is similar to `configures_heading`, but used for different purposes:
-    /// `configures_heading` indicates the directional information to orient the object
-    /// while `configures_position` indicates the positional information to locate the object.
-    fn configures_position(self, _world: &World) -> Option<Position<Vec2>> { None }
-}
-
-enum RunNodeResult {
-    /// Pending triggers to activate, nothing more to do.
-    PendingTrigger,
-    /// Current node is done, skip to the next node.
-    NodeDone,
-}
-
-enum ConfiguresHeading {
-    /// The heading after this node should point towards a position.
-    Position(Position<Vec2>),
-    /// The heading after this node should point towards a waypoint.
-    Waypoint(Entity),
-    /// The heading after this node should be a constant.
-    Heading(Heading),
-}
-
-enum DesiredAltitude {
-    /// No preference on altitude so far.
-    Inconclusive,
-    /// Desired altitude to reach.
-    Desired(Position<Vec3>),
-    /// No need to plan altitude ahead.
-    NotRequired,
-}
-
-/// Head towards a waypoint.
-///
-/// This node completes when `distance` OR `proximity` is satisfied.
-#[derive(Clone, Copy)]
-pub struct DirectWaypointNode {
-    /// Waypoint to fly towards.
-    pub waypoint:  Entity,
-    /// The node is considered complete when
-    /// the horizontal distance between the object and the waypoint is less than this value.
-    pub distance:  Distance<f32>,
-    /// Whether the object is allowed to complete this node early when in proximity.
-    pub proximity: WaypointProximity,
-    /// Start pitching at standard rate *during or before* this node,
-    /// approximately reaching this altitude by the time the specified waypoint is reached.
-    pub altitude:  Option<Position<f32>>,
-}
-
-impl NodeKind for DirectWaypointNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let Self { waypoint, distance, .. } = self;
-
-        world.entity_mut(entity).insert(nav::TargetWaypoint { waypoint_entity: waypoint });
-
-        match self.proximity {
-            WaypointProximity::FlyOver => {
-                world
-                    .entity_mut(entity)
-                    .remove::<FlyByTrigger>()
-                    .insert(FlyOverTrigger { waypoint, distance });
-                RunNodeResult::PendingTrigger
+                NodeResync::Complete
             }
-            WaypointProximity::FlyBy => {
-                let next_node = world.entity(entity).get::<Route>().and_then(|route| {
-                    route.next_queue.iter().find_map(|node| node.configures_heading(world))
-                });
+        }
+        NodeOrFlow::Notify { which } => {
+            if pending_condition >= which {
+                NodeResync::Complete
+            } else {
+                let mut object = world.entity_mut(entity);
+                object.get_mut::<Schedule>().expect("checked above").pending_condition = which;
+                return ResyncChannelResult::RetryAllChannels;
+            }
+        }
+    };
 
-                let completion_condition = match next_node {
-                    None => FlyByCompletionCondition::Distance(distance),
-                    Some(next) => FlyByCompletionCondition::Heading(next),
+    match resync {
+        NodeResync::Pending => {
+            let mut object = world.entity_mut(entity);
+            let mut schedule = object.get_mut::<Schedule>().expect("checked above");
+            let channel = field(&mut *schedule);
+            channel.nodes.push_front(current_node);
+            ResyncChannelResult::Done
+        }
+        NodeResync::Complete => {
+            if let NodeOrFlow::Node(node) = current_node {
+                node.teardown(world, entity);
+            }
+            ResyncChannelResult::RetryThisChannel
+        }
+        NodeResync::Fail { replacement } => {
+            if let NodeOrFlow::Node(node) = current_node {
+                node.teardown(world, entity);
+            }
+
+            if let Some(replacement) = replacement {
+                let [mut object, template] = world.entity_mut([entity, replacement]);
+
+                let mut schedule = object.get_mut::<Schedule>().expect("checked above");
+
+                let Some(template) = template.get::<RouteTemplate>() else {
+                    bevy::log::error!("Invalid RouteTemplate entity {replacement:?}");
+                    return ResyncChannelResult::Done;
                 };
-                world
-                    .entity_mut(entity)
-                    .remove::<FlyOverTrigger>()
-                    .insert(FlyByTrigger { waypoint, completion_condition });
-                RunNodeResult::PendingTrigger
+
+                Schedule::channels().into_iter().for_each(|field| {
+                    field.clear(&mut *schedule);
+                    field.push_template(&mut *schedule, template);
+                });
+            } else {
+                let mut schedule = world.get_mut::<Schedule>(entity).expect("checked above");
+                Schedule::channels().into_iter().for_each(|field| {
+                    field.clear(&mut *schedule);
+                });
             }
+
+            ResyncChannelResult::RetryAllChannels
         }
-    }
-
-    fn configures_heading(self, _world: &World) -> Option<ConfiguresHeading> {
-        Some(ConfiguresHeading::Waypoint(self.waypoint))
-    }
-
-    fn desired_altitude(self, world: &World) -> DesiredAltitude {
-        match self.altitude {
-            Some(altitude) => {
-                if let Some(waypoint) = world.entity(self.waypoint).get::<Waypoint>() {
-                    DesiredAltitude::Desired(waypoint.position.horizontal().with_altitude(altitude))
-                } else {
-                    bevy::log::error!(
-                        "Invalid waypoint entity {:?} referenced from route node",
-                        self.waypoint
-                    );
-                    DesiredAltitude::NotRequired
-                }
-            }
-            None => DesiredAltitude::Inconclusive,
-        }
-    }
-
-    fn configures_position(self, world: &World) -> Option<Position<Vec2>> {
-        world.get::<Waypoint>(self.waypoint).map(|waypoint| waypoint.position.horizontal())
     }
 }
 
-/// Set the speed to the desired value.
+#[derive(PartialEq)]
+enum ResyncChannelResult {
+    Done,
+    RetryThisChannel,
+    RetryAllChannels,
+}
+
+/// Conditions work like condvars:
+/// channels can wait for the condition or notify the waiters of a condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct ConditionId(u64);
+
+/// Describes the planned route of an object.
 ///
-/// When the object is not yet airborne, this would control the expected airspeed
-/// if the object is immediately airborne.
-#[derive(Clone, Copy)]
-pub struct SetAirspeedNode {
-    /// Desired speed to set.
-    pub speed: Speed<f32>,
-    /// The node completes immediately if `error` is `None`,
-    /// or when the difference between `speed` and the indicated airspeed of the object
-    /// is less than `error` if it is `Some`.
-    pub error: Option<Speed<f32>>,
+/// A schedule is resynced when a [`ResyncTrigger`] for the object is received.
+/// At each resync, the first node in each channel (if any) executes
+/// by setting up its required components (mainly triggers)
+/// and executing its initiation actions.
+/// returns a [`NodeResync`] that determines the subsequent action.
+#[derive(Component)]
+pub struct Schedule {
+    altitude_control: Channel<altitude::Control>,
+
+    // speed_control:    Channel<speed::Control>,
+    // heading_control:  Channel<heading::Control>,
+    // passive:          Channel<passive::Passive>,
+    /// The next `ConditionId` to be notified.
+    pending_condition:    ConditionId,
+    /// The next `ConditionId` to be returned for a new allocation.
+    next_alloc_condition: ConditionId,
 }
 
-impl NodeKind for SetAirspeedNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let current_airspeed =
-            SystemState::<object::GetAirspeed>::new(world).get(world).get_airspeed(entity);
+impl Schedule {
+    fn channels() -> [&'static dyn ChannelField; 1] {
+        [
+            &ChannelFieldVtable(
+                |schedule: &mut Schedule| &mut schedule.altitude_control,
+                |template: &RouteTemplate| &template.altitude_control,
+            ) as &dyn ChannelField,
+            // (|schedule| &mut schedule.speed_control, ),
+            // (|schedule| &mut schedule.heading_control, ),
+            // (|schedule| &mut schedule.passive, ),
+        ]
+    }
+}
 
-        if self.error.is_none_or(|error| {
-            current_airspeed
-                .horizontal()
-                .magnitude_cmp()
-                .between_inclusive(&(self.speed - error), &(self.speed + error))
-        }) {
-            RunNodeResult::NodeDone
-        } else {
-            if let Some(mut airborne) = world.entity_mut(entity).get_mut::<nav::VelocityTarget>() {
-                airborne.horiz_speed = self.speed;
+struct Channel<T> {
+    nodes: VecDeque<NodeOrFlow<T>>,
+}
+
+trait ChannelField {
+    fn clear(&self, schedule: &mut Schedule);
+    fn push_template(&self, schedule: &mut Schedule, template: &RouteTemplate);
+    fn resync_channel(&self, world: &mut World, entity: Entity) -> ResyncChannelResult;
+}
+
+struct ChannelFieldVtable<T, F1, F2>(F1, F2)
+where
+    F1: for<'a> Fn(&'a mut Schedule) -> &'a mut Channel<T> + Copy,
+    F2: for<'a> Fn(&'a RouteTemplate) -> &'a Channel<T> + Copy;
+impl<T: ChannelType, F1, F2> ChannelField for ChannelFieldVtable<T, F1, F2>
+where
+    F1: for<'a> Fn(&'a mut Schedule) -> &'a mut Channel<T> + Copy,
+    F2: for<'a> Fn(&'a RouteTemplate) -> &'a Channel<T> + Copy,
+{
+    fn clear(&self, schedule: &mut Schedule) { self.0(schedule).nodes.clear(); }
+
+    fn push_template(&self, schedule: &mut Schedule, template: &RouteTemplate) {
+        self.0(schedule).nodes.extend(self.1(template).nodes.iter().cloned());
+    }
+    fn resync_channel(&self, world: &mut World, entity: Entity) -> ResyncChannelResult {
+        resync_channel(world, entity, self.0)
+    }
+}
+
+#[derive(Clone)]
+enum NodeOrFlow<T> {
+    Node(T),
+    /// Notify completion of `NotifyId` upon execution.
+    /// Completes immediately.
+    Notify {
+        which: ConditionId,
+    },
+    /// Completes when `until` is notified.
+    Wait {
+        until: ConditionId,
+    },
+}
+
+pub trait ChannelType: Clone {
+    type PredictorForwardState;
+
+    /// Resyncs the node by ensuring required components are inserted into `object`.
+    fn resync(&mut self, world: &mut World, object: Entity) -> NodeResync;
+
+    /// Cleans up the trigger components inserted by this node.
+    fn teardown(self, params: &mut World, object: Entity);
+}
+
+pub trait Predictor<T: ChannelType> {
+    fn scan_forward(
+        &mut self,
+        conditions: &mut PredictForwardConditions,
+        channel_state: &mut T::PredictorForwardState,
+    ) -> PredictForwardResult<impl PredictorRunBackward>;
+}
+
+pub trait PredictorRunBackward {
+    fn run_backward(
+        &mut self,
+        state: &mut PredictState,
+        duration: Duration,
+    ) -> PredictBackwardResult;
+}
+
+pub struct FnPredictor<S, F, FB>(F, PhantomData<(S, fn() -> FB)>)
+where
+    F: FnMut(&mut PredictForwardConditions, &mut S) -> PredictForwardResult<FB>,
+    FB: PredictorRunBackward;
+
+impl<T, F, FB> Predictor<T> for FnPredictor<T::PredictorForwardState, F, FB>
+where
+    T: ChannelType,
+    F: FnMut(
+        &mut PredictForwardConditions,
+        &mut T::PredictorForwardState,
+    ) -> PredictForwardResult<FB>,
+    FB: PredictorRunBackward,
+{
+    fn scan_forward(
+        &mut self,
+        conditions: &mut PredictForwardConditions,
+        channel_state: &mut T::PredictorForwardState,
+    ) -> PredictForwardResult<impl PredictorRunBackward> {
+        (self.0)(conditions, channel_state)
+    }
+}
+
+impl<FB> PredictorRunBackward for FB
+where
+    FB: FnMut(&mut PredictState, Duration) -> PredictBackwardResult,
+{
+    fn run_backward(
+        &mut self,
+        state: &mut PredictState,
+        duration: Duration,
+    ) -> PredictBackwardResult {
+        self(state, duration)
+    }
+}
+
+impl<T: ChannelType, P: Predictor<T>> Predictor<T> for Option<P> {
+    fn scan_forward(
+        &mut self,
+        conditions: &mut PredictForwardConditions,
+        channel_state: &mut T::PredictorForwardState,
+    ) -> PredictForwardResult<impl PredictorRunBackward> {
+        if let Some(this) = self {
+            match this.scan_forward(conditions, channel_state) {
+                PredictForwardResult::PendingCondition => PredictForwardResult::PendingCondition,
+                PredictForwardResult::SpontaneousCompletion(run) => {
+                    PredictForwardResult::SpontaneousCompletion(Some(run))
+                }
             }
-            RunNodeResult::PendingTrigger
-        }
-    }
-
-    fn configures_airspeed(self, _world: &World) -> Option<Speed<f32>> { Some(self.speed) }
-}
-
-/// Start pitching to reach the given altitude.
-#[derive(Clone, Copy)]
-pub struct StartSetAltitudeNode {
-    /// The target altitude to reach.
-    pub altitude: Position<f32>,
-    /// The node completes immediately if `error` is `None`,
-    /// or when the difference between `speed` and the real altitude of the object
-    /// is less than `error` if it is `Some`.
-    pub error:    Option<Distance<f32>>,
-    pub expedite: bool,
-    // TODO control pressure altitude instead?
-}
-
-impl NodeKind for StartSetAltitudeNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let mut entity_ref = world.entity_mut(entity);
-        let current_altitude =
-            entity_ref.get::<Object>().expect("entity must be an Object").position.altitude();
-        if self.error.is_none_or(|error| {
-            current_altitude.between_inclusive(&(self.altitude - error), &(self.altitude + error))
-        }) {
-            RunNodeResult::NodeDone
         } else {
-            entity_ref
-                .insert(nav::TargetAltitude { altitude: self.altitude, expedite: self.expedite });
-            RunNodeResult::PendingTrigger
+            PredictForwardResult::SpontaneousCompletion(None)
         }
     }
-
-    fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }
 
-#[derive(Clone, Copy)]
-pub struct AlignRunwayNode {
-    /// The runway waypoint entity.
-    pub runway:   Entity,
-    /// Whether to allow descent expedition to align with the glidepath.
-    pub expedite: bool,
-}
-
-impl NodeKind for AlignRunwayNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let Some(&Runway { glide_angle, .. }) = world.get::<Runway>(self.runway) else {
-            bevy::log::error!("AlignRunwayNode references non-runway entity {:?}", self.runway);
-            return RunNodeResult::PendingTrigger;
-        };
-        let Some(&runway::LocalizerWaypointRef { localizer_waypoint }) = world.get(self.runway)
-        else {
-            bevy::log::error!("Runway {:?} has no LocalizerWaypointRef", self.runway);
-            return RunNodeResult::PendingTrigger;
-        };
-
-        let mut entity_ref = world.entity_mut(entity);
-        entity_ref.remove::<(nav::TargetWaypoint, nav::TargetAltitude)>().insert((
-            nav::TargetAlignment {
-                start_waypoint:   localizer_waypoint,
-                end_waypoint:     self.runway,
-                activation_range: ALIGN_RUNWAY_ACTIVATION_RANGE,
-                lookahead:        ALIGN_RUNWAY_LOOKAHEAD,
-            },
-            nav::TargetGlide {
-                target_waypoint: self.runway,
-                glide_angle:     -glide_angle,
-                // the actual minimum pitch is regulated by maximum descent rate.
-                min_pitch:       -Angle::RIGHT,
-                max_pitch:       Angle::ZERO,
-                lookahead:       ALIGN_RUNWAY_LOOKAHEAD,
-                expedite:        self.expedite,
-            },
-        ));
-
-        RunNodeResult::NodeDone
-    }
-
-    fn configures_heading(self, world: &World) -> Option<ConfiguresHeading> {
-        let runway = world.get::<Runway>(self.runway)?;
-        Some(ConfiguresHeading::Heading(Heading::from_vec2(runway.landing_length.0)))
+impl<P: PredictorRunBackward> PredictorRunBackward for Option<P> {
+    fn run_backward(
+        &mut self,
+        state: &mut PredictState,
+        duration: Duration,
+    ) -> PredictBackwardResult {
+        if let Some(this) = self {
+            this.run_backward(state, duration)
+        } else {
+            PredictBackwardResult::Done(Duration::ZERO)
+        }
     }
 }
 
-/// An entry in the flight plan.
-#[derive(Clone, Copy)]
-#[portrait::derive(NodeKind with portrait::derive_delegate)]
-pub enum Node {
-    DirectWaypoint(DirectWaypointNode),
-    SetAirspeed(SetAirspeedNode),
-    StartSetAltitude(StartSetAltitudeNode),
-    AlignRunway(AlignRunwayNode),
+pub struct PredictForwardConditions {
+    pub next_pending_condition: ConditionId,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub enum WaypointProximity {
-    /// Turn to the next waypoint before arriving at the waypoint,
-    /// such that the position after the turn is exactly between the two waypoints.
+pub enum PredictForwardResult<RunBackward> {
+    PendingCondition,
+    SpontaneousCompletion(RunBackward),
+}
+
+pub struct PredictState {
+    pub spatial: PredictStateSpatial,
+    pub time:    Duration,
+}
+
+pub enum PredictStateSpatial {
+    OnGround { segment: Entity },
+    Airborne { altitude: Position<f32>, ias: Speed<f32>, position: Position<Vec2> },
+}
+
+pub enum PredictBackwardResult {
+    Pending,
+    Done(Duration),
+}
+
+pub enum NodeResync {
+    /// The node is not complete yet.
+    /// To be polled again in the next resync.
+    Pending,
+    /// The node is complete.
     ///
-    /// The step is always completed when the proximity range is entered,
-    /// allowing smooth transition when the next waypoint has the same heading.
-    FlyBy,
-    /// Enter the horizontal [distance](Node::distance) range of the waypoint before turning to the next one.
-    FlyOver,
+    /// The node will be torn down and popped from the channel.
+    Complete,
+    /// The node encountered an exceptional condition.
+    ///
+    /// The node will be torn down, and the entire schedule will be cleared.
+    ///
+    /// Replaces the entire schedule with the contents of
+    /// the [`RouteTemplate`] from `replacement` if set.
+    Fail { replacement: Option<Entity> },
 }
 
-#[derive(Component)]
-struct FlyOverTrigger {
-    waypoint: Entity,
-    distance: Distance<f32>,
+#[derive(Clone, Copy)]
+pub enum CompletionCondition<D: Copy> {
+    Unconditional,
+    Tolerance(D),
 }
 
-fn fly_over_trigger_system(
-    time: Res<Time<time::Virtual>>,
-    waypoint_query: Query<&Waypoint>,
-    object_query: Query<(Entity, &Object, &FlyOverTrigger)>,
-    mut commands: Commands,
-) {
-    if time.is_paused() {
-        return;
-    }
-
-    object_query.iter().for_each(
-        |(object_entity, &Object { position: current_pos, .. }, trigger)| {
-            let Ok(&Waypoint { position: current_target, .. }) =
-                waypoint_query.get(trigger.waypoint)
-            else {
-                bevy::log::error!("Invalid waypoint referenced in route");
-                return;
-            };
-
-            if current_pos.distance_cmp(current_target) <= trigger.distance {
-                commands.entity(object_entity).queue(NextNode);
-            }
-        },
-    );
-}
-
-#[derive(Component)]
-struct FlyByTrigger {
-    waypoint:             Entity,
-    completion_condition: FlyByCompletionCondition,
-}
-
-enum FlyByCompletionCondition {
-    Heading(ConfiguresHeading),
-    Distance(Distance<f32>),
-}
-
-fn fly_by_trigger_system(
-    time: Res<Time<time::Virtual>>,
-    waypoint_query: Query<&Waypoint>,
-    object_query: Query<(Entity, &Object, &nav::Limits, &FlyByTrigger)>,
-    mut commands: Commands,
-) {
-    if time.is_paused() {
-        return;
-    }
-
-    object_query.iter().for_each(
-        |(
-            object_entity,
-            &Object { position: current_pos, ground_speed: speed },
-            nav_limits,
-            trigger,
-        )| {
-            let Ok(&Waypoint { position: current_target, .. }) =
-                waypoint_query.get(trigger.waypoint)
-            else {
-                bevy::log::error!("Invalid waypoint referenced in route");
-                return;
-            };
-            let current_target = current_target.horizontal();
-
-            match trigger.completion_condition {
-                FlyByCompletionCondition::Heading(ref heading_config) => {
-                    let next_heading = match *heading_config {
-                        ConfiguresHeading::Position(next_target) => {
-                            (next_target - current_target).heading()
-                        }
-                        ConfiguresHeading::Waypoint(next_waypoint) => {
-                            let Ok(&Waypoint { position: next_target, .. }) =
-                                waypoint_query.get(next_waypoint)
-                            else {
-                                bevy::log::error!(
-                                    "Invalid waypoint referenced in next node in route"
-                                );
-                                return;
-                            };
-                            let next_target = next_target.horizontal();
-
-                            (next_target - current_target).heading()
-                        }
-                        ConfiguresHeading::Heading(heading) => heading,
-                    };
-
-                    let current_heading = (current_target - current_pos.horizontal()).heading();
-                    let turn_radius = Distance(
-                        speed.horizontal().magnitude_exact().0 / nav_limits.max_yaw_speed.0,
-                    ); // (L/T) / (1/T) = L
-                    let turn_distance = turn_radius
-                        * (current_heading.closest_distance(next_heading).abs() / 2.).tan();
-
-                    if current_pos.horizontal().distance_cmp(current_target) <= turn_distance {
-                        commands.entity(object_entity).queue(NextNode);
-                    }
-                }
-                FlyByCompletionCondition::Distance(max_distance) => {
-                    if current_pos.horizontal().distance_cmp(current_target) <= max_distance {
-                        commands.entity(object_entity).queue(NextNode);
-                    }
-                }
-            }
-        },
-    );
-}
-
-#[derive(Component)]
-struct TimeTrigger(Duration);
-
-fn time_trigger_system(
-    time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(Entity, &TimeTrigger)>,
-    mut commands: Commands,
-) {
-    object_query.iter_mut().for_each(|(object_entity, trigger)| {
-        if trigger.0 >= time.elapsed() {
-            commands.entity(object_entity).queue(RunCurrentNode);
+impl<D: Copy + PartialOrd> CompletionCondition<D> {
+    /// Tests whether `error` is within the requirements.
+    ///
+    /// Returns `Err` with the maximum absolute tolerance for `error` on failure.
+    pub fn satisfies(&self, error: impl PartialOrd<D>) -> Result<(), D> {
+        match *self {
+            CompletionCondition::Unconditional => Ok(()),
+            CompletionCondition::Tolerance(tolerance) if error <= tolerance => Ok(()),
+            CompletionCondition::Tolerance(tolerance) => Err(tolerance),
         }
-    });
-}
-
-#[derive(Component)]
-struct DistanceTrigger {
-    remaining_distance: Distance<f32>,
-    last_observed_pos:  Position<Vec2>,
-}
-
-fn distance_trigger_system(
-    time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(Entity, &Object, &mut DistanceTrigger)>,
-    mut commands: Commands,
-) {
-    if time.is_paused() {
-        return;
     }
-
-    object_query.iter_mut().for_each(|(object_entity, object, mut trigger)| {
-        let last_pos = mem::replace(&mut trigger.last_observed_pos, object.position.horizontal());
-        trigger.remaining_distance -= last_pos.distance_exact(object.position.horizontal());
-
-        if !trigger.remaining_distance.is_positive() {
-            commands.entity(object_entity).queue(RunCurrentNode);
-        }
-    });
 }

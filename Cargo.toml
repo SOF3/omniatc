@@ -1,12 +1,13 @@
 [workspace]
 members = [
-	".",
+	"omniatc-client",
 	"omniatc-core",
 	"omniatc-maps",
 ]
+resolver = "2"
 
 [workspace.dependencies]
-bevy = { version = "0.15.2", default-features = false }
+bevy = { version = "0.16.0-rc.4", default-features = false }
 omniatc-core = { version = "0.0.0", path = "omniatc-core" }
 serde = "1.0.217"
 
@@ -16,55 +17,3 @@ edition = "2021"
 authors = ["SOFe <sofe2038@gmail.com>"]
 repository = "https://github.com/SOF3/omniatc"
 license = "GPL-3.0"
-
-[package]
-name = "omniatc"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-repository.workspace = true
-license.workspace = true
-description = "Yet another ATC simulator"
-
-[features]
-default = ["dev"]
-dev = ["inspect", "bevy/dynamic_linking", "omniatc-core/dev"]
-inspect = ["dep:bevy-inspector-egui"]
-precommit-checks = []
-
-[dependencies]
-omniatc-core.workspace = true
-bevy-inspector-egui = { version = "0.28.0", optional = true }
-enum-map = "2.7.3"
-itertools = "0.14.0"
-serde = { version = "1.0.217", features = ["derive"] }
-strum = { version = "0.26.3", features = ["derive"] }
-bevy_pkv = "0.12.0"
-serde_with = { version = "3.12.0", features = ["macros", "base64"] }
-ciborium = "0.2.2"
-
-[dependencies.bevy]
-workspace = true
-default-features = false
-features = [
-	"animation",
-	"bevy_color",
-	"bevy_core_pipeline",
-	"bevy_gltf",
-	"bevy_pbr",
-	"bevy_render",
-	"bevy_state",
-	"bevy_text",
-	"bevy_ui",
-	"bevy_winit",
-	"bevy_window",
-	"default_font",
-	"multi_threaded",
-	"png",
-	"tonemapping_luts",
-	"webgl2",
-	"x11",
-]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys = "0.3.77"

@@ -259,6 +259,11 @@ macro_rules! decl_units {
             pub fn y(self) -> $ty<f32> { $ty(self.0.y) }
 
             #[must_use]
+            pub fn with_x(self, x: $ty<f32>) -> Self { Self(self.0.with_x(x.0)) }
+            #[must_use]
+            pub fn with_y(self, y: $ty<f32>) -> Self { Self(self.0.with_y(y.0)) }
+
+            #[must_use]
             pub fn horizontally(self) -> $ty<Vec3> {
                 $ty(Vec3::from((self.0, 0.)))
             }
@@ -559,9 +564,10 @@ impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
 
     pub fn from_knots(knots: T) -> Self { Self(knots / 3600.) }
 
-    pub fn into_fpm(self) -> T { self.0 * 60. * FEET_PER_NM }
+    #[must_use]
+    pub fn into_fpm(self) -> T { self.0 * (60. * FEET_PER_NM) }
 
-    pub fn from_fpm(fpm: T) -> Self { Self(fpm / 60. / FEET_PER_NM) }
+    pub fn from_fpm(fpm: T) -> Self { Self(fpm / (60. * FEET_PER_NM)) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {

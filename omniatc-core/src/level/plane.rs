@@ -2,10 +2,9 @@
 //! All plane entities are object entities.
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Quat;
-use bevy::prelude::{
-    Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, World,
-};
+use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
 use super::nav::{self, VelocityTarget, YawTarget};
@@ -53,10 +52,8 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-
-        if let Some(airborne) = entity_ref.get::<object::Airborne>() {
+    fn apply(self, mut entity: EntityWorldMut) {
+        if let Some(airborne) = entity.get::<object::Airborne>() {
             let horiz_speed = airborne.airspeed.magnitude_exact();
 
             let dt_target = VelocityTarget {
@@ -66,14 +63,14 @@ impl EntityCommand for SpawnCommand {
                 expedite: false,
             };
 
-            entity_ref.insert(dt_target);
+            entity.insert(dt_target);
         }
 
         let control = if let Some(control) = self.control {
             control
         } else {
             let heading = Heading::from_quat(
-                entity_ref
+                entity
                     .get::<object::Rotation>()
                     .expect("cannot spawn entity as plane without adding rotation component first")
                     .0,
@@ -81,8 +78,9 @@ impl EntityCommand for SpawnCommand {
             Control::stabilized(heading)
         };
 
-        entity_ref.insert((control, self.limits));
-        world.send_event(SpawnEvent(entity));
+        entity.insert((control, self.limits));
+        let entity_id = entity.id();
+        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
 

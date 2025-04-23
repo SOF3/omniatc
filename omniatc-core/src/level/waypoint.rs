@@ -1,8 +1,9 @@
 use std::ops;
 
 use bevy::app::{App, Plugin};
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity, EntityCommand, Event, World};
+use bevy::prelude::{Component, Entity, EntityCommand, Event};
 
 use crate::units::{Angle, Distance, Heading, Position};
 
@@ -111,9 +112,10 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        world.entity_mut(entity).insert(self.waypoint);
-        world.send_event(SpawnEvent(entity));
+    fn apply(self, mut entity: EntityWorldMut) {
+        entity.insert(self.waypoint);
+        let entity_id = entity.id();
+        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
 

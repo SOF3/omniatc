@@ -46,10 +46,14 @@ pub fn default_plane_limits() -> nav::Limits {
 pub fn file() -> store::File {
     store::File {
         meta:  store::Meta {
+            id:          "omniatc.example".into(),
             title:       "Example".into(),
             description: "Demo map".into(),
             authors:     vec!["omniatc demo".into()],
-            tags:        vec!["demo".into(), "fictional".into()],
+            tags:        [("region", "fictional"), ("source", "builtin"), ("type", "demo")]
+                .into_iter()
+                .map(|(k, v)| (String::from(k), String::from(v)))
+                .collect(),
         },
         level: store::Level {
             environment: store::Environment {

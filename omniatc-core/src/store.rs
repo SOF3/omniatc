@@ -1,5 +1,8 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
+use bevy::app::{App, Plugin};
+use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
@@ -10,9 +13,18 @@ use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Spee
 
 pub mod load;
 
+pub struct Plug;
+
+impl Plugin for Plug {
+    fn build(&self, app: &mut App) { app.init_resource::<CameraAdvice>(); }
+}
+
 /// Marks that an entity was loaded from a save file, and should be deleted during reload.
 #[derive(Component)]
 pub struct LoadedEntity;
+
+#[derive(Resource, Default)]
+pub struct CameraAdvice(pub Option<Camera>);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct File {
@@ -26,11 +38,13 @@ pub struct File {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Meta {
+    /// An identifier for this map, to remain consistent over versions.
+    pub id:          String,
     /// Title of the map.
     pub title:       String,
     pub description: String,
     pub authors:     Vec<String>,
-    pub tags:        Vec<String>,
+    pub tags:        HashMap<String, String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

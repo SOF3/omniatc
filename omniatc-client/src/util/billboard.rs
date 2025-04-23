@@ -1,13 +1,13 @@
 use bevy::app::{self, App, Plugin};
 use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    Camera2d, Component, GlobalTransform, IntoSystemConfigs, Query, Single, Transform, With,
+    Camera2d, Component, GlobalTransform, IntoScheduleConfigs, Query, Single, Transform, With,
 };
 use bevy::sprite::Anchor;
 use bevy::text::Text2d;
 use omniatc_core::units::Distance;
 
-use super::SystemSets;
+use crate::render;
 
 pub struct Plug;
 
@@ -16,7 +16,7 @@ impl Plugin for Plug {
         app.add_systems(
             app::Update,
             (maintain_scale_system, maintain_rot_system, translate_label_system)
-                .in_set(SystemSets::RenderMove),
+                .in_set(render::SystemSets::Update),
         );
     }
 }
@@ -35,7 +35,10 @@ pub struct MaintainRotation;
 #[derive(Component)]
 #[require(Text2d)]
 pub struct Label {
+    /// Further offsets the label from the parent in real-world coordinates.
     pub offset:   Distance<Vec2>,
+    /// Distance to displace the label from the offset position in the anchor direction,
+    /// in screen coordinates.
     pub distance: f32,
 }
 

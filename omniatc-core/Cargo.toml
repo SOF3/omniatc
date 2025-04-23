@@ -10,13 +10,16 @@ description = "Core game logic"
 [features]
 default = ["dev"]
 dev = []
+
+# For development only
 precommit-checks = []
+rust-analyzer = []
 
 [dependencies]
 ciborium = "0.2.2"
 enum-map = "2.7.3"
 itertools = "0.14.0"
-ordered-float = "4.6.0"
+ordered-float = "5.0.0"
 portrait = "0.3.1"
 serde = { workspace = true, features = ["derive"] }
 smallvec = "1.13.2"

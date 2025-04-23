@@ -1,0 +1,65 @@
+[package]
+name = "omniatc-client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Yet another ATC simulator"
+
+[features]
+default = ["dev"]
+dev = ["bevy/dynamic_linking", "omniatc-core/dev"]
+# inspect = ["dep:bevy-inspector-egui"]
+
+# For development only
+precommit-checks = []
+rust-analyzer = []
+
+[dependencies]
+omniatc-core.workspace = true
+# bevy-inspector-egui = { version = "0.28.0", optional = true }
+anyhow = "1.0.97"
+bevy_egui = "0.34.0-rc"
+ciborium = "0.2.2"
+dirs = "6.0.0"
+egui_extras = "0.31.1"
+enum-map = "2.7.3"
+itertools = "0.14.0"
+parking_lot = "0.12.3"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_with = { version = "3.12.0", features = ["macros", "base64"] }
+strum = { version = "0.26.3", features = ["derive"] }
+ordered-float = "5.0.0"
+
+[dependencies.bevy]
+workspace = true
+default-features = false
+features = [
+	"animation",
+	"bevy_color",
+	"bevy_core_pipeline",
+	"bevy_gizmos",
+	"bevy_gltf",
+	"bevy_pbr",
+	"bevy_picking",
+	"bevy_render",
+	"bevy_state",
+	"bevy_text",
+	"bevy_ui",
+	"bevy_winit",
+	"bevy_window",
+	"default_font",
+	"multi_threaded",
+	"png",
+	"tonemapping_luts",
+	"webgl2",
+	"x11",
+]
+
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+js-sys = "0.3.77"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rusqlite = "0.34.0"

@@ -1,9 +1,10 @@
 //! A wind entity applies a velocity component to objects in its effective region.
 
 use bevy::ecs::system::SystemParam;
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3A};
-use bevy::prelude::{Bundle, Component, Entity, EntityCommand, Query, With, World};
+use bevy::prelude::{Bundle, Component, EntityCommand, Query, With};
 
 use crate::units::{Position, Speed};
 
@@ -35,9 +36,7 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        world.entity_mut(entity).insert((self.bundle, Marker));
-    }
+    fn apply(self, mut entity: EntityWorldMut) { entity.insert((self.bundle, Marker)); }
 }
 
 /// Locates the winds effective at a point.

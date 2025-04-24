@@ -13,6 +13,7 @@ use omniatc_core::units::{Angle, Heading};
 use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 
+use super::config_editor;
 use crate::{input, EguiSystemSets, EguiUsedMargins};
 
 pub struct Plug;
@@ -29,12 +30,20 @@ fn setup_layout_system(
     mut time: ResMut<Time<time::Virtual>>,
     object_query: Query<ObjectTableData>,
     mut write_cameras: WriteCameras,
+    mut config_editor_opened: ResMut<config_editor::Opened>,
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
     let width = egui::SidePanel::left("level_info")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.menu_button("Tools", |ui| {
+                if ui.button("Settings").clicked() {
+                    config_editor_opened.0 = true;
+                    ui.close_menu();
+                }
+            });
+
             ui.heading("Level info");
 
             egui::ScrollArea::vertical().show(ui, |ui| {

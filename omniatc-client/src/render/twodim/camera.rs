@@ -19,6 +19,7 @@ use bevy_egui::EguiContextPass;
 use omniatc_core::level::object;
 use omniatc_core::units::{Angle, Distance};
 use omniatc_core::{store, try_log_return};
+use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 
 use crate::config::AppExt;
@@ -307,8 +308,9 @@ fn handle_select_system(
     }
 }
 
-#[derive(Resource)]
-pub struct Conf {
+#[derive(Resource, Config)]
+#[config(id = "2d/camera", name = "Camera (2D)")]
+struct Conf {
     /// Zoom speed based on vertical scroll.
     scroll_step:     f32,
     /// Rotation speed based on horizontal scroll.

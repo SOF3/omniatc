@@ -126,7 +126,6 @@ fn quad_complete_graph_sweeper(sweep_dir: Dir2) -> LineSweeper<impl Fn(LineIndex
         .unwrap()
 }
 
-#[expect(clippy::too_many_lines)] // exhaustive list of 13 intersection points
 fn sweep_quad_complete_graph(sweep_dir: Dir2, expect_dot: Option<fn(TestPoint) -> f32>) {
     let mut intersects: Vec<_> = quad_complete_graph_sweeper(sweep_dir).intersections().collect();
     intersects.sort_by_key(|intersect| sorted(intersect.lines));

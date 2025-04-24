@@ -91,6 +91,7 @@ enum EguiSystemSets {
     LevelInfo,
     ObjectInfo,
     Messages,
+    Config,
     TwoDim,
 }
 

@@ -3815,6 +3815,7 @@ dependencies = [
  "itertools 0.14.0",
  "js-sys",
  "omniatc-core",
+ "omniatc-macros",
  "ordered-float 5.0.0",
  "parking_lot",
  "rusqlite",
@@ -3838,6 +3839,15 @@ dependencies = [
  "smallvec",
  "strum",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "omniatc-macros"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -4177,9 +4187,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]

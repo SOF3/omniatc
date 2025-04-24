@@ -14,6 +14,7 @@ use bevy::text::Text2d;
 use bevy::transform::components::Transform;
 use omniatc_core::level::waypoint::{self, Waypoint};
 use omniatc_core::units::Distance;
+use omniatc_macros::Config;
 
 use super::Zorder;
 use crate::config::AppExt;
@@ -89,10 +90,15 @@ fn move_system(mut waypoint_query: Query<(&Waypoint, &mut Transform)>) {
     });
 }
 
-#[derive(Resource)]
+#[derive(Resource, Config)]
+#[config(id = "waypoint", name = "Waypoints")]
 struct Conf {
+    /// Size of waypoint sprites.
+    #[config(min = 0., max = 5.)]
     sprite_size:    f32,
+    #[config(min = 0., max = 3.)]
     label_size:     f32,
+    #[config(min = 0., max = 100.)]
     label_distance: f32,
     label_anchor:   Anchor,
 }

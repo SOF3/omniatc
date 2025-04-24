@@ -1,16 +1,22 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{self, Assets};
+use bevy::color::Color;
 use bevy::core_pipeline::core_2d::Camera2d;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::math::primitives::Annulus;
-use bevy::render::mesh::Mesh;
+use bevy::render::mesh::{Mesh, Mesh2d};
+use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
 use omniatc_core::units::Distance;
 
 use super::Conf;
 use crate::config;
+use crate::render::twodim::Zorder;
 
 pub(super) struct Plug;
 
@@ -31,6 +37,33 @@ pub(super) struct SeparationRingMesh {
 
 fn init_system(mut handle: ResMut<SeparationRingMesh>, mut assets: ResMut<Assets<Mesh>>) {
     handle.handle = Some(assets.add(Annulus::new(1.4, 1.5)));
+}
+
+#[derive(SystemParam)]
+pub(super) struct SpawnSubsystemParam<'w, 's> {
+    commands:  Commands<'w, 's>,
+    mesh:      Res<'w, SeparationRingMesh>,
+    materials: ResMut<'w, Assets<ColorMaterial>>,
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = HasRing)]
+struct IsRingOf(Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = IsRingOf, linked_spawn)]
+struct HasRing(Entity);
+
+pub(super) fn spawn_subsystem(plane_entity: Entity, p: &mut SpawnSubsystemParam) {
+    let material = p.materials.add(ColorMaterial { color: Color::WHITE, ..Default::default() });
+
+    p.commands.spawn((
+        ChildOf(plane_entity),
+        IsRingOf(plane_entity),
+        Zorder::ObjectSeparationRing.local_translation(),
+        Mesh2d(p.mesh.handle.clone().expect("initialized during startup")),
+        MeshMaterial2d(material),
+    ));
 }
 
 fn maintain_thickness_system(

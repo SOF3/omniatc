@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-bevy = { version = "0.16.0-rc.4", default-features = false }
+bevy = { version = "0.16.0", default-features = false }
 omniatc-core = { version = "0.0.0", path = "omniatc-core" }
 omniatc-macros = { version = "0.0.0", path = "omniatc-macros" }
 serde = "1.0.217"

@@ -30,6 +30,7 @@ thiserror = "2.0.11"
 workspace = true
 features = [
 	"bevy_color",
+	"bevy_log",
 	"bevy_state",
 	"bevy_text",
 ]

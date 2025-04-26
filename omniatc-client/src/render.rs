@@ -7,7 +7,7 @@ pub mod config_editor;
 mod level_info;
 mod messages;
 mod object_info;
-mod twodim;
+pub mod twodim;
 
 pub struct Plug;
 

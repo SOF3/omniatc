@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
 pub mod billboard;
+pub mod shapes;
 
 #[cfg(target_family = "wasm")]
 pub fn time_now() -> SystemTime {

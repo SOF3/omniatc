@@ -44,6 +44,19 @@ pub enum DisplayType {
     Runway,
 }
 
+#[derive(Component)]
+#[relationship_target(relationship = NavaidOf, linked_spawn)]
+pub struct NavaidList(Vec<Entity>);
+
+impl NavaidList {
+    #[must_use]
+    pub fn navaids(&self) -> &[Entity] { &self.0 }
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = NavaidList)]
+pub struct NavaidOf(pub Entity);
+
 /// A spherical sector centered at the waypoint position
 /// within which the navaid can be reliably received.
 ///

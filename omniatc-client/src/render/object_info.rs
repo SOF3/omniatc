@@ -16,10 +16,14 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
+        app.init_resource::<CurrentHoveredObject>();
         app.init_resource::<CurrentObject>();
         app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::ObjectInfo));
     }
 }
+
+#[derive(Default, Resource)]
+pub struct CurrentHoveredObject(pub Option<Entity>);
 
 #[derive(Default, Resource)]
 pub struct CurrentObject(pub Option<Entity>);
@@ -76,64 +80,73 @@ struct ObjectQueryData {
 
 impl ObjectQueryDataItem<'_> {
     fn write(&self, ui: &mut egui::Ui, write_params: &Params) {
-        ui.small("Destination");
-        ui.label(match *self.dest {
-            object::Destination::Landing { aerodrome } => {
-                let data = try_log_return!(
-                    write_params.aerodrome_query.get(aerodrome),
-                    expect "Unknown aerodrome {aerodrome:?}"
-                );
-                format!("Arrival at {}", &data.name)
-            }
-            object::Destination::VacateAnyRunway => String::from("Land at any runway and vacate"),
-            object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {
-                let mut waypoint_name = None;
-                if let Some((waypoint_entity, _)) = waypoint_proximity {
-                    if let Ok(data) = write_params.waypoint_query.get(waypoint_entity) {
-                        waypoint_name = Some(&data.name);
-                    }
+        egui::CollapsingHeader::new("Destination").default_open(true).show(ui, |ui| {
+            ui.label(match *self.dest {
+                object::Destination::Landing { aerodrome } => {
+                    let data = try_log_return!(
+                        write_params.aerodrome_query.get(aerodrome),
+                        expect "Unknown aerodrome {aerodrome:?}"
+                    );
+                    format!("Arrival at {}", &data.name)
                 }
+                object::Destination::VacateAnyRunway => {
+                    String::from("Land at any runway and vacate")
+                }
+                object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {
+                    let mut waypoint_name = None;
+                    if let Some((waypoint_entity, _)) = waypoint_proximity {
+                        if let Ok(data) = write_params.waypoint_query.get(waypoint_entity) {
+                            waypoint_name = Some(&data.name);
+                        }
+                    }
 
-                match (min_altitude, waypoint_name) {
-                    (Some(altitude), Some(waypoint)) => {
-                        format!(
-                            "Reach {waypoint:?} and climb past {:.0}ft",
-                            altitude.amsl().into_feet()
-                        )
+                    match (min_altitude, waypoint_name) {
+                        (Some(altitude), Some(waypoint)) => {
+                            format!(
+                                "Reach {waypoint:?} and climb past {:.0}ft",
+                                altitude.amsl().into_feet()
+                            )
+                        }
+                        (Some(altitude), None) => {
+                            format!("Climb past {:.0}ft", altitude.amsl().into_feet())
+                        }
+                        (None, Some(waypoint)) => format!("Reach {waypoint:?}"),
+                        (None, None) => String::from("None"),
                     }
-                    (Some(altitude), None) => {
-                        format!("Climb past {:.0}ft", altitude.amsl().into_feet())
-                    }
-                    (None, Some(waypoint)) => format!("Reach {waypoint:?}"),
-                    (None, None) => String::from("None"),
                 }
+            });
+        });
+
+        egui::CollapsingHeader::new("Heading").default_open(true).show(ui, |ui| {
+            if let Some(control) = &self.plane_control {
+                ui.label(format!("Current: {:.0}\u{b0}", control.heading.degrees()));
             }
         });
 
-        ui.small("Heading");
-        if let Some(control) = &self.plane_control {
-            ui.label(format!("Current: {:.0}\u{b0}", control.heading.degrees()));
-        }
-
-        ui.small("Altitude");
-        ui.label(format!("Current: {:.0} ft", self.object.position.altitude().amsl().into_feet()));
-        if let Some(airborne) = &self.airborne {
+        egui::CollapsingHeader::new("Altitude").default_open(true).show(ui, |ui| {
             ui.label(format!(
-                "Vert rate: {:.0} fpm",
-                airborne.airspeed.vertical().magnitude_exact().into_fpm()
+                "Current: {:.0} ft",
+                self.object.position.altitude().amsl().into_feet()
             ));
-        }
+            if let Some(airborne) = &self.airborne {
+                ui.label(format!(
+                    "Vert rate: {:.0} fpm",
+                    airborne.airspeed.vertical().magnitude_exact().into_fpm()
+                ));
+            }
+        });
 
-        ui.small("Speed");
-        ui.label(format!(
-            "Current ground: {:.0} kt",
-            self.object.ground_speed.magnitude_exact().into_knots()
-        ));
-        if let Some(airborne) = &self.airborne {
+        egui::CollapsingHeader::new("Speed").default_open(true).show(ui, |ui| {
             ui.label(format!(
-                "Current indicated air: {:.0} kt",
-                airborne.airspeed.horizontal().magnitude_exact().into_knots()
+                "Current ground: {:.0} kt",
+                self.object.ground_speed.magnitude_exact().into_knots()
             ));
-        }
+            if let Some(airborne) = &self.airborne {
+                ui.label(format!(
+                    "Current indicated air: {:.0} kt",
+                    airborne.airspeed.horizontal().magnitude_exact().into_knots()
+                ));
+            }
+        });
     }
 }

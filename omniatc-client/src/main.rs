@@ -42,6 +42,7 @@ fn main() {
         render::Plug,
         store::plugin(),
         util::billboard::Plug,
+        util::shapes::Plug,
     ));
 
     app.configure_sets(app::Update, level::AllSystemSets.in_set(UpdateSystemSets::Simulate));

@@ -2,17 +2,18 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::math::{Vec2, Vec3};
 use bevy::transform::components::Transform;
-use omniatc_core::units::Position;
+use omniatc_core::units::{Distance, Position};
 
 mod camera;
 mod object;
+mod runway;
 mod waypoint;
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_plugins((camera::Plug, object::Plug, waypoint::Plug));
+        app.add_plugins((camera::Plug, object::Plug, waypoint::Plug, runway::Plug));
     }
 }
 
@@ -57,6 +58,14 @@ impl Zorder {
 
     pub fn pos3_to_translation(self, position: Position<Vec3>) -> Vec3 {
         self.pos2_to_translation(position.horizontal())
+    }
+
+    pub fn dist2_to_translation(self, distance: Distance<Vec2>) -> Vec3 {
+        (distance.0, self.into_z()).into()
+    }
+
+    pub fn dist3_to_translation(self, distance: Distance<Vec3>) -> Vec3 {
+        self.dist2_to_translation(distance.horizontal())
     }
 
     pub fn base_translation(position: Position<Vec3>) -> Vec3 { position.get().with_z(0.) }

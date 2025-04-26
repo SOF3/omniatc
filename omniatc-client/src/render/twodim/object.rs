@@ -1,12 +1,13 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::{self, With};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, ParamSet, Query, Res};
 use bevy::render::view::Visibility;
 use bevy::sprite::{Anchor, Sprite};
@@ -15,6 +16,7 @@ use bevy::transform::components::Transform;
 use omniatc_core::level::object::{self, Object};
 use omniatc_core::level::plane;
 use omniatc_core::units::Distance;
+use omniatc_core::util::EnumScheduleConfig;
 use omniatc_macros::Config;
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +24,8 @@ use super::Zorder;
 use crate::config::{self, AppExt as _};
 use crate::render;
 use crate::util::billboard;
+
+mod base_color;
 
 mod label;
 use label::IsLabelOf;
@@ -38,8 +42,18 @@ impl Plugin for Plug {
             handle_config_change_system.in_set(render::SystemSets::Reload),
         );
         app.add_systems(app::Update, spawn_plane_system.in_set(render::SystemSets::Spawn));
-        app.add_systems(app::Update, maintain_plane_system.in_set(render::SystemSets::Update));
+        app.add_systems(
+            app::Update,
+            maintain_plane_system
+                .in_set(render::SystemSets::Update)
+                .after_all::<SetColorThemeSystemSet>(),
+        );
         app.add_plugins(separation_ring::Plug);
+        app.add_plugins(base_color::Plug);
+        omniatc_core::util::configure_ordered_system_sets::<SetColorThemeSystemSet>(
+            app,
+            app::Update,
+        );
     }
 }
 
@@ -61,7 +75,11 @@ fn spawn_plane_system(
     for &plane::SpawnEvent(plane_entity) in spawn_events.read() {
         let (mut commands, conf, asset_server) = params.p0();
 
-        commands.entity(plane_entity).insert((Transform::IDENTITY, Visibility::Visible));
+        commands.entity(plane_entity).insert((
+            Transform::IDENTITY,
+            Visibility::Visible,
+            ColorTheme { body: Color::WHITE, ring: Color::WHITE },
+        ));
 
         commands.spawn((
             IsSpriteOf(plane_entity),
@@ -85,6 +103,20 @@ fn spawn_plane_system(
     }
 }
 
+/// Extension component on an object to indicate the colors of its viewable entities.
+#[derive(Component)]
+pub struct ColorTheme {
+    pub body: Color,
+    pub ring: Color,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
+pub enum SetColorThemeSystemSet {
+    BaseConfig,
+    Alert,
+    UserInteract,
+}
+
 fn maintain_plane_system(
     conf: config::Read<Conf>,
     mut object_query: Query<(
@@ -93,15 +125,27 @@ fn maintain_plane_system(
         &object::Rotation,
         label::ObjectData,
         &mut Transform,
+        &ColorTheme,
     )>,
-    mut sprite_query: Query<&mut Transform, (query::With<IsSpriteOf>, query::Without<Object>)>,
+    mut sprite_query: Query<
+        (&mut Sprite, &mut Transform),
+        (query::With<IsSpriteOf>, query::Without<Object>),
+    >,
     mut label_writer: label::Writer,
 ) {
     object_query.iter_mut().for_each(
-        |(&HasSprite(sprite_entity), object, object_rot, label_data, mut object_tf)| {
+        |(
+            &HasSprite(sprite_entity),
+            object,
+            object_rot,
+            label_data,
+            mut object_tf,
+            color_theme,
+        )| {
             object_tf.translation = Zorder::base_translation(object.position);
 
-            if let Ok(mut sprite_tf) = sprite_query.get_mut(sprite_entity) {
+            if let Ok((mut sprite, mut sprite_tf)) = sprite_query.get_mut(sprite_entity) {
+                sprite.color = color_theme.body;
                 sprite_tf.rotation = object_rot.0;
             }
 
@@ -156,6 +200,9 @@ struct Conf {
     /// Thickness of the separation ring in screen coordinates.
     #[config(min = 0., max = 10.)]
     separation_ring_thickness: f32,
+
+    /// Object color will be based on this scheme.
+    color_scheme: base_color::Scheme,
 }
 
 impl Default for Conf {
@@ -168,6 +215,7 @@ impl Default for Conf {
             label_anchor:              Anchor::BottomLeft,
             separation_ring_radius:    Distance::from_nm(1.5),
             separation_ring_thickness: 0.5,
+            color_scheme:              base_color::Scheme::default(),
         }
     }
 }

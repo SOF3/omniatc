@@ -1,4 +1,5 @@
 use std::any::{type_name, Any, TypeId};
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::{mem, ops};
 
@@ -10,8 +11,10 @@ use bevy_egui::egui;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-mod field_impls;
-pub use field_impls::EnumField;
+mod color_impl;
+mod enum_impls;
+pub use enum_impls::EnumField;
+mod float_impls;
 
 use crate::render;
 
@@ -48,7 +51,7 @@ pub struct StoredConfig {
 pub struct RegisteredType {
     pub id:   &'static str,
     pub name: &'static str,
-    pub draw: fn(&mut Values, ui: &mut egui::Ui),
+    pub draw: fn(&mut Values, &mut egui::Ui, &mut String),
 }
 
 impl RegisteredType {
@@ -61,15 +64,20 @@ pub trait Config: Default + Resource {
     fn save_id() -> &'static str;
     fn name() -> &'static str;
 
-    fn for_each_field<V: FieldVisitor>(&mut self, visitor: &mut V);
+    fn for_each_field<V: FieldVisitor>(&mut self, visitor: &mut V, ctx: &mut FieldEguiContext);
 }
 
 pub trait FieldVisitor {
-    fn visit_field<F: Field>(&mut self, meta: FieldMeta<F::Opts>, field: &mut F);
+    fn visit_field<F: Field>(
+        &mut self,
+        meta: FieldMeta<F::Opts>,
+        field: &mut F,
+        ctx: &mut FieldEguiContext,
+    );
 }
 
 pub struct FieldMeta<Opts> {
-    pub group: &'static str,
+    pub group: Cow<'static, str>,
     pub id:    &'static str,
     pub doc:   &'static str,
     pub opts:  Opts,
@@ -80,12 +88,22 @@ pub trait Field: Sized {
     /// A struct of constant values that can be specified in `#[config(...)]` attributes.
     type Opts: Default;
 
-    fn show_egui(&mut self, meta: FieldMeta<Self::Opts>, ui: &mut egui::Ui, changed: &mut bool);
+    fn show_egui(
+        &mut self,
+        meta: FieldMeta<Self::Opts>,
+        ui: &mut egui::Ui,
+        ctx: &mut FieldEguiContext,
+    );
 
     fn as_serialize(&self) -> impl Serialize + '_;
 
     type Deserialize: DeserializeOwned;
     fn from_deserialize(de: Self::Deserialize) -> Self;
+}
+
+pub struct FieldEguiContext<'a> {
+    pub doc:     &'a mut String,
+    pub changed: &'a mut bool,
 }
 
 #[derive(SystemParam)]

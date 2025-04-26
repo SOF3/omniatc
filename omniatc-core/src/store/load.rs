@@ -216,7 +216,7 @@ fn spawn_runway(
     }
     .apply(world.entity_mut(runway_entity));
 
-    world.entity_mut(runway_entity).with_children(|b| {
+    world.entity_mut(runway_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
         spawn_runway_navaids(b, heading, runway);
     });
 
@@ -556,7 +556,7 @@ fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<W
             }
             .apply(world.entity_mut(waypoint_entity));
 
-            world.entity_mut(waypoint_entity).with_children(|b| {
+            world.entity_mut(waypoint_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
                 waypoint.navaids.iter().for_each(|navaid| spawn_waypoint_navaid(b, navaid));
             });
 

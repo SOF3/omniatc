@@ -1,6 +1,7 @@
 use std::cmp;
 
 use bevy::app::{self, App, Plugin};
+use bevy::color::Color;
 use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -55,6 +56,12 @@ impl Plugin for Plug {
             handle_select_system
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
+        );
+        app.add_systems(
+            app::Update,
+            highlight_selected_system
+                .after(handle_select_system)
+                .in_set(super::object::SetColorThemeSystemSet::UserInteract),
         );
     }
 }
@@ -281,14 +288,13 @@ fn handle_scroll_system(
 fn handle_select_system(
     buttons: Res<ButtonInput<MouseButton>>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
+    mut current_hovered_object: ResMut<object_info::CurrentHoveredObject>,
     mut current_object: ResMut<object_info::CurrentObject>,
     is_2d_query: Query<&GlobalTransform, With<Camera2d>>,
     object_query: Query<(Entity, &object::Object)>,
     conf: config::Read<Conf>,
 ) {
-    if !buttons.just_pressed(MouseButton::Left) {
-        return;
-    }
+    current_hovered_object.0 = None;
 
     if let Some(camera_value) = &current_cursor_camera.0 {
         if let Ok(camera_tf) = is_2d_query.get(camera_value.camera_entity) {
@@ -302,9 +308,29 @@ fn handle_select_system(
                 .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
                 .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0));
             if let Some((object, _)) = closest_object {
-                current_object.0 = Some(object);
+                current_hovered_object.0 = Some(object);
+                if buttons.just_pressed(MouseButton::Left) {
+                    current_object.0 = Some(object);
+                }
             }
         }
+    }
+}
+
+fn highlight_selected_system(
+    conf: config::Read<Conf>,
+    current_hovered_object: Res<object_info::CurrentHoveredObject>,
+    current_object: Res<object_info::CurrentObject>,
+    mut color_theme_query: Query<&mut super::object::ColorTheme>,
+) {
+    if let Some(entity) = current_hovered_object.0 {
+        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        theme.body = conf.hovered_color;
+    }
+
+    if let Some(entity) = current_object.0 {
+        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        theme.body = conf.selected_color;
     }
 }
 
@@ -317,6 +343,10 @@ struct Conf {
     rotation_step:   Angle<f32>,
     /// Tolerated distance when clicking on an object in window coordinates.
     click_tolerance: f32,
+    /// Hovered objects are highlighted with this color.
+    hovered_color:   Color,
+    /// Selected objects are highlighted with this color.
+    selected_color:  Color,
 }
 
 impl Default for Conf {
@@ -325,6 +355,8 @@ impl Default for Conf {
             scroll_step:     1.05,
             rotation_step:   Angle::from_degrees(6.),
             click_tolerance: 50.,
+            hovered_color:   Color::srgb(0.5, 1., 0.7),
+            selected_color:  Color::srgb(0.5, 0.7, 1.),
         }
     }
 }

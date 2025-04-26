@@ -325,6 +325,11 @@ macro_rules! decl_units {
             pub fn normalize_to_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
             }
+
+            #[must_use]
+            pub fn normalize_by_vertical(self, desired_vertical: $ty<f32>) -> Self {
+                $ty(self.0 * (desired_vertical / self.vertical()))
+            }
         }
 
         impl<T: Copy + ops::Mul<Output = T>> $ty<T> {
@@ -508,10 +513,10 @@ impl Distance<f32> {
     pub const fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
 
     #[must_use]
-    pub const fn into_mile(self) -> f32 { self.0 * MILES_PER_NM }
+    pub const fn into_miles(self) -> f32 { self.0 * MILES_PER_NM }
 
     #[must_use]
-    pub const fn from_mile(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
+    pub const fn from_miles(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
 
     #[must_use]
     pub const fn into_meters(self) -> f32 { self.0 * METERS_PER_NM }
@@ -638,4 +643,50 @@ impl IsFinite for Vec2 {
 
 impl IsFinite for Vec3 {
     fn is_finite(self) -> bool { Vec3::is_finite(self) }
+}
+
+#[derive(Clone, Copy)]
+pub enum DistanceUnit {
+    Nautical,
+    Kilometer,
+    Feet,
+    Miles,
+    Meters,
+}
+
+impl DistanceUnit {
+    #[must_use]
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Self::Nautical => "nm",
+            Self::Kilometer => "km",
+            Self::Feet => "ft",
+            Self::Miles => "mi",
+            Self::Meters => "m",
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn into_distance(self) -> fn(f32) -> Distance<f32> {
+        match self {
+            Self::Nautical => Distance::from_nm,
+            Self::Kilometer => Distance::from_km,
+            Self::Feet => Distance::from_feet,
+            Self::Miles => Distance::from_miles,
+            Self::Meters => Distance::from_meters,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn from_distance(self) -> fn(Distance<f32>) -> f32 {
+        match self {
+            Self::Nautical => Distance::<f32>::into_nm,
+            Self::Kilometer => Distance::<f32>::into_km,
+            Self::Feet => Distance::<f32>::into_feet,
+            Self::Miles => Distance::<f32>::into_miles,
+            Self::Meters => Distance::<f32>::into_meters,
+        }
+    }
 }

@@ -7,16 +7,19 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::math::primitives::Annulus;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
+use omniatc_core::try_log;
 use omniatc_core::units::Distance;
+use omniatc_core::util::EnumScheduleConfig;
 
-use super::Conf;
-use crate::config;
+use super::{ColorTheme, Conf, SetColorThemeSystemSet};
 use crate::render::twodim::Zorder;
+use crate::{config, render};
 
 pub(super) struct Plug;
 
@@ -24,7 +27,13 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<SeparationRingMesh>();
         app.add_systems(app::Startup, init_system);
-        app.add_systems(app::Update, maintain_thickness_system);
+        app.add_systems(app::Update, maintain_thickness_system.in_set(render::SystemSets::Update));
+        app.add_systems(
+            app::Update,
+            maintain_color_system
+                .in_set(render::SystemSets::Update)
+                .after_all::<SetColorThemeSystemSet>(),
+        );
     }
 }
 
@@ -64,6 +73,20 @@ pub(super) fn spawn_subsystem(plane_entity: Entity, p: &mut SpawnSubsystemParam)
         Mesh2d(p.mesh.handle.clone().expect("initialized during startup")),
         MeshMaterial2d(material),
     ));
+}
+
+fn maintain_color_system(
+    object_query: Query<(&ColorTheme, &HasRing)>,
+    ring_query: Query<&MeshMaterial2d<ColorMaterial>>,
+    mut material_assets: ResMut<Assets<ColorMaterial>>,
+) {
+    for (color, &HasRing(ring_entity)) in object_query {
+        let material_handle = try_log!(ring_query.get(ring_entity), expect "HasRing must reference valid ring viewable" or continue);
+        let material = material_assets
+            .get_mut(&material_handle.0)
+            .expect("asset from strong handle must exist");
+        material.color = color.ring;
+    }
 }
 
 fn maintain_thickness_system(

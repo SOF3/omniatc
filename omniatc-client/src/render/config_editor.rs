@@ -9,8 +9,6 @@ use bevy_egui::{egui, EguiContextPass, EguiContexts};
 use crate::config::Config;
 use crate::{config, EguiSystemSets};
 
-const DEFAULT_WINDOW_SIZE: egui::Vec2 = egui::Vec2::new(300., 200.);
-
 pub struct Plug;
 
 impl Plugin for Plug {
@@ -34,23 +32,53 @@ fn setup_messages_system(
         return;
     }
 
-    egui::Window::new("Settings").default_size(DEFAULT_WINDOW_SIZE).show(ctx, |ui| {
-        if ui.button("Close").clicked() {
-            opened.0 = false;
-            return;
-        }
+    let default_size = ctx.screen_rect().size() / 2.;
+    egui::Window::new("Settings")
+        .default_size(default_size)
+        .frame(egui::Frame {
+            fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 128),
+            ..Default::default()
+        })
+        .show(ctx, |ui| {
+            if ui.button("Close").clicked() {
+                opened.0 = false;
+                return;
+            }
 
-        for ty in &registry.0 {
-            ui.heading(ty.name);
-            (ty.draw)(&mut configs, ui);
-        }
-    });
+            ui.horizontal(|ui| {
+                struct Left;
+                struct Right;
+
+                ui.set_min_height(default_size.y);
+                ui.set_min_width(default_size.x);
+
+                let mut doc = String::new();
+
+                egui::ScrollArea::vertical().id_salt(TypeId::of::<Left>()).show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        for (i, ty) in registry.0.iter().enumerate() {
+                            egui::CollapsingHeader::new(ty.name).default_open(i == 0).show(
+                                ui,
+                                |ui| {
+                                    (ty.draw)(&mut configs, ui, &mut doc);
+                                },
+                            );
+                        }
+                    });
+                });
+
+                egui::ScrollArea::vertical().id_salt(TypeId::of::<Right>()).show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.add(egui::Label::new(doc));
+                    });
+                })
+            });
+        });
 }
 
-pub fn draw<C: Config>(values: &mut config::Values, ui: &mut egui::Ui) {
+pub fn draw<C: Config>(values: &mut config::Values, ui: &mut egui::Ui, doc: &mut String) {
     struct DrawVisitor<'a> {
-        ui:      &'a mut egui::Ui,
-        changed: bool,
+        ui: &'a mut egui::Ui,
     }
 
     impl config::FieldVisitor for DrawVisitor<'_> {
@@ -58,18 +86,21 @@ pub fn draw<C: Config>(values: &mut config::Values, ui: &mut egui::Ui) {
             &mut self,
             meta: config::FieldMeta<F::Opts>,
             field: &mut F,
+            ctx: &mut config::FieldEguiContext,
         ) {
-            field.show_egui(meta, self.ui, &mut self.changed);
+            field.show_egui(meta, self.ui, ctx);
         }
     }
 
     let store = values.0.get_mut(&TypeId::of::<C>()).expect("registered type must exist in Values");
     let value = store.value.downcast_mut::<C>().expect("TypeId mismatch");
 
-    let mut visitor = DrawVisitor { ui, changed: false };
-    value.for_each_field(&mut visitor);
+    let mut visitor = DrawVisitor { ui };
+    let mut changed = false;
+    let mut ctx = config::FieldEguiContext { changed: &mut changed, doc };
+    value.for_each_field(&mut visitor, &mut ctx);
 
-    if visitor.changed {
+    if changed {
         store.generation = store.generation.wrapping_add(1);
     }
 }

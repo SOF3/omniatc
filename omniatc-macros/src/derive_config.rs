@@ -39,77 +39,87 @@ pub fn impl_(input: TokenStream) -> syn::Result<TokenStream> {
         return Err(syn::Error::new(attr_span, "Missing config `name`"));
     };
 
-    let visit_fields = input_struct
-        .fields
-        .iter()
-        .map(|field| {
-            let Some(field_ident) = &field.ident else {
-                return Err(syn::Error::new_spanned(
-                    &input_struct.fields,
-                    "Only structs with named fields can derive(Config)",
-                ));
-            };
-            let field_ident_string = field_ident.to_string();
-
-            let doc: String = field
-                .attrs
-                .iter()
-                .filter_map(|attr| match &attr.meta {
-                    syn::Meta::NameValue(syn::MetaNameValue {
-                        path,
-                        value: syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit), .. }),
-                        ..
-                    }) if path.is_ident("doc") => {
-                        let value = lit.value();
-                        if value.is_empty() { Some(String::from("\n")) } else { Some(lit.value()) }
-                    }
-                    _ => None,
-                })
-                .collect();
-
-            let opts: Vec<_> = field
-                .attrs
-                .iter()
-                .filter_map(|attr| match &attr.meta {
-                    syn::Meta::List(opts) if opts.path.is_ident("config") => Some(&opts.tokens),
-                    _ => None,
-                })
-                .map(|ts| syn::parse2::<ConfigOpts>(ts.clone()))
-                .collect::<syn::Result<Vec<_>>>()?;
-            let update_opt_stmts = opts
-                .iter()
-                .flat_map(|opts| &opts.0)
-                .map(|ConfigOpt { path, eq, expr }| quote_spanned!(eq.span => opts.#path = #expr;));
-
-            let field_type = &field.ty;
-            let opts = quote! {{
-                let mut opts = <#field_type as crate::config::Field>::Opts::default();
-                #(#update_opt_stmts)*
-                opts
-            }};
-
-            Ok(quote! {
-                visitor.visit_field(crate::config::FieldMeta {
-                    group: #group_id,
-                    id: #field_ident_string,
-                    doc: #doc,
-                    opts: #opts,
-                }, &mut self.#field_ident);
-            })
-        })
-        .collect::<syn::Result<Vec<_>>>()?;
+    let visit_fields = visit_fields(&input_struct.fields, &group_id)?;
 
     let out = quote! {
         impl crate::config::Config for #ident {
             fn save_id() -> &'static str { #group_id }
             fn name() -> &'static str { #group_name }
 
-            fn for_each_field<V: crate::config::FieldVisitor>(&mut self, visitor: &mut V) {
+            fn for_each_field<V: crate::config::FieldVisitor>(&mut self, visitor: &mut V, ctx: &mut crate::config::FieldEguiContext) {
                 #(#visit_fields)*
             }
         }
     };
     Ok(out)
+}
+
+fn visit_fields(fields: &syn::Fields, group_id: &str) -> syn::Result<Vec<TokenStream>> {
+    fields
+        .iter()
+        .map(|field| {
+            let Some(field_ident) = &field.ident else {
+                return Err(syn::Error::new_spanned(
+                    fields,
+                    "Only structs with named fields can derive(Config)",
+                ));
+            };
+            let field_ident_string = field_ident.to_string();
+
+            let doc = collect_attrs_docs(&field.attrs);
+
+            let opts = opts_expr(&field.attrs, &field.ty)?;
+
+            Ok(quote! {
+                visitor.visit_field(crate::config::FieldMeta {
+                    group: #group_id.into(),
+                    id: #field_ident_string,
+                    doc: #doc,
+                    opts: #opts,
+                }, &mut self.#field_ident, ctx);
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn opts_expr(
+    attrs: &[syn::Attribute],
+    field_type: &syn::Type,
+) -> syn::Result<TokenStream> {
+    let opts: Vec<_> = attrs
+        .iter()
+        .filter_map(|attr| match &attr.meta {
+            syn::Meta::List(opts) if opts.path.is_ident("config") => Some(&opts.tokens),
+            _ => None,
+        })
+        .map(|ts| syn::parse2::<ConfigOpts>(ts.clone()))
+        .collect::<syn::Result<Vec<_>>>()?;
+    let update_opt_stmts = opts.iter().flat_map(|opts| &opts.0).map(
+        |ConfigOpt { path, eq, expr }| quote_spanned!(eq.span => opts.#path = Into::into(#expr);),
+    );
+
+    Ok(quote! {{
+        let mut opts = <#field_type as crate::config::Field>::Opts::default();
+        #(#update_opt_stmts)*
+        opts
+    }})
+}
+
+pub(crate) fn collect_attrs_docs(attrs: &[syn::Attribute]) -> String {
+    attrs
+        .iter()
+        .filter_map(|attr| match &attr.meta {
+            syn::Meta::NameValue(syn::MetaNameValue {
+                path,
+                value: syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit), .. }),
+                ..
+            }) if path.is_ident("doc") => {
+                let value = lit.value();
+                if value.is_empty() { Some(String::from("\n")) } else { Some(lit.value()) }
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 struct AttrArgs {
@@ -146,7 +156,7 @@ impl Parse for AttrArgs {
     }
 }
 
-struct ConfigOpts(Punctuated<ConfigOpt, syn::Token![,]>);
+pub(crate) struct ConfigOpts(Punctuated<ConfigOpt, syn::Token![,]>);
 
 impl Parse for ConfigOpts {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -154,7 +164,7 @@ impl Parse for ConfigOpts {
     }
 }
 
-struct ConfigOpt {
+pub(crate) struct ConfigOpt {
     path: Punctuated<syn::Ident, syn::Token![.]>,
     eq:   syn::Token![=],
     expr: syn::Expr,

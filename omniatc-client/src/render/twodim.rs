@@ -4,6 +4,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::transform::components::Transform;
 use omniatc_core::units::{Distance, Position};
 
+mod aerodrome;
 mod camera;
 mod object;
 mod runway;
@@ -13,7 +14,13 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_plugins((camera::Plug, object::Plug, waypoint::Plug, runway::Plug));
+        app.add_plugins((
+            camera::Plug,
+            object::Plug,
+            waypoint::Plug,
+            runway::Plug,
+            aerodrome::Plug,
+        ));
     }
 }
 

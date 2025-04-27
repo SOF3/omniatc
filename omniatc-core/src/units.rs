@@ -234,6 +234,11 @@ macro_rules! decl_units {
             pub fn with_heading(self, heading: Heading) -> $ty<Vec2> {
                 $ty(heading.into_dir2() * self.0)
             }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(self.0.midpoint(other.0))
+            }
         }
 
         impl ops::Mul<Dir2> for $ty<f32> {
@@ -298,6 +303,14 @@ macro_rules! decl_units {
                 let vertical = self.magnitude_exact() * angle.sin();
                 horizontal.with_vertical(vertical)
             }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(Vec2::new(
+                    self.0.x.midpoint(other.0.x),
+                    self.0.y.midpoint(other.0.y),
+                ))
+            }
         }
 
         impl $ty<Vec3> {
@@ -329,6 +342,15 @@ macro_rules! decl_units {
             #[must_use]
             pub fn normalize_by_vertical(self, desired_vertical: $ty<f32>) -> Self {
                 $ty(self.0 * (desired_vertical / self.vertical()))
+            }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(Vec3::new(
+                    self.0.x.midpoint(other.0.x),
+                    self.0.y.midpoint(other.0.y),
+                    self.0.z.midpoint(other.0.z),
+                ))
             }
         }
 

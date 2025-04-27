@@ -44,6 +44,12 @@ pub enum DisplayType {
     Runway,
 }
 
+impl DisplayType {
+    /// Whether a label should be rendered for this display type.
+    #[must_use]
+    pub fn should_display_label(&self) -> bool { !matches!(self, Self::None) }
+}
+
 #[derive(Component)]
 #[relationship_target(relationship = NavaidOf, linked_spawn)]
 pub struct NavaidList(Vec<Entity>);

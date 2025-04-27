@@ -70,16 +70,18 @@ fn spawn_system(
             ));
         }
 
-        commands.spawn((
-            IsLabelOf(waypoint_entity),
-            ChildOf(waypoint_entity),
-            Zorder::WaypointLabel.local_translation(),
-            billboard::MaintainScale { size: conf.label_size },
-            billboard::MaintainRotation,
-            billboard::Label { offset: Distance::ZERO, distance: conf.label_distance },
-            Text2d::new(waypoint.name.as_str()),
-            conf.label_anchor,
-        ));
+        if waypoint.display_type.should_display_label() {
+            commands.spawn((
+                IsLabelOf(waypoint_entity),
+                ChildOf(waypoint_entity),
+                Zorder::WaypointLabel.local_translation(),
+                billboard::MaintainScale { size: conf.label_size },
+                billboard::MaintainRotation,
+                billboard::Label { offset: Distance::ZERO, distance: conf.label_distance },
+                Text2d::new(waypoint.name.as_str()),
+                conf.label_anchor,
+            ));
+        }
     }
 }
 
@@ -107,7 +109,7 @@ impl Default for Conf {
     fn default() -> Self {
         Self {
             sprite_size:    0.7,
-            label_size:     0.4,
+            label_size:     0.6,
             label_distance: 30.,
             label_anchor:   Anchor::BottomCenter,
         }

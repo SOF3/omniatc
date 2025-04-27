@@ -64,7 +64,7 @@ pub enum SegmentLabel {
 pub struct Endpoint {
     pub position:  Position<Vec2>,
     /// Unordered list of [`Segment`] entities connected to this endpoint.
-    pub adjacency: SmallVec<[Entity; 3]>,
+    pub adjacency: SmallVec<[Entity; 4]>,
 }
 
 pub struct SpawnSegment {

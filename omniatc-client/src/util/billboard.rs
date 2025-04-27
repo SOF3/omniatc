@@ -23,12 +23,14 @@ impl Plugin for Plug {
 
 /// Entities with this component always have the same scale regardless of camera zoom.
 #[derive(Component)]
+#[require(Transform)]
 pub struct MaintainScale {
     pub size: f32,
 }
 
 /// Entities with this component always have the same orientation regardless of camera rotation.
 #[derive(Component)]
+#[require(Transform)]
 pub struct MaintainRotation;
 
 /// Entities with this component always have the same translation from the parent transform regardless of camera orientation and zoom.

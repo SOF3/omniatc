@@ -20,7 +20,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::ObjectInfo));
+        app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::LevelInfo));
     }
 }
 

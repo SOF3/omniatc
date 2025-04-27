@@ -3825,6 +3825,7 @@ dependencies = [
  "ciborium",
  "dirs",
  "egui_extras",
+ "either",
  "enum-map",
  "itertools 0.14.0",
  "js-sys",

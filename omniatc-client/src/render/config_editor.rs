@@ -36,7 +36,7 @@ fn setup_messages_system(
     egui::Window::new("Settings")
         .default_size(default_size)
         .frame(egui::Frame {
-            fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 128),
+            fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200),
             ..Default::default()
         })
         .show(ctx, |ui| {

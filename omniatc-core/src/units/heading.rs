@@ -120,6 +120,8 @@ impl Heading {
         output
     }
 
+    /// Returns the signed angle closest to zero such that
+    /// adding it to `self` approximately returns `other`.
     #[must_use]
     pub fn closest_distance(self, other: Heading) -> Angle<f32> {
         self.distance(other, self.closer_direction_to(other))

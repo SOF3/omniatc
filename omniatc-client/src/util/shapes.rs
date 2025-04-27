@@ -11,7 +11,7 @@ use bevy::math::primitives::{Circle, Rectangle};
 use bevy::math::Vec2;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::transform::components::{GlobalTransform, Transform};
-use omniatc_core::units::Distance;
+use omniatc_core::units::{Distance, Position};
 
 use crate::render;
 use crate::render::twodim::Zorder;
@@ -49,6 +49,18 @@ impl Meshes {
     pub fn line(&self, thickness: f32, zorder: Zorder) -> impl Bundle {
         (Mesh2d(self.square().clone()), square_line_transform(zorder), MaintainThickness(thickness))
     }
+
+    pub fn line_from_to(
+        &self,
+        thickness: f32,
+        zorder: Zorder,
+        from: Position<Vec2>,
+        to: Position<Vec2>,
+    ) -> impl Bundle {
+        let mut tf = square_line_transform(zorder);
+        set_square_line_transform_relative(&mut tf, from.0, to.0);
+        (Mesh2d(self.square().clone()), tf, MaintainThickness(thickness))
+    }
 }
 
 fn square_line_transform(zorder: Zorder) -> Transform {
@@ -57,10 +69,21 @@ fn square_line_transform(zorder: Zorder) -> Transform {
     tf
 }
 
-pub fn set_square_line_transform(tf: &mut Transform, length: Distance<Vec2>) {
-    let translation = (length / 2.).0;
+pub fn set_square_line_transform(tf: &mut Transform, start: Position<Vec2>, end: Position<Vec2>) {
+    set_square_line_transform_relative(tf, start.0, end.0);
+}
+
+pub fn set_square_line_transform_relative(
+    tf: &mut Transform,
+    start: Distance<Vec2>,
+    end: Distance<Vec2>,
+) {
+    let midpt = start.lerp(end, 0.5);
+    let translation = midpt.0;
     tf.translation.x = translation.x;
     tf.translation.y = translation.y;
+
+    let length = end - start;
     tf.rotation = length.heading().into_rotation_quat();
 
     // X = thickness, Y = end-to-end

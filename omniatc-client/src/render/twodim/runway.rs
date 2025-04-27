@@ -75,12 +75,12 @@ fn update_system(
 #[config(id = "runway", name = "Runways")]
 struct Conf {
     /// Thickness of runway localizer display, in screen coordinates.
-    #[config(min = 0., max = 5.)]
+    #[config(min = 0., max = 10.)]
     localizer_thickness: f32,
     /// Color of runway localizer display.
     localizer_color:     Color,
     /// Thickness of runway strip display, in screen coordinates.
-    #[config(min = 0., max = 5.)]
+    #[config(min = 0., max = 10.)]
     strip_thickness:     f32,
     /// Color of runway strip display.
     strip_color:         Color,
@@ -99,7 +99,7 @@ impl Default for Conf {
         Self {
             localizer_thickness: 0.8,
             localizer_color:     Color::WHITE,
-            strip_thickness:     2.2,
+            strip_thickness:     5.,
             strip_color:         Color::WHITE,
             glide_point_size:    3.,
             glide_point_color:   Color::WHITE,

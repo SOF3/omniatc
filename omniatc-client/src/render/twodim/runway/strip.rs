@@ -8,6 +8,7 @@ use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
 use omniatc_core::level::runway::Runway;
 use omniatc_core::try_log_return;
+use omniatc_core::units::Distance;
 
 use super::Conf;
 use crate::config;
@@ -59,7 +60,11 @@ impl UpdateParam<'_, '_> {
         let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
         material.color = self.conf.strip_color;
 
-        shapes::set_square_line_transform(&mut line_tf, runway.landing_length);
+        shapes::set_square_line_transform_relative(
+            &mut line_tf,
+            Distance::ZERO,
+            runway.landing_length,
+        );
 
         thickness.0 = self.conf.strip_thickness;
     }

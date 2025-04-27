@@ -66,7 +66,7 @@ impl UpdateParam<'_, '_> {
         material.color = self.conf.localizer_color;
 
         let localizer_length = runway.landing_length.normalize_to_magnitude(-localizer_length);
-        shapes::set_square_line_transform(&mut line_tf, localizer_length);
+        shapes::set_square_line_transform_relative(&mut line_tf, Distance::ZERO, localizer_length);
 
         thickness.0 = self.conf.localizer_thickness;
     }

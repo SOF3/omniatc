@@ -25,6 +25,7 @@ impl Plugin for Plug {
 #[derive(Default, Resource)]
 pub struct CurrentHoveredObject(pub Option<Entity>);
 
+/// Current object the user selected.
 #[derive(Default, Resource)]
 pub struct CurrentObject(pub Option<Entity>);
 

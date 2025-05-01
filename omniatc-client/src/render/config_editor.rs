@@ -14,14 +14,14 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Opened>();
-        app.add_systems(EguiContextPass, setup_messages_system.in_set(EguiSystemSets::Config));
+        app.add_systems(EguiContextPass, setup_window_system.in_set(EguiSystemSets::Config));
     }
 }
 
 #[derive(Default, Resource)]
 pub struct Opened(pub bool);
 
-fn setup_messages_system(
+fn setup_window_system(
     mut contexts: EguiContexts,
     mut opened: ResMut<Opened>,
     registry: Res<config::Registry>,

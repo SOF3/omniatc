@@ -15,7 +15,8 @@ use bevy::text::Text2d;
 use bevy::transform::components::Transform;
 use omniatc_core::level::object::{self, Object};
 use omniatc_core::level::plane;
-use omniatc_core::units::Distance;
+use omniatc_core::math::TROPOPAUSE_ALTITUDE;
+use omniatc_core::units::{Distance, Position};
 use omniatc_core::util::EnumScheduleConfig;
 use omniatc_macros::Config;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,7 @@ mod label;
 use label::IsLabelOf;
 
 mod separation_ring;
+mod track;
 
 pub struct Plug;
 
@@ -49,6 +51,7 @@ impl Plugin for Plug {
                 .after_all::<SetColorThemeSystemSet>(),
         );
         app.add_plugins(separation_ring::Plug);
+        app.add_plugins(track::Plug);
         app.add_plugins(base_color::Plug);
         omniatc_core::util::configure_ordered_system_sets::<SetColorThemeSystemSet>(
             app,
@@ -201,6 +204,21 @@ struct Conf {
     #[config(min = 0., max = 10.)]
     separation_ring_thickness: f32,
 
+    /// Maximum number of track points for unfocused objects.
+    #[config(min = 0, max = 100)]
+    track_normal_max_points:   u32,
+    /// Size of track points.
+    #[config(min = 0., max = 3.)]
+    track_point_size:          f32,
+    /// Color of track points at base altitude.
+    track_point_base_color:    Color,
+    /// Base altitude for track point coloring.
+    track_point_base_altitude: Position<f32>,
+    /// Color of track points at top altitude.
+    track_point_top_color:     Color,
+    /// Top altitude for track point coloring.
+    track_point_top_altitude:  Position<f32>,
+
     /// Object color will be based on this scheme.
     color_scheme: base_color::Scheme,
 }
@@ -215,6 +233,12 @@ impl Default for Conf {
             label_anchor:              Anchor::BottomLeft,
             separation_ring_radius:    Distance::from_nm(1.5),
             separation_ring_thickness: 0.5,
+            track_normal_max_points:   5,
+            track_point_size:          1.0,
+            track_point_base_color:    Color::srgb(0.8, 0.4, 0.6),
+            track_point_base_altitude: Position::SEA_LEVEL,
+            track_point_top_color:     Color::srgb(0.4, 0.8, 0.6),
+            track_point_top_altitude:  TROPOPAUSE_ALTITUDE,
             color_scheme:              base_color::Scheme::default(),
         }
     }

@@ -88,6 +88,78 @@ impl Field for f32 {
 }
 
 #[derive(Default)]
+pub struct IntOpts<T> {
+    pub min:    Option<T>,
+    pub max:    Option<T>,
+    pub prefix: Option<&'static str>,
+    pub suffix: Option<&'static str>,
+}
+
+impl Field for u32 {
+    type Opts = IntOpts<Self>;
+
+    fn show_egui(
+        &mut self,
+        meta: FieldMeta<IntOpts<Self>>,
+        ui: &mut egui::Ui,
+        ctx: &mut FieldEguiContext,
+    ) {
+        let mut active = false;
+
+        ui.horizontal(|ui| {
+            let resp = ui.label(meta.id);
+            active = active || resp.hovered() || resp.has_focus();
+
+            if let (Some(min), Some(max)) = (meta.opts.min, meta.opts.max) {
+                let mut tmp = *self;
+                let resp = ui.add(
+                    egui::Slider::new(&mut tmp, min..=max)
+                        .prefix(meta.opts.prefix.unwrap_or_default())
+                        .suffix(meta.opts.suffix.unwrap_or_default()),
+                );
+                active = active || resp.hovered() || resp.has_focus();
+
+                if tmp != *self {
+                    *self = tmp;
+                    *ctx.changed = true;
+                }
+            } else {
+                let mut s = self.to_string();
+
+                if let Some(prefix) = meta.opts.prefix {
+                    ui.small(prefix);
+                }
+
+                #[expect(clippy::cast_precision_loss)] // s.len() is expected to be small
+                let s_len = s.len() as f32;
+                let resp = ui.add(egui::TextEdit::singleline(&mut s).desired_width(s_len * 8.));
+                active = active || resp.hovered() || resp.has_focus();
+
+                if let Some(suffix) = meta.opts.suffix {
+                    ui.small(suffix);
+                }
+
+                if let Ok(v) = s.parse() {
+                    if v != *self {
+                        *self = v;
+                        *ctx.changed = true;
+                    }
+                }
+            }
+        });
+
+        if active {
+            meta.doc.clone_into(ctx.doc);
+        }
+    }
+
+    fn as_serialize(&self) -> impl Serialize + '_ { self }
+
+    type Deserialize = Self;
+    fn from_deserialize(de: Self::Deserialize) -> Self { de }
+}
+
+#[derive(Default)]
 pub struct DistanceOpts {
     pub min:       Option<Distance<f32>>,
     pub max:       Option<Distance<f32>>,

@@ -67,7 +67,9 @@ fn setup_layout_system(
 
                 ui.collapsing("Camera", |ui| write_cameras.write(ui));
 
-                ui.collapsing("Objects", |ui| write_objects(ui, &object_query));
+                egui::CollapsingHeader::new("Objects")
+                    .default_open(true)
+                    .show(ui, |ui| write_objects(ui, &object_query));
             });
 
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
@@ -143,23 +145,25 @@ impl WriteCameras<'_, '_> {
 
 #[derive(QueryData)]
 struct ObjectTableData {
-    display: &'static object::Display,
-    object:  &'static object::Object,
+    display:  &'static object::Display,
+    rotation: &'static object::Rotation,
+    object:   &'static object::Object,
 }
 
 fn write_objects(ui: &mut egui::Ui, object_query: &Query<ObjectTableData>) {
     let columns: Vec<_> = ObjectTableColumn::iter().collect();
 
-    let table = TableBuilder::new(ui)
-        .column(Column::auto().resizable(true))
-        .column(Column::auto().resizable(true))
-        .header(20., |mut header| {
-            for column in &columns {
-                header.col(|ui| {
-                    ui.label(column.header());
-                });
-            }
-        });
+    let mut table = TableBuilder::new(ui);
+    for _ in 0..columns.len() {
+        table = table.column(Column::auto().resizable(true));
+    }
+    let table = table.header(20., |mut header| {
+        for column in &columns {
+            header.col(|ui| {
+                ui.small(column.header());
+            });
+        }
+    });
 
     let mut objects: Vec<_> = object_query.iter().collect();
     objects.sort_by_key(|obj| &obj.display.name);
@@ -179,13 +183,19 @@ fn write_objects(ui: &mut egui::Ui, object_query: &Query<ObjectTableData>) {
 enum ObjectTableColumn {
     Name,
     Altitude,
+    GroundSpeed,
+    VerticalRate,
+    Heading,
 }
 
 impl ObjectTableColumn {
-    fn header(&self) -> egui::WidgetText {
+    fn header(&self) -> impl Into<egui::RichText> {
         match self {
-            Self::Name => "Name".into(),
-            Self::Altitude => "Altitude".into(),
+            Self::Name => "Name",
+            Self::Altitude => "Altitude",
+            Self::GroundSpeed => "Ground speed",
+            Self::VerticalRate => "Vert rate",
+            Self::Heading => "Heading",
         }
     }
 
@@ -195,6 +205,15 @@ impl ObjectTableColumn {
             Self::Altitude => {
                 format!("{:.0}", &data.object.position.altitude().amsl().into_feet()).into()
             }
+            Self::GroundSpeed => format!(
+                "{:.0}",
+                &data.object.ground_speed.horizontal().magnitude_exact().into_knots()
+            )
+            .into(),
+            Self::VerticalRate => {
+                format!("{:+.0}", &data.object.ground_speed.vertical().into_fpm()).into()
+            }
+            Self::Heading => format!("{:.0}", Heading::from_quat(data.rotation.0).degrees()).into(),
         };
         ui.label(text);
     }

@@ -234,6 +234,11 @@ macro_rules! decl_units {
             pub fn with_heading(self, heading: Heading) -> $ty<Vec2> {
                 $ty(heading.into_dir2() * self.0)
             }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(self.0.midpoint(other.0))
+            }
         }
 
         impl ops::Mul<Dir2> for $ty<f32> {
@@ -257,6 +262,11 @@ macro_rules! decl_units {
             pub fn x(self) -> $ty<f32> { $ty(self.0.x) }
             #[must_use]
             pub fn y(self) -> $ty<f32> { $ty(self.0.y) }
+
+            #[must_use]
+            pub fn with_x(self, x: $ty<f32>) -> Self { Self(self.0.with_x(x.0)) }
+            #[must_use]
+            pub fn with_y(self, y: $ty<f32>) -> Self { Self(self.0.with_y(y.0)) }
 
             #[must_use]
             pub fn horizontally(self) -> $ty<Vec3> {
@@ -293,6 +303,14 @@ macro_rules! decl_units {
                 let vertical = self.magnitude_exact() * angle.sin();
                 horizontal.with_vertical(vertical)
             }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(Vec2::new(
+                    self.0.x.midpoint(other.0.x),
+                    self.0.y.midpoint(other.0.y),
+                ))
+            }
         }
 
         impl $ty<Vec3> {
@@ -319,6 +337,20 @@ macro_rules! decl_units {
             #[must_use]
             pub fn normalize_to_magnitude(self, magnitude: $ty<f32>) -> Self {
                 $ty(self.0.normalize_or_zero() * magnitude.0)
+            }
+
+            #[must_use]
+            pub fn normalize_by_vertical(self, desired_vertical: $ty<f32>) -> Self {
+                $ty(self.0 * (desired_vertical / self.vertical()))
+            }
+
+            #[must_use]
+            pub fn midpoint(self, other: Self) -> Self {
+                Self(Vec3::new(
+                    self.0.x.midpoint(other.0.x),
+                    self.0.y.midpoint(other.0.y),
+                    self.0.z.midpoint(other.0.z),
+                ))
             }
         }
 
@@ -503,10 +535,10 @@ impl Distance<f32> {
     pub const fn from_feet(feet: f32) -> Self { Self(feet / FEET_PER_NM) }
 
     #[must_use]
-    pub const fn into_mile(self) -> f32 { self.0 * MILES_PER_NM }
+    pub const fn into_miles(self) -> f32 { self.0 * MILES_PER_NM }
 
     #[must_use]
-    pub const fn from_mile(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
+    pub const fn from_miles(mile: f32) -> Self { Self(mile / MILES_PER_NM) }
 
     #[must_use]
     pub const fn into_meters(self) -> f32 { self.0 * METERS_PER_NM }
@@ -559,9 +591,10 @@ impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
 
     pub fn from_knots(knots: T) -> Self { Self(knots / 3600.) }
 
-    pub fn into_fpm(self) -> T { self.0 * 60. * FEET_PER_NM }
+    #[must_use]
+    pub fn into_fpm(self) -> T { self.0 * (60. * FEET_PER_NM) }
 
-    pub fn from_fpm(fpm: T) -> Self { Self(fpm / 60. / FEET_PER_NM) }
+    pub fn from_fpm(fpm: T) -> Self { Self(fpm / (60. * FEET_PER_NM)) }
 }
 
 impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {
@@ -632,4 +665,50 @@ impl IsFinite for Vec2 {
 
 impl IsFinite for Vec3 {
     fn is_finite(self) -> bool { Vec3::is_finite(self) }
+}
+
+#[derive(Clone, Copy)]
+pub enum DistanceUnit {
+    Nautical,
+    Kilometer,
+    Feet,
+    Miles,
+    Meters,
+}
+
+impl DistanceUnit {
+    #[must_use]
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Self::Nautical => "nm",
+            Self::Kilometer => "km",
+            Self::Feet => "ft",
+            Self::Miles => "mi",
+            Self::Meters => "m",
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn into_distance(self) -> fn(f32) -> Distance<f32> {
+        match self {
+            Self::Nautical => Distance::from_nm,
+            Self::Kilometer => Distance::from_km,
+            Self::Feet => Distance::from_feet,
+            Self::Miles => Distance::from_miles,
+            Self::Meters => Distance::from_meters,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn from_distance(self) -> fn(Distance<f32>) -> f32 {
+        match self {
+            Self::Nautical => Distance::<f32>::into_nm,
+            Self::Kilometer => Distance::<f32>::into_km,
+            Self::Feet => Distance::<f32>::into_feet,
+            Self::Miles => Distance::<f32>::into_miles,
+            Self::Meters => Distance::<f32>::into_meters,
+        }
+    }
 }

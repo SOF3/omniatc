@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
-use bevy::prelude::{IntoSystemSetConfigs, Resource, SystemSet};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::prelude::{Resource, SystemSet};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 

@@ -4,9 +4,10 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::SystemState;
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
-    Commands, Component, Entity, EntityCommand, EntityRef, IntoSystemConfigs, Query, Res, World,
+    Commands, Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, Query, Res, World,
 };
 use bevy::time::{self, Time};
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ use super::{nav, SystemSets};
 use crate::level::object::RefAltitudeType;
 use crate::math::Between;
 use crate::units::{Angle, Distance, Heading, Position, Speed};
+use crate::{try_log, try_log_return};
 
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
@@ -109,25 +111,25 @@ impl FromIterator<Node> for Route {
 pub struct PushNode(pub Node);
 
 impl EntityCommand for PushNode {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
+    fn apply(self, mut entity: EntityWorldMut) {
         let mut route =
-            entity_ref.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
+            entity.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
         route.push(self.0);
 
-        run_current_node(world, entity);
+        let entity_id = entity.id();
+        entity.world_scope(|world| run_current_node(world, entity_id));
     }
 }
 
 pub struct NextNode;
 
 impl EntityCommand for NextNode {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-        let mut route = entity_ref.get_mut::<Route>().expect("just inserted");
+    fn apply(self, mut entity: EntityWorldMut) {
+        let mut route = entity.get_mut::<Route>().expect("just inserted");
         route.shift();
 
-        run_current_node(world, entity);
+        let entity_id = entity.id();
+        entity.world_scope(|world| run_current_node(world, entity_id));
     }
 }
 
@@ -135,19 +137,22 @@ impl EntityCommand for NextNode {
 pub struct RunCurrentNode;
 
 impl EntityCommand for RunCurrentNode {
-    fn apply(self, entity: Entity, world: &mut World) { run_current_node(world, entity); }
+    fn apply(self, mut entity: EntityWorldMut) {
+        let entity_id = entity.id();
+        entity.world_scope(|world| run_current_node(world, entity_id));
+    }
 }
 
 pub struct ClearAllNodes;
 
 impl EntityCommand for ClearAllNodes {
-    fn apply(self, entity: Entity, world: &mut World) {
-        let mut entity_ref = world.entity_mut(entity);
-        if let Some(mut route) = entity_ref.get_mut::<Route>() {
+    fn apply(self, mut entity: EntityWorldMut) {
+        if let Some(mut route) = entity.get_mut::<Route>() {
             route.current = None;
             route.next_queue.clear();
 
-            run_current_node(world, entity);
+            let entity_id = entity.id();
+            entity.world_scope(|world| run_current_node(world, entity_id));
         }
     }
 }
@@ -169,7 +174,6 @@ fn run_current_node(world: &mut World, entity: Entity) {
                             .get_mut::<Route>()
                             .expect("route should not be shifted by run_current_node");
                         route.shift();
-                        continue;
                     }
                 },
             }
@@ -559,15 +563,16 @@ pub struct AlignRunwayNode {
 
 impl NodeKind for AlignRunwayNode {
     fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let Some(&Runway { glide_angle, .. }) = world.get::<Runway>(self.runway) else {
-            bevy::log::error!("AlignRunwayNode references non-runway entity {:?}", self.runway);
-            return RunNodeResult::PendingTrigger;
-        };
-        let Some(&runway::LocalizerWaypointRef { localizer_waypoint }) = world.get(self.runway)
-        else {
-            bevy::log::error!("Runway {:?} has no LocalizerWaypointRef", self.runway);
-            return RunNodeResult::PendingTrigger;
-        };
+        let &Runway { glide_angle, .. } = try_log!(
+            world.get::<Runway>(self.runway),
+            expect "AlignRunwayNode references non-runway entity {:?}" (self.runway)
+            or return RunNodeResult::PendingTrigger
+        );
+        let &runway::LocalizerWaypointRef { localizer_waypoint } = try_log!(
+            world.get(self.runway),
+            expect "Runway {:?} has no LocalizerWaypointRef" (self.runway)
+            or return RunNodeResult::PendingTrigger
+        );
 
         let mut entity_ref = world.entity_mut(entity);
         entity_ref.remove::<(nav::TargetWaypoint, nav::TargetAltitude)>().insert((
@@ -637,12 +642,10 @@ fn fly_over_trigger_system(
 
     object_query.iter().for_each(
         |(object_entity, &Object { position: current_pos, .. }, trigger)| {
-            let Ok(&Waypoint { position: current_target, .. }) =
-                waypoint_query.get(trigger.waypoint)
-            else {
-                bevy::log::error!("Invalid waypoint referenced in route");
-                return;
-            };
+            let &Waypoint { position: current_target, .. } = try_log_return!(
+                waypoint_query.get(trigger.waypoint),
+                expect "Invalid waypoint referenced in route"
+            );
 
             if current_pos.distance_cmp(current_target) <= trigger.distance {
                 commands.entity(object_entity).queue(NextNode);
@@ -679,12 +682,10 @@ fn fly_by_trigger_system(
             nav_limits,
             trigger,
         )| {
-            let Ok(&Waypoint { position: current_target, .. }) =
-                waypoint_query.get(trigger.waypoint)
-            else {
-                bevy::log::error!("Invalid waypoint referenced in route");
-                return;
-            };
+            let &Waypoint { position: current_target, .. } = try_log_return!(
+                waypoint_query.get(trigger.waypoint),
+                expect "Invalid waypoint referenced in route"
+            );
             let current_target = current_target.horizontal();
 
             match trigger.completion_condition {
@@ -694,14 +695,10 @@ fn fly_by_trigger_system(
                             (next_target - current_target).heading()
                         }
                         ConfiguresHeading::Waypoint(next_waypoint) => {
-                            let Ok(&Waypoint { position: next_target, .. }) =
-                                waypoint_query.get(next_waypoint)
-                            else {
-                                bevy::log::error!(
-                                    "Invalid waypoint referenced in next node in route"
-                                );
-                                return;
-                            };
+                            let &Waypoint { position: next_target, .. } = try_log_return!(
+                                waypoint_query.get(next_waypoint),
+                                expect "Invalid waypoint referenced in next node in route"
+                            );
                             let next_target = next_target.horizontal();
 
                             (next_target - current_target).heading()

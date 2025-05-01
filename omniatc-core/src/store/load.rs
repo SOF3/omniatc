@@ -1,14 +1,15 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::f32::consts;
 use std::io;
 
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::relationship::{RelatedSpawner, Relationship};
 use bevy::math::bounding::Aabb3d;
 use bevy::math::Vec2;
 use bevy::prelude::{
-    BuildChildren, ChildBuild, Command as BevyCommand, DespawnRecursiveExt, Entity, EntityCommand,
-    EntityWorldMut, With, World,
+    Command as BevyCommand, Entity, EntityCommand, EntityWorldMut, Name, With, World,
 };
-use bevy::utils::HashMap;
 use itertools::Itertools;
 
 use crate::level::route::{self, Route};
@@ -56,7 +57,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
         .iter(world)
         .collect::<Vec<_>>()
         .into_iter()
-        .for_each(|entity| world.entity_mut(entity).despawn_recursive());
+        .for_each(|entity| world.entity_mut(entity).despawn());
 
     spawn_winds(world, &file.level.environment.winds);
     let aerodromes = spawn_aerodromes(world, &file.level.aerodromes)?;
@@ -64,12 +65,14 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
 
     spawn_objects(world, &aerodromes, &waypoints, &file.level.objects)?;
 
+    world.resource_mut::<store::CameraAdvice>().0 = Some(file.ui.camera.clone());
+
     Ok(())
 }
 
 fn spawn_winds(world: &mut World, winds: &[store::Wind]) {
     for wind in winds {
-        let entity = world.spawn((store::LoadedEntity, bevy::core::Name::new("Wind"))).id();
+        let entity = world.spawn((store::LoadedEntity, Name::new("Wind"))).id();
         wind::SpawnCommand {
             bundle: wind::Comps {
                 vector:        wind::Vector { bottom: wind.bottom_speed, top: wind.top_speed },
@@ -79,7 +82,7 @@ fn spawn_winds(world: &mut World, winds: &[store::Wind]) {
                 }),
             },
         }
-        .apply(entity, world);
+        .apply(world.entity_mut(entity));
     }
 }
 
@@ -95,7 +98,7 @@ fn spawn_aerodromes(
             let aerodrome_entity = world
                 .spawn((
                     store::LoadedEntity,
-                    bevy::core::Name::new(format!("Aerodrome: {}", aerodrome.code)),
+                    Name::new(format!("Aerodrome: {}", aerodrome.code)),
                     aerodrome::Aerodrome {
                         id:   aerodrome_id,
                         code: aerodrome.code.clone(),
@@ -186,7 +189,7 @@ fn spawn_runway(
     let runway_entity = world
         .spawn((
             store::LoadedEntity,
-            bevy::core::Name::new(format!("Runway: {}/{}", aerodrome.code, runway.name)),
+            Name::new(format!("Runway: {}/{}", aerodrome.code, runway.name)),
         ))
         .id();
 
@@ -211,16 +214,16 @@ fn spawn_runway(
             display_width:  runway_width,
         },
     }
-    .apply(runway_entity, world);
+    .apply(world.entity_mut(runway_entity));
 
-    world.entity_mut(runway_entity).with_children(|b| {
+    world.entity_mut(runway_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
         spawn_runway_navaids(b, heading, runway);
     });
 
     let localizer_waypoint = world
         .spawn((
             store::LoadedEntity,
-            bevy::core::Name::new(format!("LocalizerWaypoint: {}/{}", aerodrome.code, runway.name)),
+            Name::new(format!("LocalizerWaypoint: {}/{}", aerodrome.code, runway.name)),
             runway::LocalizerWaypoint { runway_ref: runway_entity },
         ))
         .id();
@@ -233,14 +236,18 @@ fn spawn_runway(
                     .projected_from_elevation_angle(runway.glide_angle),
         },
     }
-    .apply(localizer_waypoint, world);
+    .apply(world.entity_mut(localizer_waypoint));
 
     world.entity_mut(runway_entity).insert(runway::LocalizerWaypointRef { localizer_waypoint });
 
     SpawnedRunway { runway: runway_entity, localizer_waypoint }
 }
 
-fn spawn_runway_navaids(b: &mut impl ChildBuild, heading: Heading, runway: &store::Runway) {
+fn spawn_runway_navaids(
+    b: &mut RelatedSpawner<'_, impl Relationship>,
+    heading: Heading,
+    runway: &store::Runway,
+) {
     b.spawn((
         waypoint::Navaid {
             heading_range:       Heading::NORTH..Heading::NORTH,
@@ -495,8 +502,8 @@ fn spawn_ground_segments(
     let endpoints: Vec<_> = intersect_groups
         .iter()
         .map(|group| {
-            let entity = world.spawn_empty().set_parent(aerodrome_entity).id();
-            ground::SpawnEndpoint { position: group.position }.apply(entity, world);
+            let entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
+            ground::SpawnEndpoint { position: group.position }.apply(world.entity_mut(entity));
             entity
         })
         .collect();
@@ -506,18 +513,19 @@ fn spawn_ground_segments(
             if let Some(index) = endpoint.group {
                 endpoints[index]
             } else {
-                let entity = world.spawn_empty().set_parent(aerodrome_entity).id();
-                ground::SpawnEndpoint { position: endpoint.position }.apply(entity, world);
+                let entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
+                ground::SpawnEndpoint { position: endpoint.position }
+                    .apply(world.entity_mut(entity));
                 entity
             }
         });
 
-        let segment_entity = world.spawn_empty().set_parent(aerodrome_entity).id();
+        let segment_entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
         ground::SpawnSegment {
             segment: ground::Segment { alpha: alpha_endpoint, beta: beta_endpoint, elevation },
             label:   lines[segment.line.0].label.clone(),
         }
-        .apply(segment_entity, world);
+        .apply(world.entity_mut(segment_entity));
     }
 
     Ok(())
@@ -535,10 +543,7 @@ fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<W
         .iter()
         .map(|waypoint| {
             let waypoint_entity = world
-                .spawn((
-                    store::LoadedEntity,
-                    bevy::core::Name::new(format!("Waypoint: {}", waypoint.name)),
-                ))
+                .spawn((store::LoadedEntity, Name::new(format!("Waypoint: {}", waypoint.name))))
                 .id();
             waypoint::SpawnCommand {
                 waypoint: Waypoint {
@@ -549,9 +554,9 @@ fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<W
                         .with_altitude(waypoint.elevation.unwrap_or(SEA_ALTITUDE)),
                 },
             }
-            .apply(waypoint_entity, world);
+            .apply(world.entity_mut(waypoint_entity));
 
-            world.entity_mut(waypoint_entity).with_children(|b| {
+            world.entity_mut(waypoint_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
                 waypoint.navaids.iter().for_each(|navaid| spawn_waypoint_navaid(b, navaid));
             });
 
@@ -575,7 +580,7 @@ fn choose_waypoint_display_type(navaids: &[store::Navaid]) -> waypoint::DisplayT
     }
 }
 
-fn spawn_waypoint_navaid(b: &mut impl ChildBuild, navaid: &store::Navaid) {
+fn spawn_waypoint_navaid(b: &mut RelatedSpawner<'_, impl Relationship>, navaid: &store::Navaid) {
     b.spawn((waypoint::Navaid {
         heading_range:       navaid.heading_start..navaid.heading_end,
         pitch_range:         navaid.min_pitch..Angle::RIGHT,
@@ -616,10 +621,7 @@ fn spawn_plane(
     plane: &store::Plane,
 ) -> Result<(), Error> {
     let plane_entity = world
-        .spawn((
-            store::LoadedEntity,
-            bevy::core::Name::new(format!("Plane: {}", plane.aircraft.name)),
-        ))
+        .spawn((store::LoadedEntity, Name::new(format!("Plane: {}", plane.aircraft.name))))
         .id();
 
     let destination = match plane.aircraft.dest {
@@ -647,10 +649,10 @@ fn spawn_plane(
         display: object::Display { name: plane.aircraft.name.clone() },
         destination,
     }
-    .apply(plane_entity, world);
+    .apply(world.entity_mut(plane_entity));
 
     if let store::NavTarget::Airborne(..) = plane.nav_target {
-        object::SetAirborneCommand.apply(plane_entity, world);
+        object::SetAirborneCommand.apply(world.entity_mut(plane_entity));
     }
 
     plane::SpawnCommand {
@@ -661,7 +663,7 @@ fn spawn_plane(
         }),
         limits:  plane.limits.clone(),
     }
-    .apply(plane_entity, world);
+    .apply(world.entity_mut(plane_entity));
 
     let mut plane_ref = world.entity_mut(plane_entity);
     plane_ref.insert(plane.limits.clone());
@@ -671,7 +673,7 @@ fn spawn_plane(
     }
 
     insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
-    route::RunCurrentNode.apply(plane_entity, world);
+    route::RunCurrentNode.apply(world.entity_mut(plane_entity));
 
     Ok(())
 }

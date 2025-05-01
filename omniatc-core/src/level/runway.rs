@@ -1,12 +1,14 @@
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
-    Children, Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Without, World,
+    Children, Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without,
 };
 use smallvec::SmallVec;
 
 use super::waypoint::{self, Waypoint};
 use super::SystemSets;
+use crate::try_log_return;
 use crate::units::{Angle, Distance, Position};
 
 pub struct Plug;
@@ -63,11 +65,15 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        waypoint::SpawnCommand { waypoint: self.waypoint }.apply(entity, world);
+    fn apply(self, mut entity: EntityWorldMut) {
+        let entity_id = entity.id();
 
-        world.entity_mut(entity).insert(self.runway);
-        world.send_event(SpawnEvent(entity));
+        entity.world_scope(|world| {
+            waypoint::SpawnCommand { waypoint: self.waypoint }.apply(world.entity_mut(entity_id));
+        });
+
+        entity.insert(self.runway);
+        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
 
@@ -98,18 +104,14 @@ fn maintain_localizer_waypoint_system(
 ) {
     waypoint_query.iter_mut().for_each(
         |(waypoint_entity, mut waypoint, &LocalizerWaypoint { runway_ref })| {
-            let Ok((
+            let (
                 &Waypoint { position: runway_position, .. },
                 &Runway { landing_length, glide_angle, .. },
                 children,
-            )) = runway_query.get(runway_ref)
-            else {
-                bevy::log::error!(
-                    "Runway {runway_ref:?} referenced from waypoint {waypoint_entity:?} is not a \
-                     runway entity"
-                );
-                return;
-            };
+            ) = try_log_return!(
+                runway_query.get(runway_ref),
+                expect "Runway {runway_ref:?} referenced from waypoint {waypoint_entity:?} is not a runway entity"
+            );
 
             let mut range = Distance(0f32);
             for &navaid_ref in children {

@@ -4,18 +4,18 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
-use bevy::prelude::{Component, Entity, IntoSystemConfigs, IntoSystemSetConfigs, Query, Res};
+use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{object, SystemSets};
 use crate::math::line_circle_intersect;
-use crate::pid;
 use crate::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
     TurnDirection,
 };
+use crate::{pid, try_log_return};
 
 pub struct Plug;
 
@@ -260,12 +260,11 @@ fn glide_control_system(
 
     object_query.par_iter_mut().for_each(
         |(mut signal, glide, mut glide_status, &Object { position, ground_speed })| {
-            let Ok(&Waypoint { position: target_position, .. }) =
-                waypoint_query.get(glide.target_waypoint)
-            else {
-                bevy::log::error!("Reference to non waypoint entity {:?}", glide.target_waypoint);
-                return;
-            };
+            let &Waypoint { position: target_position, .. } = try_log_return!(
+                waypoint_query.get(glide.target_waypoint),
+                expect "Reference to non waypoint entity {:?}",
+                glide.target_waypoint,
+            );
 
             // from current position to target waypoint
             let direction = target_position - position;
@@ -364,10 +363,11 @@ fn waypoint_control_system(
     }
 
     object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, &Object { position, .. })| {
-        let Ok(waypoint_pos) = waypoint_query.get(waypoint.waypoint_entity) else {
-            bevy::log::error!("Invalid waypoint entity {:?}", waypoint.waypoint_entity);
-            return;
-        };
+        let waypoint_pos = try_log_return!(
+            waypoint_query.get(waypoint.waypoint_entity),
+            expect "invalid waypoint entity {:?}",
+            waypoint.waypoint_entity,
+        );
         ground_dir.target = (waypoint_pos.position.horizontal() - position.horizontal()).heading();
     });
 }

@@ -6,10 +6,9 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::system::{SystemParam, SystemState};
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Quat, Vec2, Vec3};
-use bevy::prelude::{
-    Component, Entity, EntityCommand, Event, IntoSystemConfigs, Query, Res, World,
-};
+use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
 
@@ -18,6 +17,7 @@ use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
+use crate::try_log;
 use crate::units::{Distance, Position, Speed};
 
 mod dest;
@@ -81,8 +81,8 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        world.entity_mut(entity).insert((
+    fn apply(self, mut entity: EntityWorldMut) {
+        entity.insert((
             Rotation::default(),
             Object { position: self.position, ground_speed: self.ground_speed },
             self.display,
@@ -90,7 +90,9 @@ impl EntityCommand for SpawnCommand {
             Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
             Marker,
         ));
-        world.send_event(SpawnEvent(entity));
+
+        let entity_id = entity.id();
+        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
 
@@ -102,25 +104,23 @@ pub struct SpawnEvent(pub Entity);
 pub struct SetAirborneCommand;
 
 impl EntityCommand for SetAirborneCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
+    fn apply(self, mut entity: EntityWorldMut) {
         let (position, ground_speed) = {
-            let Ok(entity_ref) = world.get_entity(entity) else {
-                bevy::log::error!("attempt to set airborne for nonexistent entity {entity:?}");
-                return;
-            };
-            let Some(&Object { position, ground_speed }) = entity_ref.get() else {
-                bevy::log::error!("attempt to set airborne for non-Object entity {entity:?}");
-                return;
-            };
+            let &Object { position, ground_speed } = try_log!(
+                entity.get(),
+                expect "attempt to set airborne for non-Object entity {:?}"
+                    (entity.id())
+                or return
+            );
             (position, ground_speed)
         };
 
-        let wind = {
+        let wind = entity.world_scope(|world| {
             let mut locator = SystemState::<wind::Locator>::new(world);
             locator.get(world).locate(position)
-        };
+        });
 
-        world.entity_mut(entity).insert(Airborne { airspeed: ground_speed - wind.horizontally() });
+        entity.insert(Airborne { airspeed: ground_speed - wind.horizontally() });
         // TODO insert/remove nav::VelocityTarget?
     }
 }

@@ -1,8 +1,9 @@
 use std::ops;
 
 use bevy::app::{App, Plugin};
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity, EntityCommand, Event, World};
+use bevy::prelude::{Component, Entity, EntityCommand, Event};
 
 use crate::units::{Angle, Distance, Heading, Position};
 
@@ -42,6 +43,25 @@ pub enum DisplayType {
     /// but unlike `None`, the label is still rendered.
     Runway,
 }
+
+impl DisplayType {
+    /// Whether a label should be rendered for this display type.
+    #[must_use]
+    pub fn should_display_label(&self) -> bool { !matches!(self, Self::None) }
+}
+
+#[derive(Component)]
+#[relationship_target(relationship = NavaidOf, linked_spawn)]
+pub struct NavaidList(Vec<Entity>);
+
+impl NavaidList {
+    #[must_use]
+    pub fn navaids(&self) -> &[Entity] { &self.0 }
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = NavaidList)]
+pub struct NavaidOf(pub Entity);
 
 /// A spherical sector centered at the waypoint position
 /// within which the navaid can be reliably received.
@@ -111,9 +131,10 @@ pub struct SpawnCommand {
 }
 
 impl EntityCommand for SpawnCommand {
-    fn apply(self, entity: Entity, world: &mut World) {
-        world.entity_mut(entity).insert(self.waypoint);
-        world.send_event(SpawnEvent(entity));
+    fn apply(self, mut entity: EntityWorldMut) {
+        entity.insert(self.waypoint);
+        let entity_id = entity.id();
+        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
 

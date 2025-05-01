@@ -1,8 +1,7 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::{cmp, iter, mem};
 
 use bevy::math::{Dir2, Vec2};
-use bevy::utils::HashMap;
 use ordered_float::NotNan;
 
 use crate::math::line_intersect;

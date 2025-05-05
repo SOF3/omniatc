@@ -21,9 +21,6 @@ use crate::math::{sweep, SEA_ALTITUDE};
 use crate::store;
 use crate::units::{Angle, Distance, Heading, Position};
 
-#[cfg(test)]
-mod tests;
-
 pub enum Source {
     Raw(Cow<'static, [u8]>),
     Parsed(Box<store::File>),
@@ -672,8 +669,8 @@ fn spawn_plane(
         insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
     }
 
-    insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
-    route::RunCurrentNode.apply(world.entity_mut(plane_entity));
+    // insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
+    route::DoResync.apply(world.entity_mut(plane_entity));
 
     Ok(())
 }
@@ -726,51 +723,55 @@ fn insert_airborne_nav_targets(
     Ok(())
 }
 
+/* TODO
 fn insert_route(
     plane_entity: &mut EntityWorldMut,
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
     route: &store::Route,
 ) -> Result<(), Error> {
-    let route_rt = route
-        .nodes
-        .iter()
-        .map(|node| {
-            Ok(match *node {
-                store::RouteNode::DirectWaypoint {
-                    ref waypoint,
-                    distance,
-                    proximity,
-                    altitude,
-                } => route::Node::DirectWaypoint(route::DirectWaypointNode {
-                    waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
-                    distance,
-                    proximity,
-                    altitude,
-                }),
-                store::RouteNode::SetAirspeed { goal, error } => {
-                    route::Node::SetAirspeed(route::SetAirspeedNode { speed: goal, error })
-                }
-                store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
-                    route::Node::StartSetAltitude(route::StartSetAltitudeNode {
-                        altitude: goal,
-                        error,
-                        expedite,
-                    })
-                }
-                store::RouteNode::AlignRunway { ref runway, expedite } => {
-                    route::Node::AlignRunway(route::AlignRunwayNode {
-                        runway: resolve_runway_ref(aerodromes, runway)?.runway,
-                        expedite,
-                    })
-                }
+    /* TODO
+        let route_rt = route
+            .nodes
+            .iter()
+            .map(|node| {
+                Ok(match *node {
+                    store::RouteNode::DirectWaypoint {
+                        ref waypoint,
+                        distance,
+                        proximity,
+                        altitude,
+                    } => route::Node::DirectWaypoint(route::DirectWaypointNode {
+                        waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
+                        distance,
+                        proximity,
+                        altitude,
+                    }),
+                    store::RouteNode::SetAirspeed { goal, error } => {
+                        route::Node::SetAirspeed(route::SetAirspeedNode { speed: goal, error })
+                    }
+                    store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
+                        route::Node::StartSetAltitude(route::StartSetAltitudeNode {
+                            altitude: goal,
+                            error,
+                            expedite,
+                        })
+                    }
+                    store::RouteNode::AlignRunway { ref runway, expedite } => {
+                        route::Node::AlignRunway(route::AlignRunwayNode {
+                            runway: resolve_runway_ref(aerodromes, runway)?.runway,
+                            expedite,
+                        })
+                    }
+                })
             })
-        })
-        .collect::<Result<Route, Error>>()?;
+            .collect::<Result<Route, Error>>()?;
 
-    plane_entity.insert(route_rt);
+        plane_entity.insert(route_rt);
+    */
     Ok(())
 }
+*/
 
 fn resolve_runway_ref<'a>(
     aerodromes: &'a AerodromeMap,

@@ -8,7 +8,6 @@ use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
 
 use crate::level::nav;
-use crate::level::route::WaypointProximity;
 use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
 pub mod load;
@@ -436,9 +435,10 @@ pub struct TargetAlignment {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Route {
-    pub nodes: Vec<RouteNode>,
+    // pub nodes: Vec<RouteNode>, // TODO
 }
 
+/*
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RouteNode {
     /// Direct to a waypoint.
@@ -448,8 +448,6 @@ pub enum RouteNode {
         /// The node is considered complete when
         /// the horizontal distance between the object and the waypoint is less than this value.
         distance:  Distance<f32>,
-        /// Whether the object is allowed to complete this node early when in proximity.
-        proximity: WaypointProximity,
         /// Start pitching at standard rate *during or before* this node,
         /// approximately reaching this altitude by the time the specified waypoint is reached.
         altitude:  Option<Position<f32>>,
@@ -473,6 +471,7 @@ pub enum RouteNode {
         expedite: bool,
     },
 }
+*/
 
 /// References a position.
 #[derive(Clone, Serialize, Deserialize)]

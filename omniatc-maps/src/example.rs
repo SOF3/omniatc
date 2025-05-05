@@ -1,6 +1,5 @@
 use bevy::math::Vec2;
 use omniatc_core::level::nav;
-use omniatc_core::level::route::WaypointProximity;
 use omniatc_core::store;
 use omniatc_core::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
@@ -380,35 +379,7 @@ pub fn file() -> store::File {
                         target_waypoint:  None,
                         target_alignment: None,
                     })),
-                    route:      store::Route {
-                        nodes: vec![
-                            store::RouteNode::DirectWaypoint {
-                                waypoint:  store::WaypointRef::Named("DWIND".into()),
-                                distance:  Distance::from_nm(1.),
-                                proximity: WaypointProximity::FlyBy,
-                                altitude:  None,
-                            },
-                            store::RouteNode::DirectWaypoint {
-                                waypoint:  store::WaypointRef::Named("TBASE".into()),
-                                distance:  Distance::from_nm(1.),
-                                proximity: WaypointProximity::FlyBy,
-                                altitude:  Some(Position::from_amsl_feet(4000.)),
-                            },
-                            store::RouteNode::DirectWaypoint {
-                                waypoint:  store::WaypointRef::Named("APPCH".into()),
-                                distance:  Distance::from_nm(1.),
-                                proximity: WaypointProximity::FlyBy,
-                                altitude:  None,
-                            },
-                            store::RouteNode::AlignRunway {
-                                runway:   store::RunwayRef {
-                                    aerodrome_code: "MAIN".into(),
-                                    runway_name:    "18L".into(),
-                                },
-                                expedite: true,
-                            },
-                        ],
-                    },
+                    route:      store::Route {},
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:   store::BaseAircraft {
@@ -447,7 +418,7 @@ pub fn file() -> store::File {
                         }),
                         target_alignment: None,
                     })),
-                    route:      store::Route { nodes: vec![] },
+                    route:      store::Route {},
                 }),
             ],
         },

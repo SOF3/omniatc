@@ -60,9 +60,9 @@ impl fmt::Debug for Position<Vec2> {
 impl fmt::Debug for Position<Vec3> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Position")
-            .field("x", &self.0 .0.x)
-            .field("y", &self.0 .0.y)
-            .field("z", &self.altitude().amsl().into_feet())
+            .field("x.nm", &self.0 .0.x)
+            .field("y.nm", &self.0 .0.y)
+            .field("z.feet", &self.altitude().amsl().into_feet())
             .finish()
     }
 }

@@ -40,7 +40,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is removed when the plane is not airborne.
-#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct VelocityTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
@@ -152,7 +152,7 @@ pub struct ClimbProfile {
 }
 
 /// Target yaw change.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.
     Heading(Heading),

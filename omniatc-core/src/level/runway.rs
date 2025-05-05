@@ -25,7 +25,7 @@ impl Plugin for Plug {
 
 /// A runway entity is always a waypoint entity.
 ///
-/// The waypoint location is the default touchdown point of the runway.
+/// The waypoint location is the default touchdown point of the runway at runway elevation.
 /// The display type for a runway waypoint should be `DisplayType::Localizer`.
 ///
 /// Runway waypoints must have a child Navaid entity

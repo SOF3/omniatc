@@ -51,7 +51,7 @@ pub struct Display {
     pub name: String,
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Object {
     /// Position relative to level origin at mean sea level.
     ///
@@ -67,7 +67,7 @@ pub struct Object {
 #[derive(Component, Default)]
 pub struct Rotation(pub Quat);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Airborne {
     /// Indicated airspeed.
     pub airspeed: Speed<Vec3>,

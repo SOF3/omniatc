@@ -28,6 +28,7 @@ impl Plugin for Plug {
             app.configure_sets(app::Update, before.before(after));
         }
 
+        app.configure_sets(app::Update, SystemSets::Spawn.ambiguous_with(SystemSets::Spawn));
         app.configure_sets(app::Update, SystemSets::Update.ambiguous_with(SystemSets::Update));
     }
 }

@@ -10,6 +10,7 @@
 use std::time::Duration;
 
 use bevy::app::{self, App};
+use bevy::diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{self, ScheduleBuildSettings};
 use bevy::ecs::system::ResMut;
@@ -34,6 +35,8 @@ fn main() {
             primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
             ..Default::default()
         }),
+        EntityCountDiagnosticsPlugin,
+        FrameTimeDiagnosticsPlugin::default(),
         bevy_egui::EguiPlugin { enable_multipass_for_primary_context: true },
         // #[cfg(feature = "inspect")]
         // bevy_inspector_egui::quick::WorldInspectorPlugin::new(),

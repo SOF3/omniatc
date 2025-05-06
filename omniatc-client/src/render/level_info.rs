@@ -1,4 +1,7 @@
 use bevy::app::{App, Plugin};
+use bevy::diagnostic::{
+    Diagnostic, DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin,
+};
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
@@ -31,6 +34,7 @@ fn setup_layout_system(
     object_query: Query<ObjectTableData>,
     mut write_cameras: WriteCameras,
     mut config_editor_opened: ResMut<config_editor::Opened>,
+    diagnostics: Res<DiagnosticsStore>,
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
@@ -47,29 +51,17 @@ fn setup_layout_system(
             ui.heading("Level info");
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                {
-                    let elapsed = time.elapsed().as_secs();
-
-                    ui.label(format!(
-                        "Time: {hours}:{minutes:02}:{seconds:02}",
-                        hours = elapsed / 3600,
-                        minutes = (elapsed / 60) % 60,
-                        seconds = elapsed % 60
-                    ));
-
-                    let mut speed = time.relative_speed();
-                    ui.add(egui::Slider::new(&mut speed, 0. ..=10.).text("Game speed").suffix("x"));
-                    #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
-                    if speed != time.relative_speed() {
-                        time.set_relative_speed(speed);
-                    }
-                }
+                egui::CollapsingHeader::new("Time")
+                    .default_open(true)
+                    .show(ui, |ui| write_time(ui, &mut time));
 
                 ui.collapsing("Camera", |ui| write_cameras.write(ui));
 
                 egui::CollapsingHeader::new("Objects")
                     .default_open(true)
                     .show(ui, |ui| write_objects(ui, &object_query));
+
+                ui.collapsing("Diagnostics", |ui| write_diagnostics(ui, &diagnostics));
             });
 
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
@@ -78,6 +70,24 @@ fn setup_layout_system(
         .rect
         .width();
     margins.left += width;
+}
+
+fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
+    let elapsed = time.elapsed().as_secs();
+
+    ui.label(format!(
+        "Time: {hours}:{minutes:02}:{seconds:02}",
+        hours = elapsed / 3600,
+        minutes = (elapsed / 60) % 60,
+        seconds = elapsed % 60
+    ));
+
+    let mut speed = time.relative_speed();
+    ui.add(egui::Slider::new(&mut speed, 0. ..=10.).text("Game speed").suffix("x"));
+    #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
+    if speed != time.relative_speed() {
+        time.set_relative_speed(speed);
+    }
 }
 
 #[derive(SystemParam)]
@@ -216,5 +226,19 @@ impl ObjectTableColumn {
             Self::Heading => format!("{:.0}", Heading::from_quat(data.rotation.0).degrees()).into(),
         };
         ui.label(text);
+    }
+}
+
+fn write_diagnostics(ui: &mut egui::Ui, diagnostics: &DiagnosticsStore) {
+    if let Some(fps) =
+        diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(Diagnostic::smoothed)
+    {
+        ui.label(format!("FPS: {fps}"));
+    }
+
+    if let Some(entities) =
+        diagnostics.get(&EntityCountDiagnosticsPlugin::ENTITY_COUNT).and_then(Diagnostic::value)
+    {
+        ui.label(format!("Entities: {entities}"));
     }
 }

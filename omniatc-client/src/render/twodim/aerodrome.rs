@@ -26,7 +26,6 @@ impl Plugin for Plug {
             app::Update,
             ColorMaterials::reload_config_system.in_set(render::SystemSets::Reload),
         );
-        // app.add_systems(app::Update, spawn_aerodrome_system.in_set(render::SystemSets::Spawn));
         app.add_systems(app::Update, segment::regenerate_system.in_set(render::SystemSets::Spawn));
         app.add_systems(app::Update, endpoint::regenerate_system.in_set(render::SystemSets::Spawn));
         vis::add_plugins(app);
@@ -77,14 +76,6 @@ impl ColorMaterials {
         }
     }
 }
-
-/*
-fn spawn_aerodrome_system(mut events: EventReader<aerodrome::SpawnEvent>, mut commands: Commands) {
-    events.read().for_each(|&aerodrome::SpawnEvent(entity)| {
-        commands.entity(entity).insert((Transform::IDENTITY, Visibility::Inherited));
-    });
-}
-*/
 
 #[derive(Resource, Config)]
 #[config(id = "aerodrome", name = "Aerodrome (2D)")]

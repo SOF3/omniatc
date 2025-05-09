@@ -4,13 +4,14 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
+use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{object, SystemSets};
-use crate::math::line_circle_intersect;
+use crate::math::{line_circle_intersect, line_intersect};
 use crate::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
     TurnDirection,
@@ -380,7 +381,7 @@ fn waypoint_control_system(
 /// Does not do anything if the orthogonal distance between the line and the current position
 /// exceeds `activation_range` or `ground_speed * lookahead`, whichever is lower.
 #[derive(Component)]
-#[require(TargetGroundDirection)]
+#[require(TargetGroundDirection, TargetAlignmentStatus)]
 pub struct TargetAlignment {
     /// Start point of the path.
     pub start_waypoint:   Entity,
@@ -394,9 +395,44 @@ pub struct TargetAlignment {
     pub activation_range: Distance<f32>,
 }
 
+#[derive(Component, Default)]
+pub struct TargetAlignmentStatus {
+    /// Whether the object is within the activation range.
+    pub activation:           TargetAlignmentActivationStatus,
+    /// Orthogonal distance between object and the line to align with.
+    pub orthogonal_deviation: Distance<f32>,
+    /// Current heading towards line end minus target direction.
+    pub angular_deviation:    Angle<f32>,
+}
+
+#[derive(Default)]
+pub enum TargetAlignmentActivationStatus {
+    /// Uninitialized state.
+    #[default]
+    Uninit,
+    /// In pure pursuit mode towards the specified position.
+    PurePursuit(Position<Vec2>),
+    /// Target line is within ground speed lookahead range, but not in activation range yet.
+    Unactivated,
+    /// Target line is not within the ground speed lookahead range.
+    BeyondLookahead {
+        /// Time until the current track intersects with the target line.
+        ///
+        /// `None` indicates that the current track diverges from the target line.
+        intersect_time: Option<Duration>,
+        /// Distance from object to line end, projected onto the target line.
+        projected_dist: Distance<f32>,
+    },
+}
+
 fn alignment_control_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(&mut TargetGroundDirection, &TargetAlignment, &Object)>,
+    mut object_query: Query<(
+        &mut TargetGroundDirection,
+        &TargetAlignment,
+        &mut TargetAlignmentStatus,
+        &Object,
+    )>,
     waypoint_query: Query<&Waypoint>,
 ) {
     if time.is_paused() {
@@ -404,7 +440,7 @@ fn alignment_control_system(
     }
 
     object_query.par_iter_mut().for_each(
-        |(mut signal, target, &Object { position, ground_speed })| {
+        |(mut signal, target, mut status, &Object { position, ground_speed })| {
             let Ok(&Waypoint { position: start, .. }) = waypoint_query.get(target.start_waypoint)
             else {
                 return;
@@ -421,29 +457,60 @@ fn alignment_control_system(
             let radius = ground_speed * target.lookahead;
             let radius_sq = radius.magnitude_squared();
 
-            let circle_intersects = line_circle_intersect(position, radius_sq, start, end)
-                .and_then(|[low, high]| {
-                    let high_pos = start.lerp(end, high);
-                    let low_pos = start.lerp(end, low);
+            let (activation_status, ortho_dist) = if let Some([low, high]) =
+                line_circle_intersect(position, radius_sq, start, end)
+            {
+                let high_pos = start.lerp(end, high);
+                let low_pos = start.lerp(end, low);
 
-                    // compute apothem from radius and chord length
-                    let ortho_dist_sq = radius_sq - low_pos.distance_squared(high_pos) / 4.;
+                // compute apothem from radius and chord length
+                // r >= norm(low - high) * 0.5 under normal circumstances since low and high are
+                // points on the circle, but this value may be negative when they are almost equal,
+                // i.e. when `position` is almost exactly on the target line.
+                let ortho_dist =
+                    (radius_sq - low_pos.distance_squared(high_pos) / 4.).sqrt_or_zero();
 
-                    if ortho_dist_sq.cmp_sqrt() < target.activation_range
-                        || position.distance_squared(high_pos) < radius_sq
-                    {
-                        Some(high_pos)
-                    } else {
-                        None
-                    }
-                });
-            if let Some(high_pos) = circle_intersects {
+                if ortho_dist < target.activation_range
+                    || position.distance_squared(high_pos) < radius_sq
+                {
+                    (TargetAlignmentActivationStatus::PurePursuit(high_pos), ortho_dist)
+                } else {
+                    (TargetAlignmentActivationStatus::Unactivated, ortho_dist)
+                }
+            } else {
+                // Project (end - position) onto (end - start)
+                let projected_dist =
+                    Distance((end - position).0.dot((end - start).0) / start.distance_exact(end).0);
+                let projected_point = end - (end - start).normalize_to_magnitude(projected_dist);
+
+                let (_, current_intersect_secs) = line_intersect(
+                    end.get(),
+                    (start - end).0,
+                    position.get(),
+                    ground_speed.horizontal().0,
+                );
+                let intersect_time = Duration::try_from_secs_f32(current_intersect_secs).ok();
+
+                (
+                    TargetAlignmentActivationStatus::BeyondLookahead {
+                        intersect_time,
+                        projected_dist,
+                    },
+                    position.distance_exact(projected_point),
+                )
+            };
+
+            if let TargetAlignmentActivationStatus::PurePursuit(high_pos) = activation_status {
                 signal.active = true;
                 signal.target = (high_pos - position).heading();
             } else {
                 // too far from path, maintain current heading
                 signal.active = false;
             }
+
+            status.activation = activation_status;
+            status.orthogonal_deviation = ortho_dist;
+            status.angular_deviation = (end - position).heading() - (end - start).heading();
         },
     );
 }

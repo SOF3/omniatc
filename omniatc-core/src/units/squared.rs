@@ -105,6 +105,16 @@ impl<U: Unit<Value = f32>> Squared<U> {
     #[must_use]
     pub fn sqrt(self) -> U { U::from_raw(self.0.sqrt()) }
 
+    /// Returns the square root, or zero if the value is negative.
+    #[must_use]
+    pub fn sqrt_or_zero(self) -> U {
+        if self.is_negative() {
+            U::from_raw(0.)
+        } else {
+            U::from_raw(self.0.sqrt())
+        }
+    }
+
     #[must_use]
     pub fn cmp_sqrt(self) -> impl PartialOrd<U> { SquaredNorm(self.0) }
 

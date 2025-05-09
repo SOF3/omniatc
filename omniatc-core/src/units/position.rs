@@ -167,4 +167,33 @@ impl Position<Vec3> {
     pub fn horizontal(self) -> Position<Vec2> { Position(self.0.horizontal()) }
     #[must_use]
     pub fn altitude(self) -> Position<f32> { Position(self.0.vertical()) }
+
+    #[must_use]
+    pub fn horizontal_distance_cmp(
+        self,
+        other: Self,
+    ) -> impl PartialOrd + PartialOrd<Distance<f32>> {
+        self.horizontal().distance_cmp(other.horizontal())
+    }
+
+    /// Converts the horizontal distance into a fully-ordered type.
+    ///
+    /// # Errors
+    /// Returns error if the squared distance evaluates to NaN.
+    pub fn horizontal_distance_ord(
+        self,
+        other: Self,
+    ) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> {
+        self.horizontal().distance_ord(other.horizontal())
+    }
+
+    #[must_use]
+    pub fn horizontal_distance_squared(self, other: Self) -> Squared<Distance<f32>> {
+        self.horizontal().distance_squared(other.horizontal())
+    }
+
+    #[must_use]
+    pub fn horizontal_distance_exact(self, other: Self) -> Distance<f32> {
+        self.horizontal().distance_exact(other.horizontal())
+    }
 }

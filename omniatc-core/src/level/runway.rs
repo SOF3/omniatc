@@ -1,9 +1,7 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{
-    Children, Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without,
-};
+use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without};
 use smallvec::SmallVec;
 
 use super::waypoint::{self, Waypoint};
@@ -99,7 +97,7 @@ pub struct LocalizerWaypointRef {
 
 fn maintain_localizer_waypoint_system(
     mut waypoint_query: Query<(Entity, &mut Waypoint, &LocalizerWaypoint), Without<Runway>>,
-    runway_query: Query<(&Waypoint, &Runway, &Children)>,
+    runway_query: Query<(&Waypoint, &Runway, &waypoint::NavaidList)>,
     navaid_query: Query<&waypoint::Navaid>,
 ) {
     waypoint_query.iter_mut().for_each(
@@ -107,14 +105,14 @@ fn maintain_localizer_waypoint_system(
             let (
                 &Waypoint { position: runway_position, .. },
                 &Runway { landing_length, glide_angle, .. },
-                children,
+                navaids,
             ) = try_log_return!(
                 runway_query.get(runway_ref),
                 expect "Runway {runway_ref:?} referenced from waypoint {waypoint_entity:?} is not a runway entity"
             );
 
-            let mut range = Distance(0f32);
-            for &navaid_ref in children {
+            let mut range = Distance::from_meters(1.); // visibility is never zero.
+            for &navaid_ref in navaids.navaids() {
                 if let Ok(navaid) = navaid_query.get(navaid_ref) {
                     range = range.max(navaid.max_dist_horizontal);
                 }

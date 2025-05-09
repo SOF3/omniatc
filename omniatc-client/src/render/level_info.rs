@@ -83,7 +83,7 @@ fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
     ));
 
     let mut speed = time.relative_speed();
-    ui.add(egui::Slider::new(&mut speed, 0. ..=10.).text("Game speed").suffix("x"));
+    ui.add(egui::Slider::new(&mut speed, 0. ..=30.).text("Game speed").suffix("x"));
     #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
     if speed != time.relative_speed() {
         time.set_relative_speed(speed);

@@ -174,6 +174,13 @@ pub fn run_async<R: Send + Sync + 'static>(
     RunAsync(task)
 }
 
+pub fn run_async_local<R: Send + Sync + 'static>(
+    task: impl Future<Output = R> + 'static,
+) -> RunAsync<R> {
+    let task = IoTaskPool::get().spawn_local(task);
+    RunAsync(task)
+}
+
 impl<R: Send + Sync + 'static> RunAsync<R> {
     // TODO: refactor to support `then: impl FnOnce(R, P)` instead.
     pub fn then<M>(

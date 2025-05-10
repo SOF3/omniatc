@@ -3,6 +3,7 @@ use std::mem;
 
 use bevy::app::{self, App, Plugin};
 use bevy::core_pipeline::core_2d::Camera2d;
+use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
@@ -69,7 +70,6 @@ struct MaintainParams<'w, 's, ViewableFilter: Component> {
     camera:    Single<'w, &'static GlobalTransform, With<Camera2d>>,
     conf:      config::Read<'w, 's, Conf>,
     vis_query: Query<'w, 's, &'static mut Visibility, With<ViewableFilter>>,
-    last_vis:  Local<'s, Visibility>,
 }
 
 impl<ViewableFilter: Component> MaintainParams<'_, '_, ViewableFilter> {
@@ -77,8 +77,9 @@ impl<ViewableFilter: Component> MaintainParams<'_, '_, ViewableFilter> {
         let pixel_width = Distance(self.camera.scale().x);
         let zoom = get_conf(&self.conf);
         let vis = if zoom > pixel_width { Visibility::Inherited } else { Visibility::Hidden };
-        if mem::replace(&mut *self.last_vis, vis) != vis {
-            self.vis_query.iter_mut().for_each(|mut comp| *comp = vis);
-        }
+
+        self.vis_query.iter_mut().for_each(|mut comp| {
+            comp.set_if_neq(vis);
+        });
     }
 }

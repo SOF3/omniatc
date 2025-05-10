@@ -7,9 +7,9 @@ use std::time::SystemTime;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res, ResMut};
+use bevy::ecs::system::{Commands, NonSend, Res, ResMut};
 use omniatc_core::store;
-use omniatc_core::util::{run_async, AsyncPollList, AsyncResult};
+use omniatc_core::util::{run_async_local, AsyncPollList, AsyncResult};
 use serde::{Deserialize, Serialize};
 
 mod scenario_loader;
@@ -39,43 +39,41 @@ pub struct LevelMeta {
     modified: SystemTime,
 }
 
-pub trait Storage: Resource {
+pub trait Storage: Default + 'static {
     type Error: fmt::Debug + Send + Sync + 'static;
 
     fn list_scenarios_by_tag(
         &self,
         tag_key: String,
-    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + Send + 'static;
+    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + 'static;
     fn load_scenario(
         &self,
         key: String,
-    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + Send + 'static;
+    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + 'static;
     fn insert_scenario(
         &self,
         meta: ScenarioMeta,
         data: Vec<u8>,
         tags: HashMap<String, String>,
-    ) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
+    ) -> impl Future<Output = Result<(), Self::Error>> + 'static;
 
     fn list_levels_by_time(
         &self,
         limit: usize,
-    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + Send + 'static;
+    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + 'static;
     fn load_level(
         &self,
         key: String,
-    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + Send + 'static;
+    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + 'static;
 }
 
 pub struct Plug<S>(pub fn() -> S);
 
-pub fn plugin() -> Plug<impl Storage> {
-    Plug(|| StorageImpl::try_new().expect("storage error")) // TODO handle error properly
-}
+pub fn plugin() -> Plug<impl Storage> { Plug(StorageImpl::default) }
 
 impl<S: Storage> Plugin for Plug<S> {
     fn build(&self, app: &mut App) {
-        app.insert_resource(self.0());
+        app.insert_non_send_resource(self.0());
         app.init_resource::<scenario_loader::CurrentImportingScenarios>();
         app.init_resource::<scenario_loader::CurrentLoadOnImport>();
         app.init_asset::<scenario_loader::ScenarioAsset>();
@@ -89,13 +87,13 @@ impl<S: Storage> Plugin for Plug<S> {
 fn load_last_level_system<S: Storage>(
     mut commands: Commands,
     mut poll_list: ResMut<AsyncPollList>,
-    storage: Res<S>,
+    storage: NonSend<S>,
 ) {
-    run_async(storage.list_levels_by_time(1)).then(
+    run_async_local(storage.list_levels_by_time(1)).then(
         &mut commands,
         &mut poll_list,
         |mut ret: AsyncResult<anyhow::Result<Vec<LevelMeta>>>,
-         storage: Res<S>,
+         storage: NonSend<S>,
          mut current_load_on_import: ResMut<scenario_loader::CurrentLoadOnImport>,
          mut poll_list: ResMut<AsyncPollList>,
          mut commands: Commands| {
@@ -109,7 +107,7 @@ fn load_last_level_system<S: Storage>(
 
             match key {
                 Some(key) => {
-                    run_async(storage.load_level(key)).then(
+                    run_async_local(storage.load_level(key)).then(
                         &mut commands,
                         &mut poll_list,
                         |mut ret: AsyncResult<Result<Vec<u8>, S::Error>>,

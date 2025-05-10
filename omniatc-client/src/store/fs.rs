@@ -1,12 +1,13 @@
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::future::Future;
+use std::ops;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
 use bevy::ecs::resource::Resource;
-use parking_lot::Mutex;
 
 use super::{LevelMeta, ScenarioMeta};
 
@@ -22,65 +23,63 @@ fn index_path() -> Option<PathBuf> {
     Some(path)
 }
 
-#[derive(Resource)]
+#[derive(Default)]
 pub struct Impl {
-    db: Arc<Mutex<rusqlite::Connection>>,
+    db: Rc<OnceCell<rusqlite::Connection>>,
 }
 
-impl Impl {
-    pub fn try_new() -> anyhow::Result<Self> {
-        std::fs::create_dir_all(data_path().context("cannot find data path")?)?;
+fn new_db() -> anyhow::Result<rusqlite::Connection> {
+    std::fs::create_dir_all(data_path().context("cannot find data path")?)?;
 
-        let db = rusqlite::Connection::open(index_path().context("cannot find data path")?)
-            .context("cannot open database")?;
+    let db = rusqlite::Connection::open(index_path().context("cannot find data path")?)
+        .context("cannot open database")?;
 
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS scenario (
-            id TEXT PRIMARY KEY,
-            title TEXT,
-            created INTEGER,
-            data BLOB
-        )",
-            (),
-        )
-        .context("prepare scenario table")?;
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS scenario (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        created INTEGER,
+        data BLOB
+    )",
+        (),
+    )
+    .context("prepare scenario table")?;
 
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS scenario_tag (
-            id TEXT,
-            tag_key TEXT,
-            tag_value TEXT,
-            PRIMARY KEY (id, tag_key)
-        )",
-            (),
-        )
-        .context("prepare scenario_tag table")?;
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS scenario_tag (
+        id TEXT,
+        tag_key TEXT,
+        tag_value TEXT,
+        PRIMARY KEY (id, tag_key)
+    )",
+        (),
+    )
+    .context("prepare scenario_tag table")?;
 
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS level (
-            id TEXT PRIMARY KEY,
-            title TEXT,
-            created INTEGER,
-            modified INTEGER,
-            data BLOB
-        )",
-            (),
-        )
-        .context("prepare scenario table")?;
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS level (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        created INTEGER,
+        modified INTEGER,
+        data BLOB
+    )",
+        (),
+    )
+    .context("prepare scenario table")?;
 
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS level_tag (
-            id TEXT,
-            tag_key TEXT,
-            tag_value TEXT,
-            PRIMARY KEY (id, tag_key)
-        )",
-            (),
-        )
-        .context("prepare scenario_tag table")?;
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS level_tag (
+        id TEXT,
+        tag_key TEXT,
+        tag_value TEXT,
+        PRIMARY KEY (id, tag_key)
+    )",
+        (),
+    )
+    .context("prepare scenario_tag table")?;
 
-        Ok(Self { db: Arc::new(Mutex::new(db)) })
-    }
+    Ok(db)
 }
 
 impl super::Storage for Impl {
@@ -89,10 +88,10 @@ impl super::Storage for Impl {
     fn list_scenarios_by_tag(
         &self,
         tag_key: String,
-    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + Send + 'static {
+    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + 'static {
         let db = self.db.clone();
         let run = (|| {
-            let db = db.lock();
+            let db = get_db(&db)?;
             let mut stmt = db
                 .prepare(
                     "SELECT id, title, created FROM scenario LEFT JOIN scenario_tag USING (id) \
@@ -118,10 +117,10 @@ impl super::Storage for Impl {
     fn load_scenario(
         &self,
         key: String,
-    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + Send + 'static {
+    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + 'static {
         let db = self.db.clone();
         let run = (|| {
-            let db = db.lock();
+            let db = get_db(&db)?;
             let mut stmt = db
                 .prepare("SELECT data FROM scenario WHERE id = ?")
                 .context("prepare scenario select query")?;
@@ -135,10 +134,10 @@ impl super::Storage for Impl {
         meta: ScenarioMeta,
         data: Vec<u8>,
         tags: HashMap<String, String>,
-    ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static {
+    ) -> impl Future<Output = anyhow::Result<()>> + 'static {
         let db = self.db.clone();
         let run = (|| {
-            let db = db.lock();
+            let db = get_db(&db)?;
             db.execute(
                 "INSERT OR REPLACE INTO scenario (id, title, created, data) VALUES (?, ?, ?, ?)",
                 (
@@ -174,10 +173,10 @@ impl super::Storage for Impl {
     fn list_levels_by_time(
         &self,
         limit: usize,
-    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + Send + 'static {
+    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + 'static {
         let db = self.db.clone();
         let run = (|| {
-            let db = db.lock();
+            let db = get_db(&db)?;
             let mut stmt = db
                 .prepare(
                     "SELECT id, title, created, modified FROM level ORDER BY modified DESC LIMIT ?",
@@ -200,18 +199,24 @@ impl super::Storage for Impl {
         async move { run }
     }
 
-    fn load_level(
-        &self,
-        key: String,
-    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + Send + 'static {
+    fn load_level(&self, key: String) -> impl Future<Output = anyhow::Result<Vec<u8>>> + 'static {
         let db = self.db.clone();
         let run = (|| {
-            let db = db.lock();
+            let db = get_db(&db)?;
             let mut stmt = db
                 .prepare("SELECT data FROM level WHERE id = ?")
                 .context("prepare level select query")?;
             stmt.query_row((key,), |row| row.get(0)).context("query level data")
         })();
         async move { run }
+    }
+}
+
+fn get_db(cell: &Rc<OnceCell<rusqlite::Connection>>) -> anyhow::Result<&rusqlite::Connection> {
+    if let Some(db) = cell.get() {
+        Ok(db)
+    } else {
+        let db = new_db()?;
+        Ok(cell.get_or_init(move || db))
     }
 }

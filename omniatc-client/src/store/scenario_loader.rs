@@ -4,12 +4,12 @@ use bevy::asset::{
     self, Asset, AssetLoader, AssetPath, AssetServer, Assets, DirectAssetAccessExt, Handle,
 };
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Command, Commands, Res, ResMut};
+use bevy::ecs::system::{Command, Commands, NonSend, Res, ResMut};
 use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 use omniatc_core::store;
-use omniatc_core::util::{run_async, AsyncPollList, AsyncResult};
+use omniatc_core::util::{run_async_local, AsyncPollList, AsyncResult};
 
 use super::{ScenarioMeta, Storage};
 use crate::util;
@@ -63,7 +63,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
     asset_server: Res<AssetServer>,
     mut assets: ResMut<Assets<ScenarioAsset>>,
     mut current_importing: ResMut<CurrentImportingScenarios>,
-    storage: Res<S>,
+    storage: NonSend<S>,
     mut poll_list: ResMut<AsyncPollList>,
 ) {
     let mut still_importing = Vec::new();
@@ -83,7 +83,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
         let ScenarioAsset { bytes, file } =
             assets.remove(&handle).expect("asset load state is Loaded");
 
-        run_async(storage.insert_scenario(
+        run_async_local(storage.insert_scenario(
             ScenarioMeta {
                 key:     file.meta.id.clone(),
                 title:   file.meta.title.clone(),

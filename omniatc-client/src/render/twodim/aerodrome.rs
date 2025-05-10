@@ -135,23 +135,23 @@ impl Default for Conf {
     fn default() -> Self {
         Self {
             segment_thickness:   1.2,
-            segment_render_zoom: Distance::from_meters(100.),
+            segment_render_zoom: Distance::from_meters(50.),
             intersection_size:   Distance::from_meters(50.),
             arc_interval:        Angle::RIGHT / 4.,
 
             taxiway_color: Color::srgb(0.9, 0.9, 0.2),
             apron_color:   Color::srgb(0.8, 0.5, 0.1),
 
-            endpoint_render_zoom: Distance::from_meters(50.),
+            endpoint_render_zoom: Distance::from_meters(30.),
 
-            taxiway_label_render_zoom: Distance::from_meters(20.),
-            taxiway_label_size:        0.5,
+            taxiway_label_render_zoom: Distance::from_meters(15.),
+            taxiway_label_size:        0.45,
             taxiway_label_distance:    0.,
             taxiway_label_anchor:      Anchor::BottomCenter,
             taxiway_label_color:       Color::WHITE,
 
             apron_label_render_zoom: Distance::from_meters(10.),
-            apron_label_size:        0.6,
+            apron_label_size:        0.5,
             apron_label_distance:    0.,
             apron_label_anchor:      Anchor::BottomCenter,
             apron_label_color:       Color::WHITE,

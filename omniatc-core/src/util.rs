@@ -1,16 +1,30 @@
 use std::fmt;
+use std::future::Future;
 
-use bevy::app::App;
+use bevy::app::{self, App, Plugin};
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::Event;
+use bevy::ecs::observer::Trigger;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
+use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::graph::GraphInfo;
 use bevy::ecs::schedule::{
     Chain, IntoScheduleConfigs, Schedulable, ScheduleConfigs, ScheduleLabel, SystemSet,
 };
-use bevy::ecs::system::Commands;
+use bevy::ecs::system::{Commands, IntoObserverSystem, IntoSystem, ResMut};
+use bevy::tasks::{self, IoTaskPool, Task};
 use itertools::Itertools;
+
+pub struct Plug;
+
+impl Plugin for Plug {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<AsyncPollList>();
+        app.add_systems(app::FixedPreUpdate, poll_async_system);
+    }
+}
 
 #[macro_export]
 macro_rules! try_log {
@@ -149,4 +163,63 @@ pub fn manage_entity_vec<C, X, NB>(
     for entity in entities {
         commands.entity(entity).despawn();
     }
+}
+
+pub struct RunAsync<R>(Task<R>);
+
+pub fn run_async<R: Send + Sync + 'static>(
+    task: impl Future<Output = R> + Send + 'static,
+) -> RunAsync<R> {
+    let task = IoTaskPool::get().spawn(task);
+    RunAsync(task)
+}
+
+impl<R: Send + Sync + 'static> RunAsync<R> {
+    // TODO: refactor to support `then: impl FnOnce(R, P)` instead.
+    pub fn then<M>(
+        self,
+        commands: &mut Commands,
+        poll_list: &mut AsyncPollList,
+        then: impl IntoObserverSystem<AsyncResultTrigger<R>, (), M>,
+    ) {
+        let mut task = self.0;
+        let handler = commands.add_observer(then).id();
+        poll_list.0.push(Box::new(move |commands| {
+            if let Some(result) = tasks::block_on(tasks::poll_once(&mut task)) {
+                commands.entity(handler).trigger(AsyncResultTrigger(Some(result))).despawn();
+                AsyncPollResult::Done
+            } else {
+                AsyncPollResult::Pending
+            }
+        }));
+    }
+}
+
+#[derive(PartialEq, Eq)]
+enum AsyncPollResult {
+    Done,
+    Pending,
+}
+
+/// Wraps the result of a [`run_async`] task.
+#[derive(Event)]
+pub struct AsyncResultTrigger<R>(Option<R>);
+
+impl<R> AsyncResultTrigger<R> {
+    /// # Panics
+    /// Panics if called more than once.
+    pub fn get(&mut self) -> R {
+        self.0.take().expect("AsyncResult.get() should only be called once")
+    }
+}
+
+pub type AsyncResult<'w, R> = Trigger<'w, AsyncResultTrigger<R>>;
+
+#[derive(Resource, Default)]
+pub struct AsyncPollList(Vec<AsyncPoll>);
+
+type AsyncPoll = Box<dyn FnMut(&mut Commands) -> AsyncPollResult + Send + Sync>;
+
+fn poll_async_system(mut poll_list: ResMut<AsyncPollList>, mut commands: Commands) {
+    poll_list.0.extract_if(.., |poll| poll(&mut commands) == AsyncPollResult::Done).for_each(drop);
 }

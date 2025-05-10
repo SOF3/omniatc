@@ -9,6 +9,7 @@ use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 use omniatc_core::store;
+use omniatc_core::util::{run_async, AsyncPollList, AsyncResult};
 
 use super::{ScenarioMeta, Storage};
 use crate::util;
@@ -62,8 +63,8 @@ pub fn handle_loaded_scenario_system<S: Storage>(
     asset_server: Res<AssetServer>,
     mut assets: ResMut<Assets<ScenarioAsset>>,
     mut current_importing: ResMut<CurrentImportingScenarios>,
-    mut current_load_on_import: ResMut<CurrentLoadOnImport>,
-    mut storage: ResMut<S>,
+    storage: Res<S>,
+    mut poll_list: ResMut<AsyncPollList>,
 ) {
     let mut still_importing = Vec::new();
     for handle in mem::take(&mut current_importing.0) {
@@ -82,25 +83,36 @@ pub fn handle_loaded_scenario_system<S: Storage>(
         let ScenarioAsset { bytes, file } =
             assets.remove(&handle).expect("asset load state is Loaded");
 
-        if let Err(err) = storage.insert_scenario(
+        run_async(storage.insert_scenario(
             ScenarioMeta {
                 key:     file.meta.id.clone(),
                 title:   file.meta.title.clone(),
                 created: util::time_now(),
             },
-            &bytes,
-            &file.meta.tags,
-        ) {
-            bevy::log::error!("storing imported scenario: {err:?}");
-        }
+            bytes,
+            file.meta.tags.clone(),
+        ))
+        .then(&mut commands, &mut poll_list, {
+            let mut file = Some(file);
+            move |mut ret: AsyncResult<Result<(), S::Error>>,
+                  mut commands: Commands,
+                  mut current_load_on_import: ResMut<CurrentLoadOnImport>| {
+                if let Err(err) = ret.get() {
+                    bevy::log::error!("storing imported scenario: {err:?}");
+                    return;
+                }
 
-        if current_load_on_import.0.as_ref() == Some(&file.meta.id) {
-            current_load_on_import.0 = None;
-            commands.queue(store::load::Command {
-                source:   store::load::Source::Parsed(Box::new(file)),
-                on_error: Box::new(|_world, err| bevy::log::error!("Load error: {err}")),
-            });
-        }
+                let file = file.take().unwrap();
+
+                if current_load_on_import.0.as_ref() == Some(&file.meta.id) {
+                    current_load_on_import.0 = None;
+                    commands.queue(store::load::Command {
+                        source:   store::load::Source::Parsed(Box::new(file)),
+                        on_error: Box::new(|_world, err| bevy::log::error!("Load error: {err}")),
+                    });
+                }
+            }
+        });
     }
     current_importing.0 = still_importing;
 }

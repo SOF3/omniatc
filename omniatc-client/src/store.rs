@@ -1,13 +1,15 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::time::SystemTime;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, ResMut};
+use bevy::ecs::system::{Commands, Res, ResMut};
 use omniatc_core::store;
+use omniatc_core::util::{run_async, AsyncPollList, AsyncResult};
 use serde::{Deserialize, Serialize};
 
 mod scenario_loader;
@@ -38,19 +40,31 @@ pub struct LevelMeta {
 }
 
 pub trait Storage: Resource {
-    type Error: fmt::Debug;
+    type Error: fmt::Debug + Send + Sync + 'static;
 
-    fn list_scenarios_by_tag(&mut self, tag_key: &str) -> anyhow::Result<Vec<ScenarioMeta>>;
-    fn load_scenario(&mut self, key: &str) -> Result<Vec<u8>, Self::Error>;
+    fn list_scenarios_by_tag(
+        &self,
+        tag_key: String,
+    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + Send + 'static;
+    fn load_scenario(
+        &self,
+        key: String,
+    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + Send + 'static;
     fn insert_scenario(
-        &mut self,
+        &self,
         meta: ScenarioMeta,
-        data: &[u8],
-        tags: &HashMap<String, String>,
-    ) -> Result<(), Self::Error>;
+        data: Vec<u8>,
+        tags: HashMap<String, String>,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
 
-    fn list_levels_by_time(&mut self, limit: usize) -> anyhow::Result<Vec<LevelMeta>>;
-    fn load_level(&mut self, key: &str) -> Result<Vec<u8>, Self::Error>;
+    fn list_levels_by_time(
+        &self,
+        limit: usize,
+    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + Send + 'static;
+    fn load_level(
+        &self,
+        key: String,
+    ) -> impl Future<Output = Result<Vec<u8>, Self::Error>> + Send + 'static;
 }
 
 pub struct Plug<S>(pub fn() -> S);
@@ -73,32 +87,55 @@ impl<S: Storage> Plugin for Plug<S> {
 }
 
 fn load_last_level_system<S: Storage>(
-    mut storage: ResMut<S>,
     mut commands: Commands,
-    mut current_load_on_import: ResMut<scenario_loader::CurrentLoadOnImport>,
+    mut poll_list: ResMut<AsyncPollList>,
+    storage: Res<S>,
 ) {
-    let key = match storage.list_levels_by_time(1) {
-        Ok(list) => list.into_iter().next().map(|level| level.key),
-        Err(err) => {
-            bevy::log::error!("Cannot locate last available level: {err:?}");
-            None
-        }
-    };
+    run_async(storage.list_levels_by_time(1)).then(
+        &mut commands,
+        &mut poll_list,
+        |mut ret: AsyncResult<anyhow::Result<Vec<LevelMeta>>>,
+         storage: Res<S>,
+         mut current_load_on_import: ResMut<scenario_loader::CurrentLoadOnImport>,
+         mut poll_list: ResMut<AsyncPollList>,
+         mut commands: Commands| {
+            let key = match ret.get() {
+                Ok(list) => list.into_iter().next().map(|level| level.key),
+                Err(err) => {
+                    bevy::log::error!("Cannot locate last available level: {err:?}");
+                    None
+                }
+            };
 
-    let source = key.and_then(|key| match storage.load_level(&key) {
-        Ok(data) => Some(store::load::Source::Raw(Cow::Owned(data))),
-        Err(err) => {
-            bevy::log::error!("Cannot load last loaded level: {err:?}");
-            None
-        }
-    });
-
-    if let Some(source) = source {
-        commands.queue(store::load::Command {
-            source,
-            on_error: Box::new(|_world, err| bevy::log::error!("Error loading level: {err:?}")),
-        });
-    } else {
-        current_load_on_import.0 = Some(scenario_loader::DEFAULT_SCENARIO.into());
-    }
+            match key {
+                Some(key) => {
+                    run_async(storage.load_level(key)).then(
+                        &mut commands,
+                        &mut poll_list,
+                        |mut ret: AsyncResult<Result<Vec<u8>, S::Error>>,
+                         mut commands: Commands,
+                         mut current_load_on_import: ResMut<
+                            scenario_loader::CurrentLoadOnImport,
+                        >| match ret.get() {
+                            Ok(data) => {
+                                let source = store::load::Source::Raw(Cow::Owned(data));
+                                commands.queue(store::load::Command {
+                                    source,
+                                    on_error: Box::new(|_world, err| {
+                                        bevy::log::error!("Error loading level: {err:?}");
+                                    }),
+                                });
+                            }
+                            Err(err) => {
+                                bevy::log::error!("Cannot load last loaded level: {err:?}");
+                                current_load_on_import.0 =
+                                    Some(scenario_loader::DEFAULT_SCENARIO.into());
+                            }
+                        },
+                    );
+                }
+                None => current_load_on_import.0 = Some(scenario_loader::DEFAULT_SCENARIO.into()),
+            }
+        },
+    );
 }

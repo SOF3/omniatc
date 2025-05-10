@@ -42,6 +42,7 @@ fn main() {
         // bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug,
         omniatc_core::store::Plug,
+        omniatc_core::util::Plug,
         input::Plug,
         render::Plug,
         store::plugin(),

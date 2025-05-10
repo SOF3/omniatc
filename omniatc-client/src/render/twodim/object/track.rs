@@ -6,6 +6,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::math::Vec3;
 use bevy::render::mesh::Mesh2d;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
@@ -77,7 +78,7 @@ fn respawn_system(
                 let (translation, color) = point_data.next()?;
 
                 Some((
-                    Transform { translation, ..Default::default() },
+                    Transform { translation, scale: Vec3::ZERO, ..Default::default() },
                     billboard::MaintainScale { size: conf.track_point_size },
                     Mesh2d(shapes.circle().clone()),
                     MeshMaterial2d(material_assets.add(color)),

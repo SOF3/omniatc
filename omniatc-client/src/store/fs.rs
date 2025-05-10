@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -22,7 +24,7 @@ fn index_path() -> Option<PathBuf> {
 
 #[derive(Resource)]
 pub struct Impl {
-    db: Mutex<rusqlite::Connection>,
+    db: Arc<Mutex<rusqlite::Connection>>,
 }
 
 impl Impl {
@@ -77,105 +79,139 @@ impl Impl {
         )
         .context("prepare scenario_tag table")?;
 
-        Ok(Self { db: Mutex::new(db) })
+        Ok(Self { db: Arc::new(Mutex::new(db)) })
     }
 }
 
 impl super::Storage for Impl {
     type Error = anyhow::Error;
 
-    fn list_scenarios_by_tag(&mut self, tag_key: &str) -> anyhow::Result<Vec<ScenarioMeta>> {
-        let db = self.db.get_mut();
-        let mut stmt = db
-            .prepare(
-                "SELECT id, title, created FROM scenario LEFT JOIN scenario_tag USING (id) WHERE \
-                 scenario_tag.tag_key = ? ORDER BY scenario_tag.tag_value",
-            )
-            .context("prepare scenario list statement")?;
-        let scenarios = stmt
-            .query_map((tag_key,), |row| {
-                Ok(ScenarioMeta {
-                    key:     row.get(0)?,
-                    title:   row.get(1)?,
-                    created: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
+    fn list_scenarios_by_tag(
+        &self,
+        tag_key: String,
+    ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + Send + 'static {
+        let db = self.db.clone();
+        let run = (|| {
+            let db = db.lock();
+            let mut stmt = db
+                .prepare(
+                    "SELECT id, title, created FROM scenario LEFT JOIN scenario_tag USING (id) \
+                     WHERE scenario_tag.tag_key = ? ORDER BY scenario_tag.tag_value",
+                )
+                .context("prepare scenario list statement")?;
+            let scenarios = stmt
+                .query_map((tag_key,), |row| {
+                    Ok(ScenarioMeta {
+                        key:     row.get(0)?,
+                        title:   row.get(1)?,
+                        created: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
+                    })
                 })
-            })
-            .context("query scenario list")?;
-        scenarios
-            .map(|result| result.context("convert scenario row"))
-            .collect::<anyhow::Result<Vec<_>>>()
+                .context("query scenario list")?;
+            scenarios
+                .map(|result| result.context("convert scenario row"))
+                .collect::<anyhow::Result<Vec<_>>>()
+        })();
+        async move { run }
     }
 
-    fn load_scenario(&mut self, key: &str) -> anyhow::Result<Vec<u8>> {
-        let db = self.db.get_mut();
-        let mut stmt = db
-            .prepare("SELECT data FROM scenario WHERE id = ?")
-            .context("prepare scenario select query")?;
-        stmt.query_row((key,), |row| row.get(0)).context("query scenario data")
+    fn load_scenario(
+        &self,
+        key: String,
+    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + Send + 'static {
+        let db = self.db.clone();
+        let run = (|| {
+            let db = db.lock();
+            let mut stmt = db
+                .prepare("SELECT data FROM scenario WHERE id = ?")
+                .context("prepare scenario select query")?;
+            stmt.query_row((key,), |row| row.get(0)).context("query scenario data")
+        })();
+        async move { run }
     }
 
     fn insert_scenario(
-        &mut self,
+        &self,
         meta: ScenarioMeta,
-        data: &[u8],
-        tags: &HashMap<String, String>,
-    ) -> anyhow::Result<()> {
-        let db = self.db.get_mut();
-        db.execute(
-            "INSERT OR REPLACE INTO scenario (id, title, created, data) VALUES (?, ?, ?, ?)",
-            (
-                &meta.key,
-                &meta.title,
-                u64::try_from(
-                    meta.created
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .expect("system time is too old")
-                        .as_millis(),
-                )
-                .expect("system time is too late"),
-                data,
-            ),
-        )
-        .context("insert scalar data")?;
-
-        db.execute("DELETE FROM scenario_tag WHERE id = ?", (&meta.key,))
-            .context("delete old tags")?;
-        for (key, value) in tags {
+        data: Vec<u8>,
+        tags: HashMap<String, String>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static {
+        let db = self.db.clone();
+        let run = (|| {
+            let db = db.lock();
             db.execute(
-                "INSERT INTO scenario_tag (id, tag_key, tag_value) VALUES (?, ?, ?)",
-                (&meta.key, key, value),
+                "INSERT OR REPLACE INTO scenario (id, title, created, data) VALUES (?, ?, ?, ?)",
+                (
+                    &meta.key,
+                    &meta.title,
+                    u64::try_from(
+                        meta.created
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .expect("system time is too old")
+                            .as_millis(),
+                    )
+                    .expect("system time is too late"),
+                    data,
+                ),
             )
-            .context("insert tag")?;
-        }
+            .context("insert scalar data")?;
 
-        Ok(())
+            db.execute("DELETE FROM scenario_tag WHERE id = ?", (&meta.key,))
+                .context("delete old tags")?;
+            for (key, value) in tags {
+                db.execute(
+                    "INSERT INTO scenario_tag (id, tag_key, tag_value) VALUES (?, ?, ?)",
+                    (&meta.key, key, value),
+                )
+                .context("insert tag")?;
+            }
+
+            Ok(())
+        })();
+        async move { run }
     }
 
-    fn list_levels_by_time(&mut self, limit: usize) -> anyhow::Result<Vec<LevelMeta>> {
-        let db = self.db.get_mut();
-        let mut stmt = db
-            .prepare(
-                "SELECT id, title, created, modified FROM level ORDER BY modified DESC LIMIT ?",
-            )
-            .context("prepare level list statement")?;
-        let levels = stmt
-            .query_map((limit,), |row| {
-                Ok(LevelMeta {
-                    key:      row.get(0)?,
-                    title:    row.get(1)?,
-                    created:  SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
-                    modified: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(3)?),
+    fn list_levels_by_time(
+        &self,
+        limit: usize,
+    ) -> impl Future<Output = anyhow::Result<Vec<LevelMeta>>> + Send + 'static {
+        let db = self.db.clone();
+        let run = (|| {
+            let db = db.lock();
+            let mut stmt = db
+                .prepare(
+                    "SELECT id, title, created, modified FROM level ORDER BY modified DESC LIMIT ?",
+                )
+                .context("prepare level list statement")?;
+            let levels = stmt
+                .query_map((limit,), |row| {
+                    Ok(LevelMeta {
+                        key:      row.get(0)?,
+                        title:    row.get(1)?,
+                        created:  SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
+                        modified: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(3)?),
+                    })
                 })
-            })
-            .context("query level list")?;
-        levels.map(|result| result.context("convert level row")).collect::<anyhow::Result<Vec<_>>>()
+                .context("query level list")?;
+            levels
+                .map(|result| result.context("convert level row"))
+                .collect::<anyhow::Result<Vec<_>>>()
+        })();
+        async move { run }
     }
 
-    fn load_level(&mut self, key: &str) -> anyhow::Result<Vec<u8>> {
-        let db = self.db.get_mut();
-        let mut stmt = db
-            .prepare("SELECT data FROM level WHERE id = ?")
-            .context("prepare level select query")?;
-        stmt.query_row((key,), |row| row.get(0)).context("query level data")
+    fn load_level(
+        &self,
+        key: String,
+    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + Send + 'static {
+        let db = self.db.clone();
+        let run = (|| {
+            let db = db.lock();
+            let mut stmt = db
+                .prepare("SELECT data FROM level WHERE id = ?")
+                .context("prepare level select query")?;
+            stmt.query_row((key,), |row| row.get(0)).context("query level data")
+        })();
+        async move { run }
     }
 }

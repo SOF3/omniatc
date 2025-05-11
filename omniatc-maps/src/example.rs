@@ -388,17 +388,29 @@ pub fn file() -> store::File {
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  None,
                             },
+                            store::RouteNode::SetAirSpeed {
+                                goal:  Speed::from_knots(250.),
+                                error: None,
+                            },
                             store::RouteNode::DirectWaypoint {
                                 waypoint:  store::WaypointRef::Named("TBASE".into()),
                                 distance:  Distance::from_nm(1.),
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  Some(Position::from_amsl_feet(4000.)),
                             },
+                            store::RouteNode::SetAirSpeed {
+                                goal:  Speed::from_knots(200.),
+                                error: None,
+                            },
                             store::RouteNode::DirectWaypoint {
                                 waypoint:  store::WaypointRef::Named("APPCH".into()),
                                 distance:  Distance::from_nm(1.),
                                 proximity: WaypointProximity::FlyBy,
                                 altitude:  None,
+                            },
+                            store::RouteNode::SetAirSpeed {
+                                goal:  Speed::from_knots(180.),
+                                error: None,
                             },
                             store::RouteNode::AlignRunway {
                                 runway:   store::RunwayRef {

@@ -87,6 +87,11 @@ fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
     #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
     if speed != time.relative_speed() {
         time.set_relative_speed(speed);
+        if speed > 0. {
+            time.unpause();
+        } else {
+            time.pause();
+        }
     }
 }
 

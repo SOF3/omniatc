@@ -500,20 +500,24 @@ pub struct SetAirspeedNode {
 
 impl NodeKind for SetAirspeedNode {
     fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let current_airspeed =
-            SystemState::<object::GetAirspeed>::new(world).get(world).get_airspeed(entity);
+        if let Some(mut airborne) = world.entity_mut(entity).get_mut::<nav::VelocityTarget>() {
+            airborne.horiz_speed = self.speed;
+            // TODO: what about ground objects?
+        }
+
+        let current_airspeed = move |world: &mut World| {
+            let mut state = SystemState::<object::GetAirspeed>::new(world);
+            state.get(world).get_airspeed(entity)
+        };
 
         if self.error.is_none_or(|error| {
-            current_airspeed
+            current_airspeed(world)
                 .horizontal()
                 .magnitude_cmp()
                 .between_inclusive(&(self.speed - error), &(self.speed + error))
         }) {
             RunNodeResult::NodeDone
         } else {
-            if let Some(mut airborne) = world.entity_mut(entity).get_mut::<nav::VelocityTarget>() {
-                airborne.horiz_speed = self.speed;
-            }
             RunNodeResult::PendingTrigger
         }
     }
@@ -607,7 +611,7 @@ impl NodeKind for AlignRunwayNode {
 #[portrait::derive(NodeKind with portrait::derive_delegate)]
 pub enum Node {
     DirectWaypoint(DirectWaypointNode),
-    SetAirspeed(SetAirspeedNode),
+    SetAirSpeed(SetAirspeedNode),
     StartSetAltitude(StartSetAltitudeNode),
     AlignRunway(AlignRunwayNode),
 }

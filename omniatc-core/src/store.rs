@@ -455,7 +455,7 @@ pub enum RouteNode {
         altitude:  Option<Position<f32>>,
     },
     /// Adjust throttle until the airspeed is reached.
-    SetAirspeed {
+    SetAirSpeed {
         goal:  Speed<f32>,
         /// If `Some`, this node blocks until the airspeed is within `goal` &pm; `error`.
         error: Option<Speed<f32>>,

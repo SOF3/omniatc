@@ -748,8 +748,8 @@ fn insert_route(
                     proximity,
                     altitude,
                 }),
-                store::RouteNode::SetAirspeed { goal, error } => {
-                    route::Node::SetAirspeed(route::SetAirspeedNode { speed: goal, error })
+                store::RouteNode::SetAirSpeed { goal, error } => {
+                    route::Node::SetAirSpeed(route::SetAirspeedNode { speed: goal, error })
                 }
                 store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
                     route::Node::StartSetAltitude(route::StartSetAltitudeNode {

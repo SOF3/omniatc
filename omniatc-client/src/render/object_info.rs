@@ -8,6 +8,8 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
 use bevy_egui::{egui, EguiContextPass, EguiContexts};
 use omniatc_core::level::aerodrome::Aerodrome;
+use omniatc_core::level::route::{self, Route};
+use omniatc_core::level::runway::Runway;
 use omniatc_core::level::waypoint::Waypoint;
 use omniatc_core::level::{nav, object, plane};
 use omniatc_core::try_log_return;
@@ -74,6 +76,8 @@ trait Writer: QueryData {
 
     fn title() -> &'static str;
 
+    fn default_open() -> bool { true }
+
     fn should_show(this: &Self::Item<'_>) -> bool;
 
     fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, param: &mut Self::SystemParams<'_, '_>);
@@ -101,7 +105,7 @@ macro_rules! writer_def {
                     if <$writer as Writer>::should_show(qd) {
                         let mut params = params.sets.$index();
                         egui::CollapsingHeader::new(<$writer as Writer>::title())
-                            .default_open(true)
+                            .default_open(<$writer as Writer>::default_open())
                             .show(ui, |ui| {
                                 <$writer as Writer>::show(qd, ui, &mut params);
                             });
@@ -117,6 +121,7 @@ writer_def! {
     p1: WriteDirection,
     p2: WriteAltitude,
     p3: WriteSpeed,
+    p4: WriteRoute,
 }
 
 #[derive(QueryData)]
@@ -126,8 +131,8 @@ struct WriteDestination {
 
 #[derive(SystemParam)]
 struct WriteDestinationParams<'w, 's> {
-    aerodrome_query: Query<'w, 's, &'static Aerodrome>,
-    waypoint_query:  Query<'w, 's, &'static Waypoint>,
+    aerodrome: Query<'w, 's, &'static Aerodrome>,
+    waypoint:  Query<'w, 's, &'static Waypoint>,
 }
 
 impl Writer for WriteDestination {
@@ -141,7 +146,7 @@ impl Writer for WriteDestination {
         ui.label(match *this.dest {
             object::Destination::Landing { aerodrome } => {
                 let data = try_log_return!(
-                    params.aerodrome_query.get(aerodrome),
+                    params.aerodrome.get(aerodrome),
                     expect "Unknown aerodrome {aerodrome:?}"
                 );
                 format!("Arrival at {}", &data.name)
@@ -150,7 +155,7 @@ impl Writer for WriteDestination {
             object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {
                 let mut waypoint_name = None;
                 if let Some((waypoint_entity, _)) = waypoint_proximity {
-                    if let Ok(data) = params.waypoint_query.get(waypoint_entity) {
+                    if let Ok(data) = params.waypoint.get(waypoint_entity) {
                         waypoint_name = Some(&data.name);
                     }
                 }
@@ -352,7 +357,7 @@ impl Writer for WriteAltitude {
 
     fn title() -> &'static str { "Altitude" }
 
-    fn should_show(_this: &Self::Item<'_>) -> bool { true }
+    fn should_show(this: &Self::Item<'_>) -> bool { this.airborne.is_some() }
 
     fn show(
         this: &Self::Item<'_>,
@@ -441,6 +446,84 @@ impl Writer for WriteSpeed {
         }
         if let Some(nav_vel) = this.nav_vel {
             ui.label(format!("Target IAS: {:.0} kt", nav_vel.horiz_speed.into_knots()));
+        }
+    }
+}
+
+#[derive(QueryData)]
+struct WriteRoute {
+    route: Option<&'static Route>,
+}
+
+#[derive(SystemParam)]
+struct WriteRouteParams<'w, 's> {
+    waypoint:  Query<'w, 's, &'static Waypoint>,
+    runway:    Query<'w, 's, (&'static Runway, &'static Waypoint)>,
+    aerodrome: Query<'w, 's, &'static Aerodrome>,
+}
+
+impl Writer for WriteRoute {
+    type SystemParams<'w, 's> = WriteRouteParams<'w, 's>;
+
+    fn title() -> &'static str { "Route" }
+
+    fn should_show(this: &Self::Item<'_>) -> bool {
+        this.route.is_some_and(|r| r.current().is_some())
+    }
+
+    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
+        let Some(route) = this.route else { return };
+
+        for node in route.iter() {
+            write_route_node(ui, node, params);
+        }
+    }
+}
+
+fn write_route_node(ui: &mut egui::Ui, node: &route::Node, params: &WriteRouteParams) {
+    match node {
+        route::Node::DirectWaypoint(node) => {
+            let waypoint = try_log_return!(params.waypoint.get(node.waypoint), expect "route must reference valid waypoint {:?}", node.waypoint);
+            match node.proximity {
+                route::WaypointProximity::FlyBy => ui.label(format!("Fly by {}", &waypoint.name)),
+                route::WaypointProximity::FlyOver => {
+                    ui.label(format!("Fly over {}", &waypoint.name))
+                }
+            };
+
+            if let Some(altitude) = node.altitude {
+                struct Indent;
+                ui.indent(TypeId::of::<Indent>(), |ui| {
+                    ui.label(format!("Pass at altitude {:.0} ft", altitude.amsl().into_feet()));
+                });
+            }
+        }
+        route::Node::SetAirSpeed(node) => {
+            ui.label(format!("Set speed to {:.0} kt", node.speed.into_knots()));
+            if let Some(error) = node.error {
+                struct Indent;
+                ui.indent(TypeId::of::<Indent>(), |ui| {
+                    ui.label(format!("Maintain until \u{b1}{:.0} kt", error.into_knots()));
+                });
+            }
+        }
+        route::Node::StartSetAltitude(node) => {
+            let expedite = if node.expedite { " (expedite)" } else { "" };
+            ui.label(format!(
+                "Start approaching altitude {:.0} ft{expedite}",
+                node.altitude.amsl().into_feet()
+            ));
+            if let Some(error) = node.error {
+                struct Indent;
+                ui.indent(TypeId::of::<Indent>(), |ui| {
+                    ui.label(format!("Maintain until \u{b1}{:.0} ft", error.into_feet()));
+                });
+            }
+        }
+        route::Node::AlignRunway(node) => {
+            let (runway, waypoint) = try_log_return!(params.runway.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
+            let aerodrome = try_log_return!(params.aerodrome.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            ui.label(format!("Align towards runway {} of {}", &waypoint.name, &aerodrome.name));
         }
     }
 }

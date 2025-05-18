@@ -3,8 +3,7 @@
 // we don't really want to read the mathematical constants in this file.
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
-use core::fmt;
-use std::{cmp, iter, ops};
+use std::{cmp, fmt, iter, ops};
 
 use bevy::math::{Dir2, Mat2, Vec2};
 
@@ -15,6 +14,13 @@ pub use consts::*;
 pub mod sweep;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Sign {
+    Negative,
+    Zero,
+    Positive,
+}
 
 /// Finds the values `k1`, `k2` such that `0 <= k1 <= k2 <= 1` and,
 /// for each `k` between `k1` and `k2` inclusive,

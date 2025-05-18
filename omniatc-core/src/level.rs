@@ -15,6 +15,7 @@ pub mod object;
 pub mod plane;
 pub mod route;
 pub mod runway;
+pub mod wake;
 pub mod waypoint;
 pub mod wind;
 
@@ -40,14 +41,17 @@ impl Plugin for Plug {
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);
+        app.add_plugins(wake::Plug);
+        app.add_plugins(wind::Plug);
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
 pub enum SystemSets {
     /// Direct response to environmental changes such as wind, cloud base and visibility.
+    /// Does not directly affect aircraft.
     PrepareEnviron,
-    /// Systems representing communication operations of a plane.
+    /// Systems representing communication operations of an aircraft.
     Communicate,
     /// Systems executing a complex flight plan that decides navigation targets.
     Action,
@@ -59,6 +63,8 @@ pub enum SystemSets {
     ExecuteEnviron,
     /// Reconcile aviation-related components not involved in simulation but useful for other modules to read.
     ReconcileForRead,
+    /// Systems simulating effects *on* the environment *from* controlled objects.
+    AffectEnviron,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]

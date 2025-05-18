@@ -267,7 +267,7 @@ fn plan_altitude(
     }
 
     let current_position = entity_ref.get::<Object>().expect("entity must be an Object").position;
-    let Some(&object::Airborne { airspeed: current_airspeed }) = entity_ref.get() else {
+    let Some(&object::Airborne { airspeed: current_airspeed, .. }) = entity_ref.get() else {
         // no need to plan altitude if we are not airborne yet
         return PlanAltitudeResult::None;
     };

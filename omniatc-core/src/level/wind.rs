@@ -1,12 +1,42 @@
 //! A wind entity applies a velocity component to objects in its effective region.
 
-use bevy::ecs::system::SystemParam;
+use std::time::Duration;
+
+use bevy::app::{self, App, Plugin};
+use bevy::ecs::bundle::Bundle;
+use bevy::ecs::component::Component;
+use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy::ecs::system::{EntityCommand, Local, Query, Res, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
-use bevy::math::{Vec2, Vec3A};
-use bevy::prelude::{Bundle, Component, EntityCommand, Query, With};
+use bevy::math::{Vec2, Vec3, Vec3A};
+use bevy::time::{self, Time};
 
+use super::{object, SystemSets};
 use crate::units::{Position, Speed};
+
+pub struct Plug;
+
+impl Plugin for Plug {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<Conf>();
+        app.add_systems(
+            app::Update,
+            detect_system.in_set(SystemSets::ExecuteEnviron).before(DetectorReaderSystemSet),
+        );
+    }
+}
+
+#[derive(Resource)]
+pub struct Conf {
+    detect_period: Duration,
+}
+
+impl Default for Conf {
+    fn default() -> Self { Self { detect_period: Duration::from_secs(1) } }
+}
 
 /// The direction and strength of wind.
 #[derive(Component)]
@@ -63,3 +93,32 @@ impl Locator<'_, '_> {
             .sum()
     }
 }
+
+/// An [object](object::Object) that detects wind speed.
+///
+/// The value can be read by systems in [`DetectorReaderSystemSet`].
+#[derive(Component, Default)]
+pub struct Detector {
+    pub last_computed: Speed<Vec2>,
+}
+
+fn detect_system(
+    time: Res<Time<time::Virtual>>,
+    mut last_execute_period: Local<Option<u128>>,
+    conf: Res<Conf>,
+    locator: Locator,
+    mut object_query: Query<(&mut Detector, &object::Object)>,
+) {
+    let period = time.elapsed().as_nanos() / conf.detect_period.as_nanos();
+    let last_period = last_execute_period.replace(period);
+    if Some(period) == last_period {
+        return;
+    }
+
+    object_query.par_iter_mut().for_each(|(mut detector, object)| {
+        detector.last_computed = locator.locate(object.position);
+    });
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+pub struct DetectorReaderSystemSet;

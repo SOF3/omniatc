@@ -13,7 +13,7 @@ mod squared;
 pub use squared::Squared;
 use squared::SquaredNorm;
 
-use crate::math::{FEET_PER_NM, METERS_PER_NM, MILES_PER_NM};
+use crate::math::{Sign, FEET_PER_NM, METERS_PER_NM, MILES_PER_NM};
 
 pub trait Unit: Copy {
     type Value: Copy;
@@ -195,6 +195,17 @@ macro_rules! decl_units {
             }
 
             #[must_use]
+            pub fn sign(self) -> Sign {
+                if self.0 == 0. {
+                    Sign::Zero
+                } else if self.0 < 0. {
+                    Sign::Negative
+                } else {
+                    Sign::Positive
+                }
+            }
+
+            #[must_use]
             pub fn abs(self) -> Self {
                 Self(self.0.abs())
             }
@@ -239,6 +250,11 @@ macro_rules! decl_units {
             pub fn midpoint(self, other: Self) -> Self {
                 Self(self.0.midpoint(other.0))
             }
+
+            #[must_use]
+            pub const fn splat2(self) -> $ty<Vec2> {
+                $ty(Vec2::new(self.0, self.0))
+            }
         }
 
         impl ops::Mul<Dir2> for $ty<f32> {
@@ -269,13 +285,13 @@ macro_rules! decl_units {
             pub fn with_y(self, y: $ty<f32>) -> Self { Self(self.0.with_y(y.0)) }
 
             #[must_use]
-            pub fn horizontally(self) -> $ty<Vec3> {
-                $ty(Vec3::from((self.0, 0.)))
+            pub const fn horizontally(self) -> $ty<Vec3> {
+                $ty(Vec3::new(self.0.x, self.0.y, 0.))
             }
 
             #[must_use]
-            pub fn with_vertical(self, vertical: $ty<f32>) -> $ty<Vec3> {
-                $ty(Vec3::from((self.0, vertical.0)))
+            pub const fn with_vertical(self, vertical: $ty<f32>) -> $ty<Vec3> {
+                $ty(Vec3::new(self.0.x, self.0.y, vertical.0))
             }
 
             #[must_use]
@@ -302,6 +318,12 @@ macro_rules! decl_units {
                 let horizontal = self * angle.cos();
                 let vertical = self.magnitude_exact() * angle.sin();
                 horizontal.with_vertical(vertical)
+            }
+
+            /// Returns the vector component projected along `dir`.
+            #[must_use]
+            pub fn project_onto_dir(self, dir: Dir2) -> $ty<f32> {
+                $ty(self.0.dot(*dir))
             }
 
             #[must_use]

@@ -11,9 +11,10 @@ use omniatc_core::level::aerodrome::Aerodrome;
 use omniatc_core::level::route::{self, Route};
 use omniatc_core::level::runway::Runway;
 use omniatc_core::level::waypoint::Waypoint;
-use omniatc_core::level::{nav, object, plane};
+use omniatc_core::level::{nav, object, plane, wake, wind};
+use omniatc_core::math::Sign;
 use omniatc_core::try_log_return;
-use omniatc_core::units::TurnDirection;
+use omniatc_core::units::{Angle, TurnDirection};
 
 use crate::{EguiSystemSets, EguiUsedMargins};
 
@@ -121,7 +122,8 @@ writer_def! {
     p1: WriteDirection,
     p2: WriteAltitude,
     p3: WriteSpeed,
-    p4: WriteRoute,
+    p4: WriteEnv,
+    p5: WriteRoute,
 }
 
 #[derive(QueryData)]
@@ -440,12 +442,77 @@ impl Writer for WriteSpeed {
         ));
         if let Some(airborne) = this.airborne {
             ui.label(format!(
-                "Current IAS: {:.0} kt",
+                "Current true airspeed: {:.0} kt",
+                airborne.true_airspeed.horizontal().magnitude_exact().into_knots()
+            ));
+            ui.label(format!(
+                "Current indicated airspeed: {:.0} kt",
                 airborne.airspeed.horizontal().magnitude_exact().into_knots()
             ));
         }
         if let Some(nav_vel) = this.nav_vel {
             ui.label(format!("Target IAS: {:.0} kt", nav_vel.horiz_speed.into_knots()));
+        }
+    }
+}
+
+#[derive(QueryData)]
+struct WriteEnv {
+    wake:  Option<&'static wake::Detector>,
+    wind:  Option<&'static wind::Detector>,
+    plane: Option<&'static plane::Control>,
+}
+
+impl Writer for WriteEnv {
+    type SystemParams<'w, 's> = ();
+
+    fn title() -> &'static str { "Environment" }
+
+    fn should_show(this: &Self::Item<'_>) -> bool { this.wake.is_some() || this.wind.is_some() }
+
+    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, (): &mut Self::SystemParams<'_, '_>) {
+        if let Some(wake) = this.wake {
+            ui.label(format!("Wake: {:.2}", f64::from(wake.last_detected.0) / 60000.));
+        }
+        if let Some(wind) = this.wind {
+            let wind = wind.last_computed;
+
+            let magnitude = wind.magnitude_exact().into_knots();
+            ui.label(format!(
+                "Wind: {magnitude:.1} kt from {:.0}\u{b0}",
+                wind.heading().opposite().degrees()
+            ));
+
+            if let Some(plane) = this.plane {
+                let tail_wind = wind.project_onto_dir(plane.heading.into_dir2());
+                let cross_wind = wind.project_onto_dir((plane.heading + Angle::RIGHT).into_dir2());
+
+                match tail_wind.sign() {
+                    Sign::Negative => {
+                        ui.small(format!("Head wind: {:.1} kt", -tail_wind.into_knots()));
+                    }
+                    Sign::Zero => {}
+                    Sign::Positive => {
+                        ui.small(format!("Tail wind: {:.1} kt", tail_wind.into_knots()));
+                    }
+                }
+
+                match cross_wind.sign() {
+                    Sign::Negative => {
+                        ui.small(format!(
+                            "Cross wind from right: {:.1} kt",
+                            -cross_wind.into_knots()
+                        ));
+                    }
+                    Sign::Zero => {}
+                    Sign::Positive => {
+                        ui.small(format!(
+                            "Cross wind from left: {:.1} kt",
+                            cross_wind.into_knots()
+                        ));
+                    }
+                }
+            }
         }
     }
 }

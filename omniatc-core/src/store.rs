@@ -331,6 +331,8 @@ pub struct BaseAircraft {
     /// Direction of ground projection displacement.
     pub ground_dir:   Heading,
     pub vert_rate:    Speed<f32>,
+    pub weight:       f32,
+    pub wingspan:     Distance<f32>,
 }
 
 /// Condition for the completion of control of an object.

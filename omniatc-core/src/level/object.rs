@@ -31,7 +31,12 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEvent>();
-        app.add_systems(app::Update, update_airborne_system.in_set(SystemSets::ExecuteEnviron));
+        app.add_systems(
+            app::Update,
+            update_airborne_system
+                .in_set(wind::DetectorReaderSystemSet)
+                .in_set(SystemSets::ExecuteEnviron),
+        );
         app.add_systems(
             app::Update,
             move_object_system.after(update_airborne_system).in_set(SystemSets::ExecuteEnviron),
@@ -68,9 +73,13 @@ pub struct Object {
 pub struct Rotation(pub Quat);
 
 #[derive(Component)]
+#[require(wind::Detector)]
 pub struct Airborne {
     /// Indicated airspeed.
     pub airspeed: Speed<Vec3>,
+
+    /// True airspeed.
+    pub true_airspeed: Speed<Vec3>,
 }
 
 pub struct SpawnCommand {
@@ -120,7 +129,8 @@ impl EntityCommand for SetAirborneCommand {
             locator.get(world).locate(position)
         });
 
-        entity.insert(Airborne { airspeed: ground_speed - wind.horizontally() });
+        let airspeed = ground_speed - wind.horizontally();
+        entity.insert(Airborne { airspeed, true_airspeed: airspeed });
         // TODO insert/remove nav::VelocityTarget?
     }
 }
@@ -138,15 +148,20 @@ fn move_object_system(time: Res<Time<time::Virtual>>, mut object_query: Query<&m
 
 fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
-    ggs: GroundSpeedCalculator,
-    mut object_query: Query<(&mut Object, &Airborne)>,
+    mut object_query: Query<(&mut Object, &mut Airborne, &wind::Detector)>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut object, airborne)| {
-        object.ground_speed = ggs.get_ground_speed(object.position, airborne.airspeed);
+    object_query.par_iter_mut().for_each(|(mut object, mut airborne, wind)| {
+        let result = GroundSpeedCalculator::get_ground_speed_with_wind(
+            object.position,
+            airborne.airspeed,
+            wind.last_computed,
+        );
+        airborne.true_airspeed = result.tas;
+        object.ground_speed = result.ground_speed;
     });
 }
 
@@ -197,11 +212,25 @@ pub struct GroundSpeedCalculator<'w, 's> {
 }
 
 impl GroundSpeedCalculator<'_, '_> {
+    #[must_use]
+    pub fn get_ground_speed_with_wind(
+        position: Position<Vec3>,
+        ias: Speed<Vec3>,
+        wind: Speed<Vec2>,
+    ) -> GroundSpeedResult {
+        let tas = ias * get_tas_ratio(position.altitude(), STANDARD_SEA_LEVEL_TEMPERATURE);
+        let ground_speed = tas + wind.horizontally();
+        GroundSpeedResult { tas, ground_speed }
+    }
+
     /// Compute the ground speed if an object has the given IAS at the given position.
     #[must_use]
-    pub fn get_ground_speed(&self, position: Position<Vec3>, ias: Speed<Vec3>) -> Speed<Vec3> {
-        ias * get_tas_ratio(position.altitude(), STANDARD_SEA_LEVEL_TEMPERATURE)
-            + self.wind.locate(position).horizontally()
+    pub fn get_ground_speed(
+        &self,
+        position: Position<Vec3>,
+        ias: Speed<Vec3>,
+    ) -> GroundSpeedResult {
+        Self::get_ground_speed_with_wind(position, ias, self.wind.locate(position))
     }
 
     /// Estimate the altitude change as an object flies from `start` to `end`,
@@ -251,6 +280,11 @@ impl GroundSpeedCalculator<'_, '_> {
 
         altitude
     }
+}
+
+pub struct GroundSpeedResult {
+    pub tas:          Speed<Vec3>,
+    pub ground_speed: Speed<Vec3>,
 }
 
 pub enum RefAltitudeType {

@@ -15,7 +15,7 @@ use itertools::Itertools;
 use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
-use crate::level::{aerodrome, ground, nav, object, plane, runway, wind};
+use crate::level::{aerodrome, ground, nav, object, plane, runway, wake, wind};
 use crate::math::sweep::LineSweeper;
 use crate::math::{sweep, SEA_ALTITUDE};
 use crate::store;
@@ -23,6 +23,8 @@ use crate::units::{Angle, Distance, Heading, Position};
 
 #[cfg(test)]
 mod tests;
+
+const WAKE_FACTOR: f32 = 10.;
 
 pub enum Source {
     Raw(Cow<'static, [u8]>),
@@ -675,6 +677,8 @@ fn spawn_plane(
     insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
     route::RunCurrentNode.apply(world.entity_mut(plane_entity));
 
+    insert_wake(world.entity_mut(plane_entity), plane);
+
     Ok(())
 }
 
@@ -770,6 +774,14 @@ fn insert_route(
 
     plane_entity.insert(route_rt);
     Ok(())
+}
+
+fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // nearest positive integer
+    let base_intensity = wake::Intensity(
+        (WAKE_FACTOR * plane.aircraft.weight / plane.aircraft.wingspan.into_nm()) as u32,
+    );
+    plane_entity.insert((wake::Producer { base_intensity }, wake::Detector::default()));
 }
 
 fn resolve_runway_ref<'a>(

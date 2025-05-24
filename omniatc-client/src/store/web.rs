@@ -11,6 +11,7 @@ use js_sys::JsString;
 use serde::{Deserialize, Serialize};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
+use wasm_bindgen::{JsCast, JsError, JsValue};
 
 use super::{LevelMeta, ScenarioMeta};
 
@@ -37,52 +38,52 @@ impl super::Storage for Impl {
 
             let tx = db
                 .transaction(&["scenario", "scenario_tag"], TransactionMode::ReadOnly)
-                .ok()
+                .anyhow()
                 .context("create transaction")?;
             let ids = {
-                let store = tx.object_store("scenario_tag").ok().context("get tag store")?;
-                let index = store.index("kv").ok().context("get kv index")?;
+                let store = tx.object_store("scenario_tag").anyhow().context("get tag store")?;
+                let index = store.index("kv").anyhow().context("get kv index")?;
                 let cursor = index
                     .open_cursor(None, Some(idb::CursorDirection::Next))
-                    .ok()
+                    .anyhow()
                     .context("open kv cursor")?
                     .await
-                    .ok()
-                    .context("open kv cursor")?
-                    .context("kv cursor is missing")?;
+                    .anyhow()
+                    .context("open kv cursor")?;
+
+                let Some(cursor) = cursor else { return Ok(Vec::new()) };
 
                 let mut ids = Vec::new();
 
                 while let Ok(value) = cursor.value() {
                     let entry: TagKv = serde_wasm_bindgen::from_value(value)
-                        .ok()
+                        .anyhow()
                         .context("convert js value to TagKv")?;
                     ids.push(entry.id.clone());
                     cursor
                         .next(None)
-                        .ok()
+                        .anyhow()
                         .context("advance tag cursor")?
                         .await
-                        .ok()
+                        .anyhow()
                         .context("advance tag cursor")?;
                 }
                 ids
             };
 
-            let store = tx.object_store("scenario").ok().context("get scenario store")?;
+            let store = tx.object_store("scenario").anyhow().context("get scenario store")?;
 
             let mut output = Vec::with_capacity(ids.len());
             for id in ids {
                 let value = store
                     .get(idb::Query::Key(JsString::from(id.as_str()).into()))
-                    .ok()
+                    .anyhow()
                     .context("fetch by id from scenario store")?
                     .await
-                    .ok()
-                    .flatten();
+                    .anyhow()?;
                 if let Some(value) = value {
                     let meta: ScenarioMeta = serde_wasm_bindgen::from_value(value)
-                        .ok()
+                        .anyhow()
                         .context("convert js value to ScenarioMeta")?;
                     output.push(meta);
                 } else {
@@ -92,7 +93,7 @@ impl super::Storage for Impl {
                 }
             }
 
-            tx.await.ok().context("transaction close")?;
+            tx.await.anyhow().context("transaction close")?;
             Ok(output)
         }
     }
@@ -110,23 +111,23 @@ impl super::Storage for Impl {
 
             let tx = db
                 .transaction(&["scenario_data"], TransactionMode::ReadOnly)
-                .ok()
+                .anyhow()
                 .context("create transaction")?;
 
-            let store = tx.object_store("scenario_data").ok().context("get scenario store")?;
+            let store = tx.object_store("scenario_data").anyhow().context("get scenario store")?;
 
             let value = store
                 .get(idb::Query::Key(JsString::from(key.as_str()).into()))
-                .ok()
+                .anyhow()
                 .context("fetch by id from scenario_data store")?
                 .await
-                .ok()
-                .flatten()
+                .anyhow()?
                 .context("scenario does not eixst")?;
-            let data: Data =
-                serde_wasm_bindgen::from_value(value).ok().context("convert js value to Data")?;
+            let data: Data = serde_wasm_bindgen::from_value(value)
+                .anyhow()
+                .context("convert js value to Data")?;
 
-            tx.await.ok().context("transaction close")?;
+            tx.await.anyhow().context("transaction close")?;
             Ok(data.data)
         }
     }
@@ -149,42 +150,42 @@ impl super::Storage for Impl {
                     &["scenario", "scenario_tag", "scenario_data"],
                     TransactionMode::ReadWrite,
                 )
-                .ok()
+                .anyhow()
                 .context("create transaction")?;
 
             {
                 let store =
-                    tx.object_store("scenario_data").ok().context("get scenario_data store")?;
+                    tx.object_store("scenario_data").anyhow().context("get scenario_data store")?;
                 let value = serde_wasm_bindgen::to_value(&Data { id: meta.id.to_string(), data })
-                    .ok()
+                    .anyhow()
                     .context("convert Data to js value")?;
-                store.add(&value, None).ok().context("add scenario to meta store")?;
+                store.add(&value, None).anyhow().context("add scenario to meta store")?;
             }
 
             {
                 let store =
-                    tx.object_store("scenario_tag").ok().context("get scenario_tag store")?;
+                    tx.object_store("scenario_tag").anyhow().context("get scenario_tag store")?;
                 for (tag_key, tag_value) in tags {
                     let value = serde_wasm_bindgen::to_value(&TagKv {
                         id: meta.id.to_string(),
                         tag_key,
                         tag_value,
                     })
-                    .ok()
+                    .anyhow()
                     .context("convert Data to js value")?;
-                    store.add(&value, None).ok().context("add scenario to meta store")?;
+                    store.add(&value, None).anyhow().context("add scenario to meta store")?;
                 }
             }
 
             {
-                let store = tx.object_store("scenario").ok().context("get scenario store")?;
+                let store = tx.object_store("scenario").anyhow().context("get scenario store")?;
                 let value = serde_wasm_bindgen::to_value(&meta)
-                    .ok()
+                    .anyhow()
                     .context("convert ScenarioMeta to js value")?;
-                store.add(&value, None).ok().context("add scenario to meta store")?;
+                store.add(&value, None).anyhow().context("add scenario to meta store")?;
             }
 
-            tx.commit().ok().context("commit transaction")?;
+            tx.commit().anyhow().context("commit transaction")?;
             Ok(())
         }
     }
@@ -202,36 +203,37 @@ impl super::Storage for Impl {
 
             let tx = db
                 .transaction(&["level"], TransactionMode::ReadOnly)
-                .ok()
+                .anyhow()
                 .context("create transaction")?;
-            let store = tx.object_store("level").ok().context("get level store")?;
-            let index = store.index("modified").ok().context("modified index")?;
+            let store = tx.object_store("level").anyhow().context("get level store")?;
+            let index = store.index("modified").anyhow().context("modified index")?;
             let cursor = index
                 .open_cursor(None, Some(idb::CursorDirection::Prev))
-                .ok()
+                .anyhow()
                 .context("open modified cursor")?
                 .await
-                .ok()
-                .context("open modified cursor")?
-                .context("modified cursor is missing")?;
+                .anyhow()
+                .context("open modified cursor")?;
+
+            let Some(cursor) = cursor else { return Ok(Vec::new()) };
 
             let mut output = Vec::new();
 
             while let Ok(value) = cursor.value() {
                 let entry: LevelMeta = serde_wasm_bindgen::from_value(value)
-                    .ok()
+                    .anyhow()
                     .context("convert js value to LevelMeta")?;
                 output.push(entry);
                 cursor
                     .next(None)
-                    .ok()
+                    .anyhow()
                     .context("advance level cursor")?
                     .await
-                    .ok()
+                    .anyhow()
                     .context("advance level cursor")?;
             }
 
-            tx.await.ok().context("transaction close")?;
+            tx.await.anyhow().context("transaction close")?;
             Ok(output)
         }
     }
@@ -246,23 +248,23 @@ impl super::Storage for Impl {
 
             let tx = db
                 .transaction(&["level_data"], TransactionMode::ReadOnly)
-                .ok()
+                .anyhow()
                 .context("create transaction")?;
 
-            let store = tx.object_store("level_data").ok().context("get level store")?;
+            let store = tx.object_store("level_data").anyhow().context("get level store")?;
 
             let value = store
                 .get(idb::Query::Key(JsString::from(key.as_str()).into()))
-                .ok()
+                .anyhow()
                 .context("fetch by id from level_data store")?
                 .await
-                .ok()
-                .flatten()
+                .anyhow()?
                 .context("level does not eixst")?;
-            let data: Data =
-                serde_wasm_bindgen::from_value(value).ok().context("convert js value to Data")?;
+            let data: Data = serde_wasm_bindgen::from_value(value)
+                .anyhow()
+                .context("convert js value to Data")?;
 
-            tx.await.ok().context("transaction close")?;
+            tx.await.anyhow().context("transaction close")?;
             Ok(data.data)
         }
     }
@@ -278,8 +280,8 @@ async fn get_db(db: &mut Option<Rc<idb::Database>>) -> anyhow::Result<Rc<idb::Da
 }
 
 async fn new_db() -> anyhow::Result<idb::Database> {
-    let factory = idb::Factory::new().ok().context("new idb factory")?;
-    let mut open = factory.open("omniatc", Some(1)).ok().context("open omniatc idb")?;
+    let factory = idb::Factory::new().anyhow().context("new idb factory")?;
+    let mut open = factory.open("omniatc", Some(1)).anyhow().context("open omniatc idb")?;
 
     open.on_upgrade_needed(|event| {
         if let Err(err) = migrate_db(event) {
@@ -287,7 +289,7 @@ async fn new_db() -> anyhow::Result<idb::Database> {
         }
     });
 
-    open.await.ok().context("open idb")
+    open.await.anyhow().context("open idb")
 }
 
 fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
@@ -299,11 +301,11 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_single("id")));
             params
         })
-        .ok()
+        .anyhow()
         .context("create scenario store")?;
     scenario_store
         .create_index("created", idb::KeyPath::new_single("created"), None)
-        .ok()
+        .anyhow()
         .context("create scenario.created index")?;
 
     let scenario_tag_store = database
@@ -312,11 +314,11 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_array(["id", "tag_key"])));
             params
         })
-        .ok()
+        .anyhow()
         .context("create scenario_tag store")?;
     scenario_tag_store
         .create_index("kv", idb::KeyPath::new_single("created"), None)
-        .ok()
+        .anyhow()
         .context("create scenario_tag.kv index")?;
 
     database
@@ -325,7 +327,7 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_single("id")));
             params
         })
-        .ok()
+        .anyhow()
         .context("create scenario_data store")?;
 
     let level_store = database
@@ -334,15 +336,15 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_single("id")));
             params
         })
-        .ok()
+        .anyhow()
         .context("create level store")?;
     level_store
         .create_index("created", idb::KeyPath::new_single("created"), None)
-        .ok()
+        .anyhow()
         .context("create level.created index")?;
     level_store
         .create_index("modified", idb::KeyPath::new_single("modified"), None)
-        .ok()
+        .anyhow()
         .context("create level.modified index")?;
 
     let level_tag_store = database
@@ -351,11 +353,11 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_array(["id", "tag_key"])));
             params
         })
-        .ok()
+        .anyhow()
         .context("create level_tag store")?;
     level_tag_store
         .create_index("kv", idb::KeyPath::new_single("created"), None)
-        .ok()
+        .anyhow()
         .context("create level_tag.kv index")?;
 
     database
@@ -364,7 +366,7 @@ fn migrate_db(event: VersionChangeEvent) -> anyhow::Result<()> {
             params.key_path(Some(idb::KeyPath::new_single("id")));
             params
         })
-        .ok()
+        .anyhow()
         .context("create level_data store")?;
 
     Ok(())
@@ -377,10 +379,47 @@ struct TagKv {
     tag_value: String,
 }
 
-#[derive(Serialize, Deserialize)]
 #[serde_as]
+#[derive(Serialize, Deserialize)]
 struct Data {
     id:   String,
     #[serde_as(as = "Base64")]
     data: Vec<u8>,
+}
+
+trait JsValueResultExt<T> {
+    fn anyhow(self) -> anyhow::Result<T>;
+}
+
+impl<T> JsValueResultExt<T> for Result<T, JsValue> {
+    fn anyhow(self) -> anyhow::Result<T> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(err) => {
+                if let Some(s) = err.dyn_ref::<JsString>() {
+                    Err(anyhow::anyhow!("{}", String::from(s)))
+                } else {
+                    Err(anyhow::anyhow!("{err:?}"))
+                }
+            }
+        }
+    }
+}
+
+impl<T> JsValueResultExt<T> for Result<T, serde_wasm_bindgen::Error> {
+    fn anyhow(self) -> anyhow::Result<T> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(err) => Err(anyhow::anyhow!("{err}")),
+        }
+    }
+}
+
+impl<T> JsValueResultExt<T> for Result<T, idb::Error> {
+    fn anyhow(self) -> anyhow::Result<T> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(err) => Err(anyhow::anyhow!("{err}")),
+        }
+    }
 }

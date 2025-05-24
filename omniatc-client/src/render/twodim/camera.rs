@@ -10,7 +10,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
-use bevy::input::mouse::{MouseButton, MouseMotion, MouseWheel};
+use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
 use bevy::render::camera::{Camera, Viewport};
@@ -271,7 +271,11 @@ fn handle_scroll_system(
             let mut camera_tf = camera_query.get_mut(camera_entity).expect(
                 "CurrentCursorCamera::update_system should maintain an updated camera entity",
             );
-            let scale_rate = conf.scroll_step.powf(-event.y);
+            let scroll_step = match event.unit {
+                MouseScrollUnit::Line => conf.scroll_step_line,
+                MouseScrollUnit::Pixel => conf.scroll_step_pixel,
+            };
+            let scale_rate = scroll_step.powf(-event.y);
 
             // ensure (camera_tf.translation - world_pos) / camera_tf.scale is unchanged
             // i.e. (new_translation - world_pos) / new_scale = (camera_tf.translation - world_pos) / camera_tf.scale
@@ -337,26 +341,29 @@ fn highlight_selected_system(
 #[derive(Resource, Config)]
 #[config(id = "2d/camera", name = "Camera (2D)")]
 struct Conf {
-    /// Zoom speed based on vertical scroll.
-    scroll_step:     f32,
+    /// Zoom speed based on vertical scroll per line.
+    scroll_step_line:  f32,
+    /// Zoom speed based on vertical scroll per pixel.
+    scroll_step_pixel: f32,
     /// Rotation speed based on horizontal scroll.
-    rotation_step:   Angle<f32>,
+    rotation_step:     Angle<f32>,
     /// Tolerated distance when clicking on an object in window coordinates.
-    click_tolerance: f32,
+    click_tolerance:   f32,
     /// Hovered objects are highlighted with this color.
-    hovered_color:   Color,
+    hovered_color:     Color,
     /// Selected objects are highlighted with this color.
-    selected_color:  Color,
+    selected_color:    Color,
 }
 
 impl Default for Conf {
     fn default() -> Self {
         Self {
-            scroll_step:     1.05,
-            rotation_step:   Angle::from_degrees(6.),
-            click_tolerance: 50.,
-            hovered_color:   Color::srgb(0.5, 1., 0.7),
-            selected_color:  Color::srgb(0.5, 0.7, 1.),
+            scroll_step_line:  1.05,
+            scroll_step_pixel: 1.007,
+            rotation_step:     Angle::from_degrees(6.),
+            click_tolerance:   50.,
+            hovered_color:     Color::srgb(0.5, 1., 0.7),
+            selected_color:    Color::srgb(0.5, 0.7, 1.),
         }
     }
 }

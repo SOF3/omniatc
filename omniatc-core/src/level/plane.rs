@@ -57,7 +57,7 @@ impl EntityCommand for SpawnCommand {
             let horiz_speed = airborne.airspeed.magnitude_exact();
 
             let dt_target = VelocityTarget {
-                yaw: YawTarget::Speed(AngularSpeed(0.)),
+                yaw: YawTarget::Heading(airborne.airspeed.horizontal().heading()),
                 horiz_speed,
                 vert_rate: Speed::ZERO,
                 expedite: false,
@@ -121,7 +121,6 @@ fn maintain_yaw(
     let mut set_yaw_target = None;
 
     let desired_yaw_speed = match target.yaw {
-        YawTarget::Speed(target_yaw_speed) => target_yaw_speed,
         YawTarget::Heading(target_heading) => {
             let dir = current_yaw.closer_direction_to(target_heading);
 

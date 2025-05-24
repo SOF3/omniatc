@@ -75,6 +75,13 @@ impl Route {
         }
     }
 
+    pub fn prepend(&mut self, node: Node) {
+        let next = self.current.replace(node);
+        if let Some(next) = next {
+            self.next_queue.push_front(next);
+        }
+    }
+
     #[must_use]
     pub fn current(&self) -> Option<&Node> { self.current.as_ref() }
 
@@ -125,8 +132,27 @@ pub struct NextNode;
 
 impl EntityCommand for NextNode {
     fn apply(self, mut entity: EntityWorldMut) {
-        let mut route = entity.get_mut::<Route>().expect("just inserted");
+        let mut route =
+            entity.get_mut::<Route>().expect("NextNode must be used on object entity with a route");
         route.shift();
+
+        let entity_id = entity.id();
+        entity.world_scope(|world| run_current_node(world, entity_id));
+    }
+}
+
+pub struct SetStandby;
+
+impl EntityCommand for SetStandby {
+    fn apply(self, mut entity: EntityWorldMut) {
+        let mut route =
+            entity.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
+
+        if matches!(route.current(), Some(Node::Standby(..))) {
+            return; // already standby
+        }
+
+        route.prepend(StandbyNode.into());
 
         let entity_id = entity.id();
         entity.world_scope(|world| run_current_node(world, entity_id));
@@ -161,11 +187,14 @@ impl EntityCommand for ClearAllNodes {
 fn run_current_node(world: &mut World, entity: Entity) {
     loop {
         {
+            // TODO revisit whether we can optimize away unnecessary remove-reinserts.
+            clear_all_triggers(world, entity);
+
             let current_node =
                 world.entity(entity).get::<Route>().and_then(|route| route.current());
 
             match current_node {
-                None => break clear_all_triggers(world, entity),
+                None => break,
                 Some(node) => match node.run_as_current_node(world, entity) {
                     RunNodeResult::PendingTrigger => break,
                     RunNodeResult::NodeDone => {
@@ -409,6 +438,22 @@ enum DesiredAltitude {
     NotRequired,
 }
 
+/// Stay in this node until explicitly completed by user command.
+#[derive(Clone, Copy)]
+pub struct StandbyNode;
+
+impl NodeKind for StandbyNode {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+        RunNodeResult::PendingTrigger
+    }
+
+    fn configures_heading(self, _world: &World) -> Option<ConfiguresHeading> { None }
+
+    fn desired_altitude(self, world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
+
+    fn configures_position(self, world: &World) -> Option<Position<Vec2>> { None }
+}
+
 /// Head towards a waypoint.
 ///
 /// This node completes when `distance` OR `proximity` is satisfied.
@@ -434,10 +479,7 @@ impl NodeKind for DirectWaypointNode {
 
         match self.proximity {
             WaypointProximity::FlyOver => {
-                world
-                    .entity_mut(entity)
-                    .remove::<FlyByTrigger>()
-                    .insert(FlyOverTrigger { waypoint, distance });
+                world.entity_mut(entity).insert(FlyOverTrigger { waypoint, distance });
                 RunNodeResult::PendingTrigger
             }
             WaypointProximity::FlyBy => {
@@ -449,10 +491,7 @@ impl NodeKind for DirectWaypointNode {
                     None => FlyByCompletionCondition::Distance(distance),
                     Some(next) => FlyByCompletionCondition::Heading(next),
                 };
-                world
-                    .entity_mut(entity)
-                    .remove::<FlyOverTrigger>()
-                    .insert(FlyByTrigger { waypoint, completion_condition });
+                world.entity_mut(entity).insert(FlyByTrigger { waypoint, completion_condition });
                 RunNodeResult::PendingTrigger
             }
         }
@@ -607,9 +646,10 @@ impl NodeKind for AlignRunwayNode {
 }
 
 /// An entry in the flight plan.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, derive_more::From)]
 #[portrait::derive(NodeKind with portrait::derive_delegate)]
 pub enum Node {
+    Standby(StandbyNode),
     DirectWaypoint(DirectWaypointNode),
     SetAirSpeed(SetAirspeedNode),
     StartSetAltitude(StartSetAltitudeNode),

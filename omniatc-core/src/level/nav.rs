@@ -169,8 +169,6 @@ pub enum YawTarget {
         remaining_crosses: u8,
         direction:         TurnDirection,
     },
-    /// Perform a constant turn at the given angular speed.
-    Speed(AngularSpeed<f32>),
 }
 
 /// Desired altitude in feet.

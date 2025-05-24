@@ -746,28 +746,24 @@ fn insert_route(
                     distance,
                     proximity,
                     altitude,
-                } => route::Node::DirectWaypoint(route::DirectWaypointNode {
+                } => route::DirectWaypointNode {
                     waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
                     distance,
                     proximity,
                     altitude,
-                }),
+                }
+                .into(),
                 store::RouteNode::SetAirSpeed { goal, error } => {
-                    route::Node::SetAirSpeed(route::SetAirspeedNode { speed: goal, error })
+                    route::SetAirspeedNode { speed: goal, error }.into()
                 }
                 store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
-                    route::Node::StartSetAltitude(route::StartSetAltitudeNode {
-                        altitude: goal,
-                        error,
-                        expedite,
-                    })
+                    route::StartSetAltitudeNode { altitude: goal, error, expedite }.into()
                 }
-                store::RouteNode::AlignRunway { ref runway, expedite } => {
-                    route::Node::AlignRunway(route::AlignRunwayNode {
-                        runway: resolve_runway_ref(aerodromes, runway)?.runway,
-                        expedite,
-                    })
+                store::RouteNode::AlignRunway { ref runway, expedite } => route::AlignRunwayNode {
+                    runway: resolve_runway_ref(aerodromes, runway)?.runway,
+                    expedite,
                 }
+                .into(),
             })
         })
         .collect::<Result<Route, Error>>()?;

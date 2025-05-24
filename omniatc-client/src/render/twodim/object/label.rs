@@ -6,7 +6,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{self, QueryData, QueryEntityError};
 use bevy::ecs::system::{Commands, EntityCommands, Query, SystemParam};
 use bevy::text::{TextColor, TextSpan};
-use omniatc_core::level::object::{self};
+use omniatc::level::object::{self};
 
 use super::Conf;
 

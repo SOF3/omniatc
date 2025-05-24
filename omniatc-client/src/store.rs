@@ -8,8 +8,8 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, NonSend, Res, ResMut};
-use omniatc_core::store;
-use omniatc_core::util::{run_async_local, AsyncPollList, AsyncResult};
+use omniatc::store;
+use omniatc::util::{run_async_local, AsyncPollList, AsyncResult};
 use serde::{Deserialize, Serialize};
 
 mod scenario_loader;

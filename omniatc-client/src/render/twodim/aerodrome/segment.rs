@@ -8,9 +8,9 @@ use bevy::math::Vec2;
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
-use omniatc_core::level::ground;
-use omniatc_core::try_log_return;
-use omniatc_core::units::{Distance, Position};
+use omniatc::level::ground;
+use omniatc::try_log_return;
+use omniatc::units::{Distance, Position};
 
 use super::{vis, Conf};
 use crate::config;

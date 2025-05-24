@@ -12,8 +12,8 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
-use omniatc_core::level::waypoint::{self, Waypoint};
-use omniatc_core::units::Distance;
+use omniatc::level::waypoint::{self, Waypoint};
+use omniatc::units::Distance;
 use omniatc_macros::Config;
 
 use super::Zorder;

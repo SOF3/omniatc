@@ -1,8 +1,8 @@
 use bevy::math::Vec2;
-use omniatc_core::level::nav;
-use omniatc_core::level::route::WaypointProximity;
-use omniatc_core::store;
-use omniatc_core::units::{
+use omniatc::level::nav;
+use omniatc::level::route::WaypointProximity;
+use omniatc::store;
+use omniatc::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
 };
 

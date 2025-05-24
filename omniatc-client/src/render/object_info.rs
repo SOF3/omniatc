@@ -7,14 +7,14 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
 use bevy_egui::{egui, EguiContextPass, EguiContexts};
-use omniatc_core::level::aerodrome::Aerodrome;
-use omniatc_core::level::route::{self, Route};
-use omniatc_core::level::runway::Runway;
-use omniatc_core::level::waypoint::Waypoint;
-use omniatc_core::level::{nav, object, plane, wake, wind};
-use omniatc_core::math::Sign;
-use omniatc_core::try_log_return;
-use omniatc_core::units::{Angle, TurnDirection};
+use omniatc::level::aerodrome::Aerodrome;
+use omniatc::level::route::{self, Route};
+use omniatc::level::runway::Runway;
+use omniatc::level::waypoint::Waypoint;
+use omniatc::level::{nav, object, plane, wake, wind};
+use omniatc::math::Sign;
+use omniatc::try_log_return;
+use omniatc::units::{Angle, TurnDirection};
 
 use crate::{EguiSystemSets, EguiUsedMargins};
 

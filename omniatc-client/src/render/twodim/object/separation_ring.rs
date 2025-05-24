@@ -13,9 +13,9 @@ use bevy::math::primitives::Annulus;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
-use omniatc_core::try_log;
-use omniatc_core::units::Distance;
-use omniatc_core::util::EnumScheduleConfig;
+use omniatc::try_log;
+use omniatc::units::Distance;
+use omniatc::util::EnumScheduleConfig;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};
 use crate::render::twodim::Zorder;

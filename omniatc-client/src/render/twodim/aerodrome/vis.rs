@@ -10,7 +10,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Local, Query, Single, SystemParam};
 use bevy::render::view::Visibility;
 use bevy::transform::components::GlobalTransform;
-use omniatc_core::units::Distance;
+use omniatc::units::Distance;
 
 use super::Conf;
 use crate::{config, render};

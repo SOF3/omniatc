@@ -7,6 +7,9 @@ repository.workspace = true
 license.workspace = true
 description = "Core game logic"
 
+[lib]
+name = "omniatc"
+
 [features]
 default = ["dev"]
 dev = []

@@ -9,7 +9,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::render::camera::Camera;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::Window;
-use omniatc_core::units::Position;
+use omniatc::units::Position;
 
 pub struct Plug;
 

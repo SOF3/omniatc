@@ -11,8 +11,8 @@ use bevy::time::{self, Time};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_egui::{egui, EguiContextPass, EguiContexts};
 use egui_extras::{Column, TableBuilder};
-use omniatc_core::level::object;
-use omniatc_core::units::{Angle, Heading};
+use omniatc::level::object;
+use omniatc::units::{Angle, Heading};
 use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 

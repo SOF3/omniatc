@@ -10,9 +10,9 @@ use bevy::math::Vec3;
 use bevy::render::mesh::Mesh2d;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
-use omniatc_core::level::object;
-use omniatc_core::try_log;
-use omniatc_core::util::{manage_entity_vec, EnumScheduleConfig};
+use omniatc::level::object;
+use omniatc::try_log;
+use omniatc::util::{manage_entity_vec, EnumScheduleConfig};
 
 use super::{Conf, SetColorThemeSystemSet};
 use crate::render::object_info;

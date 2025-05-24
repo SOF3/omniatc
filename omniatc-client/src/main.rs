@@ -19,7 +19,7 @@ use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
 use bevy_egui::EguiContextPass;
 use itertools::Itertools;
-use omniatc_core::level;
+use omniatc::level;
 use strum::IntoEnumIterator;
 
 mod config;
@@ -41,8 +41,8 @@ fn main() {
         // #[cfg(feature = "inspect")]
         // bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug,
-        omniatc_core::store::Plug,
-        omniatc_core::util::Plug,
+        omniatc::store::Plug,
+        omniatc::util::Plug,
         input::Plug,
         render::Plug,
         store::plugin(),

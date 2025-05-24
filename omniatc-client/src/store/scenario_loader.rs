@@ -8,8 +8,8 @@ use bevy::ecs::system::{Command, Commands, NonSend, Res, ResMut};
 use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
-use omniatc_core::store;
-use omniatc_core::util::{run_async_local, AsyncPollList, AsyncResult};
+use omniatc::store;
+use omniatc::util::{run_async_local, AsyncPollList, AsyncResult};
 
 use super::{ScenarioMeta, Storage};
 use crate::util;

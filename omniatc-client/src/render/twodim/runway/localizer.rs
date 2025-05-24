@@ -6,9 +6,9 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
-use omniatc_core::level::runway::Runway;
-use omniatc_core::try_log_return;
-use omniatc_core::units::Distance;
+use omniatc::level::runway::Runway;
+use omniatc::try_log_return;
+use omniatc::units::Distance;
 
 use super::Conf;
 use crate::config;

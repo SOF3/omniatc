@@ -8,10 +8,10 @@ use bevy::sprite::MeshMaterial2d;
 use bevy::transform::components::Transform;
 use either::Either;
 use itertools::Itertools;
-use omniatc_core::level::ground;
-use omniatc_core::units::{Angle, Distance, Position};
-use omniatc_core::util::manage_entity_vec;
-use omniatc_core::{try_log, try_log_return};
+use omniatc::level::ground;
+use omniatc::units::{Angle, Distance, Position};
+use omniatc::util::manage_entity_vec;
+use omniatc::{try_log, try_log_return};
 
 use super::{vis, Conf};
 use crate::config;

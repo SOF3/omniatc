@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::color::Color;
@@ -13,11 +15,11 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
-use omniatc_core::level::object::{self, Object};
-use omniatc_core::level::plane;
-use omniatc_core::math::TROPOPAUSE_ALTITUDE;
-use omniatc_core::units::{Distance, Position};
-use omniatc_core::util::EnumScheduleConfig;
+use omniatc::level::object::{self, Object};
+use omniatc::level::plane;
+use omniatc::math::TROPOPAUSE_ALTITUDE;
+use omniatc::units::{Distance, Position};
+use omniatc::util::EnumScheduleConfig;
 use omniatc_macros::Config;
 use serde::{Deserialize, Serialize};
 
@@ -53,10 +55,7 @@ impl Plugin for Plug {
         app.add_plugins(separation_ring::Plug);
         app.add_plugins(track::Plug);
         app.add_plugins(base_color::Plug);
-        omniatc_core::util::configure_ordered_system_sets::<SetColorThemeSystemSet>(
-            app,
-            app::Update,
-        );
+        omniatc::util::configure_ordered_system_sets::<SetColorThemeSystemSet>(app, app::Update);
     }
 }
 

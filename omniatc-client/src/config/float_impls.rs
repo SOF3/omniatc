@@ -1,5 +1,5 @@
 use bevy_egui::egui;
-use omniatc_core::units::{Angle, Distance, DistanceUnit, Position, Speed};
+use omniatc::units::{Angle, Distance, DistanceUnit, Position, Speed};
 use serde::Serialize;
 
 use super::{Field, FieldEguiContext, FieldMeta};

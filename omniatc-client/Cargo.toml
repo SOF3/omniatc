@@ -64,4 +64,4 @@ features = [
 js-sys = "0.3.77"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-rusqlite = "0.34.0"
+rusqlite = { version = "0.34.0", features = ["bundled"] }

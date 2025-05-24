@@ -2,7 +2,7 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::math::{Vec2, Vec3};
 use bevy::transform::components::Transform;
-use omniatc_core::units::{Distance, Position};
+use omniatc::units::{Distance, Position};
 
 mod aerodrome;
 mod camera;

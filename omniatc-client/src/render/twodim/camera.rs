@@ -17,9 +17,9 @@ use bevy::render::camera::{Camera, Viewport};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
 use bevy_egui::EguiContextPass;
-use omniatc_core::level::object;
-use omniatc_core::units::{Angle, Distance};
-use omniatc_core::{store, try_log_return};
+use omniatc::level::object;
+use omniatc::units::{Angle, Distance};
+use omniatc::{store, try_log_return};
 use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 

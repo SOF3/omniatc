@@ -101,7 +101,7 @@ impl super::Storage for Impl {
             let scenarios = stmt
                 .query_map((tag_key,), |row| {
                     Ok(ScenarioMeta {
-                        key:     row.get(0)?,
+                        id:      row.get(0)?,
                         title:   row.get(1)?,
                         created: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
                     })
@@ -141,7 +141,7 @@ impl super::Storage for Impl {
             db.execute(
                 "INSERT OR REPLACE INTO scenario (id, title, created, data) VALUES (?, ?, ?, ?)",
                 (
-                    &meta.key,
+                    &meta.id,
                     &meta.title,
                     u64::try_from(
                         meta.created
@@ -155,12 +155,12 @@ impl super::Storage for Impl {
             )
             .context("insert scalar data")?;
 
-            db.execute("DELETE FROM scenario_tag WHERE id = ?", (&meta.key,))
+            db.execute("DELETE FROM scenario_tag WHERE id = ?", (&meta.id,))
                 .context("delete old tags")?;
             for (key, value) in tags {
                 db.execute(
                     "INSERT INTO scenario_tag (id, tag_key, tag_value) VALUES (?, ?, ?)",
-                    (&meta.key, key, value),
+                    (&meta.id, key, value),
                 )
                 .context("insert tag")?;
             }
@@ -185,7 +185,7 @@ impl super::Storage for Impl {
             let levels = stmt
                 .query_map((limit,), |row| {
                     Ok(LevelMeta {
-                        key:      row.get(0)?,
+                        id:       row.get(0)?,
                         title:    row.get(1)?,
                         created:  SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
                         modified: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(3)?),

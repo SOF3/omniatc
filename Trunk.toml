@@ -1,0 +1,5 @@
+trunk-version = "^0.21"
+[build]
+target = "web.html"
+public_url = "/omniatc"
+minify = "on_release"

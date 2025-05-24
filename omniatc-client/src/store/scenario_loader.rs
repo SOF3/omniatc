@@ -85,7 +85,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
 
         run_async_local(storage.insert_scenario(
             ScenarioMeta {
-                key:     file.meta.id.clone(),
+                id:      file.meta.id.clone(),
                 title:   file.meta.title.clone(),
                 created: util::time_now(),
             },

@@ -26,14 +26,14 @@ pub type StorageImpl = fs::Impl;
 
 #[derive(Serialize, Deserialize)]
 pub struct ScenarioMeta {
-    key:     String,
+    id:      String,
     title:   String,
     created: SystemTime,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LevelMeta {
-    key:      String,
+    id:       String,
     title:    String,
     created:  SystemTime,
     modified: SystemTime,
@@ -98,7 +98,7 @@ fn load_last_level_system<S: Storage>(
          mut poll_list: ResMut<AsyncPollList>,
          mut commands: Commands| {
             let key = match ret.get() {
-                Ok(list) => list.into_iter().next().map(|level| level.key),
+                Ok(list) => list.into_iter().next().map(|level| level.id),
                 Err(err) => {
                     bevy::log::error!("Cannot locate last available level: {err:?}");
                     None

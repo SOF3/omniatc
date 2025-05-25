@@ -1,7 +1,7 @@
 name: "Build"
 on:
   push:
-    branches: ["master"]
+    branches: ["master", "ci-test"]
 jobs:
   wasm:
     name: "Build web client"

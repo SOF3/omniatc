@@ -5,8 +5,8 @@ use bevy::transform::components::Transform;
 use omniatc::units::{Distance, Position};
 
 mod aerodrome;
-mod camera;
-mod object;
+pub mod camera;
+pub mod object;
 mod runway;
 mod waypoint;
 

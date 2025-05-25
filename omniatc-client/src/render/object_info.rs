@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use bevy::app::{App, Plugin};
+use bevy::app::{self, App, Plugin};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
@@ -15,7 +15,7 @@ use omniatc::math::Sign;
 use omniatc::try_log_return;
 use omniatc::units::{Angle, TurnDirection};
 
-use crate::{EguiSystemSets, EguiUsedMargins};
+use crate::{config, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
 
@@ -24,6 +24,13 @@ impl Plugin for Plug {
         app.init_resource::<CurrentHoveredObject>();
         app.init_resource::<CurrentObject>();
         app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::ObjectInfo));
+
+        app.add_systems(
+            app::Update,
+            highlight_selected_system
+                .after(UpdateSystemSets::Input)
+                .in_set(super::twodim::object::SetColorThemeSystemSet::UserInteract),
+        );
     }
 }
 
@@ -46,7 +53,7 @@ fn setup_layout_system(
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
-    let width = egui::SidePanel::right("object_info")
+    let resp = egui::SidePanel::right("object_info")
         .resizable(true)
         .default_width(500.)
         .show(ctx, |ui| {
@@ -66,10 +73,8 @@ fn setup_layout_system(
             });
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
         })
-        .response
-        .rect
-        .width();
-    margins.right += width;
+        .response;
+    margins.right += resp.rect.width();
 }
 
 trait Writer: QueryData {
@@ -132,3 +137,20 @@ mod dir;
 mod env;
 mod route;
 mod speed;
+
+fn highlight_selected_system(
+    conf: config::Read<super::twodim::camera::Conf>,
+    current_hovered_object: Res<CurrentHoveredObject>,
+    current_object: Res<CurrentObject>,
+    mut color_theme_query: Query<&mut super::twodim::object::ColorTheme>,
+) {
+    if let Some(entity) = current_hovered_object.0 {
+        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        theme.body = conf.hovered_color;
+    }
+
+    if let Some(entity) = current_object.0 {
+        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        theme.body = conf.selected_color;
+    }
+}

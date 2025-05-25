@@ -38,7 +38,7 @@ fn setup_layout_system(
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
-    let width = egui::SidePanel::left("level_info")
+    let resp = egui::SidePanel::left("level_info")
         .resizable(true)
         .show(ctx, |ui| {
             ui.menu_button("Tools", |ui| {
@@ -66,10 +66,8 @@ fn setup_layout_system(
 
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
         })
-        .response
-        .rect
-        .width();
-    margins.left += width;
+        .response;
+    margins.left += resp.rect.width();
 }
 
 fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
@@ -83,7 +81,7 @@ fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
     ));
 
     let mut speed = time.relative_speed();
-    ui.add(egui::Slider::new(&mut speed, 0. ..=30.).text("Game speed").suffix("x"));
+    ui.add(egui::Slider::new(&mut speed, 0. ..=30.).prefix("Game speed: ").suffix("x"));
     #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
     if speed != time.relative_speed() {
         time.set_relative_speed(speed);

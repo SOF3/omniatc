@@ -4,13 +4,15 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
+use bevy::ecs::system::EntityCommand;
+use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
-use super::{object, SystemSets};
+use super::{object, route, SystemSets};
 use crate::math::{line_circle_intersect, line_intersect};
 use crate::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
@@ -153,7 +155,7 @@ pub struct ClimbProfile {
 }
 
 /// Target yaw change.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.
     Heading(Heading),

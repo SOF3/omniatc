@@ -1,4 +1,5 @@
 use std::cmp;
+use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::color::Color;
@@ -9,7 +10,8 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
+use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
+use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
@@ -20,8 +22,9 @@ use bevy_egui::EguiContextPass;
 use omniatc::level::object;
 use omniatc::units::{Angle, Distance};
 use omniatc::{store, try_log_return};
-use omniatc_macros::Config;
+use omniatc_macros::{Config, FieldEnum};
 use ordered_float::OrderedFloat;
+use serde::{Deserialize, Serialize};
 
 use crate::config::AppExt;
 use crate::render::object_info;
@@ -40,28 +43,22 @@ impl Plugin for Plug {
 
         app.add_systems(
             app::Update,
-            handle_drag_system
+            drag_camera_system
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
         app.add_systems(
             app::Update,
-            handle_scroll_system
-                .before(handle_drag_system)
+            scroll_zoom_system
+                .before(drag_camera_system)
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
         app.add_systems(
             app::Update,
-            handle_select_system
+            select::input_system
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
-        );
-        app.add_systems(
-            app::Update,
-            highlight_selected_system
-                .after(handle_select_system)
-                .in_set(super::object::SetColorThemeSystemSet::UserInteract),
         );
     }
 }
@@ -193,13 +190,14 @@ struct DraggingState {
     start_translation:  Vec3,
 }
 
-fn handle_drag_system(
+fn drag_camera_system(
     buttons: Res<ButtonInput<MouseButton>>,
     mut motion_events: EventReader<MouseMotion>,
     mut dragging_camera: Local<Option<DraggingState>>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
+    conf: config::Read<Conf>,
 ) {
     let Some(window) = window else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
@@ -245,20 +243,23 @@ fn handle_drag_system(
     let Some(viewport_rect) = camera.logical_viewport_rect() else { return };
     let viewport_pos = cursor_pos - viewport_rect.min;
 
-    // We have moved from start_viewport_pos to viewport_pos,
-    // so we want to add this delta to start_translation.
-
     let curr_world_pos = camera.viewport_to_world_2d(global_tf, viewport_pos);
     let start_equiv_world_pos = camera.viewport_to_world_2d(global_tf, start_viewport_pos);
 
+    // We have moved from start_viewport_pos to viewport_pos,
+    // so we want to add this delta to start_translation.
+
     if let (Ok(start_equiv_world_pos), Ok(curr_world_pos)) = (start_equiv_world_pos, curr_world_pos)
     {
-        camera_tf.translation =
-            start_translation - Vec3::from((curr_world_pos - start_equiv_world_pos, 0.));
+        let delta = Vec3::from((curr_world_pos - start_equiv_world_pos, 0.));
+        match conf.camera_drag_direction {
+            CameraDragDirection::WithMap => camera_tf.translation = start_translation - delta,
+            CameraDragDirection::WithCamera => camera_tf.translation = start_translation + delta,
+        }
     }
 }
 
-fn handle_scroll_system(
+fn scroll_zoom_system(
     mut wheel_events: EventReader<MouseWheel>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
@@ -289,81 +290,60 @@ fn handle_scroll_system(
     }
 }
 
-fn handle_select_system(
-    buttons: Res<ButtonInput<MouseButton>>,
-    current_cursor_camera: Res<input::CurrentCursorCamera>,
-    mut current_hovered_object: ResMut<object_info::CurrentHoveredObject>,
-    mut current_object: ResMut<object_info::CurrentObject>,
-    is_2d_query: Query<&GlobalTransform, With<Camera2d>>,
-    object_query: Query<(Entity, &object::Object)>,
-    conf: config::Read<Conf>,
-) {
-    current_hovered_object.0 = None;
-
-    if let Some(camera_value) = &current_cursor_camera.0 {
-        if let Ok(camera_tf) = is_2d_query.get(camera_value.camera_entity) {
-            let click_tolerance = Distance(camera_tf.scale().x) * conf.click_tolerance;
-
-            let closest_object = object_query
-                .iter()
-                .map(|(entity, object)| {
-                    (entity, object.position.horizontal().distance_squared(camera_value.world_pos))
-                })
-                .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
-                .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0));
-            if let Some((object, _)) = closest_object {
-                current_hovered_object.0 = Some(object);
-                if buttons.just_pressed(MouseButton::Left) {
-                    current_object.0 = Some(object);
-                }
-            }
-        }
-    }
-}
-
-fn highlight_selected_system(
-    conf: config::Read<Conf>,
-    current_hovered_object: Res<object_info::CurrentHoveredObject>,
-    current_object: Res<object_info::CurrentObject>,
-    mut color_theme_query: Query<&mut super::object::ColorTheme>,
-) {
-    if let Some(entity) = current_hovered_object.0 {
-        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
-        theme.body = conf.hovered_color;
-    }
-
-    if let Some(entity) = current_object.0 {
-        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
-        theme.body = conf.selected_color;
-    }
-}
+mod select;
 
 #[derive(Resource, Config)]
 #[config(id = "2d/camera", name = "Camera (2D)")]
-struct Conf {
+pub struct Conf {
     /// Zoom speed based on vertical scroll per line.
-    scroll_step_line:  f32,
+    scroll_step_line:            f32,
     /// Zoom speed based on vertical scroll per pixel.
-    scroll_step_pixel: f32,
+    scroll_step_pixel:           f32,
     /// Rotation speed based on horizontal scroll.
-    rotation_step:     Angle<f32>,
+    rotation_step:               Angle<f32>,
     /// Tolerated distance when clicking on an object in window coordinates.
-    click_tolerance:   f32,
+    object_select_tolerance:     f32,
+    /// Tolerated distance when clicking on a waypoint in window coordinates.
+    waypoint_select_tolerance:   f32,
     /// Hovered objects are highlighted with this color.
-    hovered_color:     Color,
+    pub hovered_color:           Color,
     /// Selected objects are highlighted with this color.
-    selected_color:    Color,
+    pub selected_color:          Color, // TODO reorganize these two fields to a better category
+    /// Direction to move camera when dragging with right button.
+    camera_drag_direction:       CameraDragDirection,
+    /// The preview line when setting heading will be rendered in line segments of this duration
+    /// multiplied by ground speed.
+    set_heading_preview_density: Duration,
+    /// The preview line when setting heading will be rendered for the projected trajectory up to
+    /// this duration (or stop at a given waypoint).
+    set_heading_preview_limit:   Duration,
+    /// Color of the preview line when setting heading.
+    set_heading_preview_color:   Color,
 }
 
 impl Default for Conf {
     fn default() -> Self {
         Self {
-            scroll_step_line:  1.05,
-            scroll_step_pixel: 1.007,
-            rotation_step:     Angle::from_degrees(6.),
-            click_tolerance:   50.,
-            hovered_color:     Color::srgb(0.5, 1., 0.7),
-            selected_color:    Color::srgb(0.5, 0.7, 1.),
+            scroll_step_line:            1.05,
+            scroll_step_pixel:           1.007,
+            rotation_step:               Angle::from_degrees(6.),
+            object_select_tolerance:     50.,
+            waypoint_select_tolerance:   30.,
+            hovered_color:               Color::srgb(0.5, 1., 0.7),
+            selected_color:              Color::srgb(0.5, 0.7, 1.),
+            camera_drag_direction:       CameraDragDirection::WithMap,
+            set_heading_preview_density: Duration::from_secs(5),
+            set_heading_preview_limit:   Duration::from_secs(600),
+            set_heading_preview_color:   Color::srgb(0.9, 0.7, 0.8),
         }
     }
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, FieldEnum)]
+enum CameraDragDirection {
+    /// Map follows cursor location.
+    #[field_default]
+    WithMap,
+    /// Camera follows cursor location.
+    WithCamera,
 }

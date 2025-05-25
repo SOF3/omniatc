@@ -26,6 +26,7 @@ impl Plugin for Plug {
 #[derive(Resource, Default)]
 pub struct CurrentCursorCamera(pub Option<CurrentCursorCameraValue>);
 
+#[derive(Clone, Copy)]
 pub struct CurrentCursorCameraValue {
     pub camera_entity: Entity,
     pub viewport_pos:  Vec2,

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy_egui::egui;
 use omniatc::units::{Angle, Distance, DistanceUnit, Position, Speed};
 use serde::Serialize;
@@ -330,6 +332,53 @@ impl Field for Angle<f32> {
             ui,
             ctx,
         );
+    }
+
+    fn as_serialize(&self) -> impl Serialize + '_ { self }
+
+    type Deserialize = Self;
+    fn from_deserialize(de: Self::Deserialize) -> Self { de }
+}
+
+#[derive(Default)]
+pub struct DurationOpts {
+    pub min:       Option<Duration>,
+    pub max:       Option<Duration>,
+    pub precision: Option<Duration>,
+}
+
+impl Field for Duration {
+    type Opts = DurationOpts;
+
+    fn show_egui(
+        &mut self,
+        meta: FieldMeta<DurationOpts>,
+        ui: &mut egui::Ui,
+        ctx: &mut FieldEguiContext,
+    ) {
+        let mut secs = self.as_secs_f32();
+        secs.show_egui(
+            FieldMeta {
+                group: meta.group,
+                id:    meta.id,
+                doc:   meta.doc,
+                opts:  F32Opts {
+                    min:       meta.opts.min.map(|d| d.as_secs_f32()),
+                    max:       meta.opts.max.map(|d| d.as_secs_f32()),
+                    prefix:    None,
+                    suffix:    Some("\u{b0}"),
+                    precision: Some(
+                        meta.opts
+                            .precision
+                            .unwrap_or_else(|| Duration::from_millis(100))
+                            .as_secs_f32(),
+                    ),
+                },
+            },
+            ui,
+            ctx,
+        );
+        *self = Self::from_secs_f32(secs);
     }
 
     fn as_serialize(&self) -> impl Serialize + '_ { self }

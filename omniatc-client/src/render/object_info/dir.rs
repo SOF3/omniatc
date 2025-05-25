@@ -11,7 +11,7 @@ use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{nav, object, plane, wake, wind};
+use omniatc::level::{comm, nav, object, plane, wake, wind};
 use omniatc::math::Sign;
 use omniatc::try_log_return;
 use omniatc::units::{Angle, Heading, TurnDirection};
@@ -107,14 +107,13 @@ fn show_yaw_target(
 
     #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
     if target_degrees != slider_degrees {
-        commands
-            .entity(object)
-            .queue(route::SetStandby)
-            .remove::<(nav::TargetWaypoint, nav::TargetGroundDirection, nav::TargetAlignment)>()
-            .insert(nav::VelocityTarget {
-                yaw: nav::YawTarget::Heading(Heading::from_degrees(slider_degrees)),
-                ..nav_vel.clone()
-            });
+        commands.send_event(comm::InstructionEvent {
+            object,
+            body: comm::SetHeading {
+                target: nav::YawTarget::Heading(Heading::from_degrees(slider_degrees)),
+            }
+            .into(),
+        });
     }
 }
 

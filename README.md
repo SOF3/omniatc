@@ -8,10 +8,10 @@ Yet another ATC simulator.
 - Desktop version downloads
   - [Windows (x86_64)](https://sof3.github.io/omniatc/bin-x86_64-pc-windows-msvc/omniatc-client.exe)
   - [Windows (aarch64)](https://sof3.github.io/omniatc/bin-aarch64-pc-windows-msvc/omniatc-client.exe)
-  - [MacOS (Intel)](https://sof3.github.io/omniatc/bin-x86_64-apple-darwin/omniatc-client.exe)
-  - [MacOS (Silicon)](https://sof3.github.io/omniatc/bin-aarch64-apple-darwin/omniatc-client.exe)
-  - [Linux (x86_64)](https://sof3.github.io/omniatc/bin-x86_64-/omniatc-client.exe)
-  - [Linux (aarch64)](https://sof3.github.io/omniatc/bin-aarch64-pc-windows-msvc/omniatc-client.exe)
+  - [MacOS (Intel)](https://sof3.github.io/omniatc/bin-x86_64-apple-darwin/omniatc-client)
+  - [MacOS (Silicon)](https://sof3.github.io/omniatc/bin-aarch64-apple-darwin/omniatc-client)
+  - [Linux (x86_64)](https://sof3.github.io/omniatc/bin-x86_64-unknown-linux-gnu/omniatc-client)
+  - [Linux (aarch64)](https://sof3.github.io/omniatc/bin-aarch64-unknown-linux-gnu/omniatc-client)
 
 ## ~~TODOs~~ ~~Planned features~~ ~~Wishlist~~ Vaporwares
 

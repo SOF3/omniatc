@@ -13,7 +13,7 @@ use bevy::ecs::schedule::graph::GraphInfo;
 use bevy::ecs::schedule::{
     Chain, IntoScheduleConfigs, Schedulable, ScheduleConfigs, ScheduleLabel, SystemSet,
 };
-use bevy::ecs::system::{Commands, IntoObserverSystem, IntoSystem, ResMut};
+use bevy::ecs::system::{Commands, IntoObserverSystem, ResMut};
 use bevy::tasks::{self, IoTaskPool, Task};
 use itertools::Itertools;
 

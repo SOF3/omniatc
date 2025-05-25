@@ -443,15 +443,15 @@ enum DesiredAltitude {
 pub struct StandbyNode;
 
 impl NodeKind for StandbyNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(self, _: &mut World, _: Entity) -> RunNodeResult {
         RunNodeResult::PendingTrigger
     }
 
-    fn configures_heading(self, _world: &World) -> Option<ConfiguresHeading> { None }
+    fn configures_heading(self, _: &World) -> Option<ConfiguresHeading> { None }
 
-    fn desired_altitude(self, world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
+    fn desired_altitude(self, _: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 
-    fn configures_position(self, world: &World) -> Option<Position<Vec2>> { None }
+    fn configures_position(self, _: &World) -> Option<Position<Vec2>> { None }
 }
 
 /// Head towards a waypoint.

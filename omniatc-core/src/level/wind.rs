@@ -11,7 +11,7 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{EntityCommand, Local, Query, Res, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
-use bevy::math::{Vec2, Vec3, Vec3A};
+use bevy::math::{Vec2, Vec3A};
 use bevy::time::{self, Time};
 
 use super::{object, SystemSets};

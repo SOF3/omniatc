@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::color::Color;

@@ -1,13 +1,8 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::event::{Event, EventReader};
-use bevy::ecs::system::{EntityCommands, SystemState};
+use bevy::ecs::system::EntityCommands;
 use bevy::ecs::world::EntityWorldMut;
-use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{
-    Commands, Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, Query, Res, World,
-};
-use bevy::time::{self, Time};
-use serde::{Deserialize, Serialize};
+use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
 
 use super::{nav, route, SystemSets};
 use crate::try_log_return;
@@ -47,6 +42,7 @@ pub enum Instruction {
     SetHeading(SetHeading),
     SetWaypoint(SetWaypoint),
     SetSpeed(SetSpeed),
+    SetAltitude(SetAltitude),
 }
 
 pub struct SetHeading {
@@ -103,4 +99,12 @@ impl InstructionKind for SetSpeed {
             comp.horiz_speed = target;
         });
     }
+}
+
+pub struct SetAltitude {
+    pub target: nav::TargetAltitude,
+}
+
+impl InstructionKind for SetAltitude {
+    fn process(&self, mut entity: EntityCommands) { entity.insert(self.target.clone()); }
 }

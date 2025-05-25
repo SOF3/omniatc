@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::mem;
 
 use bevy::app::{self, App, Plugin};
 use bevy::core_pipeline::core_2d::Camera2d;
@@ -7,7 +6,7 @@ use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, Query, Single, SystemParam};
+use bevy::ecs::system::{Query, Single, SystemParam};
 use bevy::render::view::Visibility;
 use bevy::transform::components::GlobalTransform;
 use omniatc::units::Distance;

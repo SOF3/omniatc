@@ -4,15 +4,13 @@ use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::EntityCommand;
-use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
-use super::{object, route, SystemSets};
+use super::{object, SystemSets};
 use crate::math::{line_circle_intersect, line_intersect};
 use crate::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
@@ -176,7 +174,7 @@ pub enum YawTarget {
 /// Desired altitude in feet.
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.
-#[derive(Component, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Component, serde::Serialize, serde::Deserialize)]
 pub struct TargetAltitude {
     pub altitude: Position<f32>,
     pub expedite: bool,

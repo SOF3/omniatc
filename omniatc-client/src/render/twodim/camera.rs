@@ -10,8 +10,7 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
-use bevy::input::keyboard::KeyCode;
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
 use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
@@ -19,15 +18,12 @@ use bevy::render::camera::{Camera, Viewport};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
 use bevy_egui::EguiContextPass;
-use omniatc::level::object;
 use omniatc::units::{Angle, Distance};
 use omniatc::{store, try_log_return};
 use omniatc_macros::{Config, FieldEnum};
-use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::config::AppExt;
-use crate::render::object_info;
 use crate::{config, input, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;

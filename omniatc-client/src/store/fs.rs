@@ -1,13 +1,11 @@
 use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::future::Future;
-use std::ops;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
-use bevy::ecs::resource::Resource;
 
 use super::{LevelMeta, ScenarioMeta};
 

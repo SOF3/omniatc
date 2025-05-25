@@ -1,20 +1,8 @@
-use std::any::TypeId;
-
-use bevy::app::{App, Plugin};
-use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, SystemParam};
-use bevy_egui::{egui, EguiContextPass, EguiContexts};
-use omniatc::level::aerodrome::Aerodrome;
-use omniatc::level::route::{self, Route};
-use omniatc::level::runway::Runway;
-use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{nav, object, plane, wake, wind};
+use bevy_egui::egui;
+use omniatc::level::{plane, wake, wind};
 use omniatc::math::Sign;
-use omniatc::try_log_return;
-use omniatc::units::{Angle, TurnDirection};
+use omniatc::units::Angle;
 
 use super::Writer;
 

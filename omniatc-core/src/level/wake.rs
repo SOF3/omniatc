@@ -14,7 +14,7 @@
 //! An intensity of one second diminishes after one second of virtual clock time.
 
 use std::collections::{hash_map, HashMap};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::mem;
 use std::time::Duration;
 

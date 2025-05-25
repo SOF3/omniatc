@@ -1,35 +1,24 @@
-use bevy::app::{self, App, Plugin};
-use bevy::color::Color;
 use bevy::core_pipeline::core_2d::Camera2d;
-use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::{EventReader, EventWriter};
+use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::With;
-use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
+use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::gizmos::gizmos::Gizmos;
 use bevy::input::keyboard::KeyCode;
-use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
+use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
-use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
-use bevy::render::camera::{Camera, Viewport};
-use bevy::transform::components::{GlobalTransform, Transform};
-use bevy::window::Window;
-use bevy_egui::EguiContextPass;
+use bevy::math::Vec2;
+use bevy::transform::components::GlobalTransform;
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
+use omniatc::try_log_return;
 use omniatc::units::{Angle, AngularSpeed, Distance, Heading, Position, Speed, TurnDirection};
-use omniatc::{store, try_log_return};
-use omniatc_macros::{Config, FieldEnum};
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
 
 use super::Conf;
-use crate::config::AppExt;
 use crate::render::object_info;
-use crate::{config, input, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{config, input};
 
 pub(super) fn input_system(
     mut params: ParamSet<(DetermineMode, SelectObjectParams, SetHeadingParams)>,

@@ -57,7 +57,7 @@ jobs:
       - uses: "actions/upload-artifact@v4"
         with:
           name: "bin-${{matrix.target.target}}"
-          path: "target/${{matrix.target.target}}/release/omniatc${{matrix.target.suffix}}"
+          path: "target/${{matrix.target.target}}/release/omniatc-client${{matrix.target.suffix}}"
   prepare-pages:
     name: "Prepare GitHub pages"
     runs-on: ubuntu-latest

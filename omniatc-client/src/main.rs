@@ -38,8 +38,8 @@ fn main() {
         EntityCountDiagnosticsPlugin,
         FrameTimeDiagnosticsPlugin::default(),
         bevy_egui::EguiPlugin { enable_multipass_for_primary_context: true },
-        // #[cfg(feature = "inspect")]
-        // bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
+        #[cfg(feature = "inspect")]
+        bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug,
         omniatc::store::Plug,
         omniatc::util::Plug,

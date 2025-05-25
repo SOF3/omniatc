@@ -265,6 +265,14 @@ macro_rules! decl_units {
             }
         }
 
+        impl ops::Mul<Vec2> for $ty<f32> {
+            type Output = $ty<Vec2>;
+
+            fn mul(self, other: Vec2) -> $ty<Vec2> {
+                $ty(other * self.0)
+            }
+        }
+
         impl ops::Mul<Dir3> for $ty<f32> {
             type Output = $ty<Vec3>;
 

@@ -10,7 +10,7 @@ description = "Yet another ATC simulator"
 [features]
 default = ["dev"]
 dev = ["bevy/dynamic_linking", "omniatc-core/dev"]
-# inspect = ["dep:bevy-inspector-egui"]
+inspect = ["dep:bevy-inspector-egui"]
 
 # For development only
 precommit-checks = []
@@ -19,10 +19,10 @@ rust-analyzer = []
 [dependencies]
 omniatc-core.workspace = true
 omniatc-macros.workspace = true
-# bevy-inspector-egui = { version = "0.28.0", optional = true }
+bevy-inspector-egui = { version = "0.31.0", optional = true }
 anyhow = "1.0.97"
 async-lock = "3.4.0"
-bevy_egui = "0.34.0-rc"
+bevy_egui = "0.34.1"
 ciborium = "0.2.2"
 dirs = "6.0.0"
 egui_extras = "0.31.1"
@@ -34,6 +34,7 @@ parking_lot = "0.12.3"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_with = { version = "3.12.0", features = ["macros", "base64"] }
 strum = { version = "0.26.3", features = ["derive"] }
+smallvec = "1.15.0"
 
 [dependencies.bevy]
 workspace = true
@@ -44,7 +45,6 @@ features = [
 	"bevy_core_pipeline",
 	"bevy_gizmos",
 	"bevy_gltf",
-	"bevy_pbr",
 	"bevy_picking",
 	"bevy_render",
 	"bevy_state",

@@ -21,6 +21,7 @@ use std::time::Duration;
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::{Event, EventWriter};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
@@ -33,7 +34,7 @@ use crate::try_log;
 use crate::units::{Distance, Position, Speed};
 
 const GRID_SIZE: Distance<Vec3> =
-    Distance::from_nm(0.25).splat2().with_vertical(Distance::from_feet(100.));
+    Distance::from_nm(0.25).splat2().with_vertical(Distance::from_feet(500.));
 
 pub struct Plug;
 
@@ -41,6 +42,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Conf>();
         app.init_resource::<VortexIndex>();
+        app.add_event::<SpawnEvent>();
         app.add_systems(app::Update, dissipate_vortex_system.in_set(SystemSets::PrepareEnviron));
         app.add_systems(
             app::Update,
@@ -253,6 +255,7 @@ fn spawn_vortex_system(
     conf: Res<Conf>,
     mut index: ResMut<VortexIndex>,
     aircraft_query: Query<(Entity, &object::Object, &object::Airborne, &Producer)>,
+    mut spawn_event_writer: EventWriter<SpawnEvent>,
 ) {
     let period = time.elapsed().as_nanos() / conf.spawn_period.as_nanos();
     let last_period = last_execute_period.replace(period);
@@ -260,6 +263,7 @@ fn spawn_vortex_system(
         return;
     }
 
+    let mut spawn_events = Vec::new();
     for (object_id, object, airborne, producer) in aircraft_query {
         let vortex = commands
             .spawn((
@@ -275,7 +279,9 @@ fn spawn_vortex_system(
             ))
             .id();
         index.insert(object.position, vortex);
+        spawn_events.push(SpawnEvent(vortex));
     }
+    spawn_event_writer.write_batch(spawn_events);
 }
 
 /// A component on [objects](object) to indicate that it needs to know how much *external* wake it
@@ -306,3 +312,6 @@ fn detect_vortex_system(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct DetectorReaderSystemSet;
+
+#[derive(Event)]
+pub struct SpawnEvent(pub Entity);

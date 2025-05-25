@@ -11,6 +11,7 @@ use bevy_egui::egui;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+mod bool_impl;
 mod color_impl;
 mod enum_impls;
 pub use enum_impls::EnumField;

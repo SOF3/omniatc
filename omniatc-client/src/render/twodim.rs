@@ -8,6 +8,7 @@ mod aerodrome;
 pub mod camera;
 pub mod object;
 mod runway;
+mod wake;
 mod waypoint;
 
 pub struct Plug;
@@ -20,6 +21,7 @@ impl Plugin for Plug {
             waypoint::Plug,
             runway::Plug,
             aerodrome::Plug,
+            wake::Plug,
         ));
     }
 }
@@ -42,6 +44,7 @@ pub enum Zorder {
     ObjectTrack,
     WaypointSprite,
     WaypointLabel,
+    WakeOverlay,
     ObjectSprite,
     ObjectSeparationRing,
     ObjectLabel,

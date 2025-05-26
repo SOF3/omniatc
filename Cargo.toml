@@ -19,3 +19,6 @@ edition = "2021"
 authors = ["SOFe <sofe2038@gmail.com>"]
 repository = "https://github.com/SOF3/omniatc"
 license = "GPL-3.0"
+
+[profile.release]
+strip = true

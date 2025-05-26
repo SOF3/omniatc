@@ -171,7 +171,7 @@ macro_rules! decl_units {
             ///
             /// # Errors
             /// Returns error if the squared magnitude evaluates to NaN.
-            pub fn magnitude_ord(self) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> { ordered_float::NotNan::new(self.0.norm_squared()) }
+            pub fn magnitude_ord(self) -> Result<impl Ord + Copy + Default, ordered_float::FloatIsNan> { ordered_float::NotNan::new(self.0.norm_squared()) }
 
             pub fn magnitude_squared(self) -> Squared<$ty<f32>> { Squared(self.0.norm_squared()) }
 

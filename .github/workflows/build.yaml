@@ -53,7 +53,7 @@ jobs:
       - uses: "houseabsolute/actions-rust-cross@v0"
         with:
           target: "${{matrix.target.target}}"
-          args: "--release --no-default-features --bin omniatc-client"
+          args: "--release --no-default-features -p omniatc-client"
       - uses: "actions/upload-artifact@v4"
         with:
           name: "bin-${{matrix.target.target}}"

@@ -1,10 +1,12 @@
+use std::cmp;
+
 use bevy::app::{App, Plugin};
 use bevy::diagnostic::{
     Diagnostic, DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin,
 };
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
 use bevy::render::camera::Camera;
 use bevy::time::{self, Time};
@@ -31,10 +33,10 @@ fn setup_layout_system(
     mut contexts: EguiContexts,
     mut margins: ResMut<EguiUsedMargins>,
     mut time: ResMut<Time<time::Virtual>>,
-    object_query: Query<ObjectTableData>,
     mut write_cameras: WriteCameras,
     mut config_editor_opened: ResMut<config_editor::Opened>,
     diagnostics: Res<DiagnosticsStore>,
+    write_object_params: WriteObjectParams,
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
@@ -59,7 +61,7 @@ fn setup_layout_system(
 
                 egui::CollapsingHeader::new("Objects")
                     .default_open(true)
-                    .show(ui, |ui| write_objects(ui, &object_query));
+                    .show(ui, |ui| write_objects(ui, write_object_params));
 
                 ui.collapsing("Diagnostics", |ui| write_diagnostics(ui, &diagnostics));
             });
@@ -163,33 +165,53 @@ struct ObjectTableData {
     object:   &'static object::Object,
 }
 
-fn write_objects(ui: &mut egui::Ui, object_query: &Query<ObjectTableData>) {
+#[derive(SystemParam)]
+struct WriteObjectParams<'w, 's> {
+    object_query: Query<'w, 's, ObjectTableData>,
+    last_rows:    Local<'s, Option<usize>>,
+    sort_key:     Local<'s, (usize, bool)>,
+}
+
+fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
     let columns: Vec<_> = ObjectTableColumn::iter().collect();
 
-    let mut table = TableBuilder::new(ui);
-    for _ in 0..columns.len() {
-        table = table.column(Column::auto().resizable(true));
-    }
-    let table = table.header(20., |mut header| {
-        for column in &columns {
-            header.col(|ui| {
-                ui.small(column.header());
-            });
-        }
-    });
+    let mut objects: Vec<_> = params.object_query.iter().collect();
 
-    let mut objects: Vec<_> = object_query.iter().collect();
-    objects.sort_by_key(|obj| &obj.display.name);
+    let rows_changed = params.last_rows.replace(objects.len()) != Some(objects.len());
 
-    table.body(|mut body| {
-        for object in objects {
-            body.row(20., |mut row| {
+    TableBuilder::new(ui)
+        .columns(Column::auto().resizable(true).auto_size_this_frame(rows_changed), columns.len())
+        .header(20., |mut header| {
+            for (column_id, column) in columns.iter().enumerate() {
+                header.col(|ui| {
+                    let mut clicked = false;
+                    ui.horizontal(|ui| {
+                        clicked |= ui.small(column.header()).clicked();
+                        if params.sort_key.0 == column_id {
+                            clicked |=
+                                ui.label(if params.sort_key.1 { "v" } else { "^" }).clicked();
+                        }
+                    });
+                    if clicked {
+                        if params.sort_key.0 == column_id {
+                            params.sort_key.1 = !params.sort_key.1;
+                        } else {
+                            *params.sort_key = (column_id, false);
+                        }
+                    }
+                });
+            }
+        })
+        .body(|body| {
+            columns[params.sort_key.0].sort(&mut objects[..], params.sort_key.1);
+
+            body.rows(20., objects.len(), |mut row| {
+                let object = &objects[row.index()];
                 for column in &columns {
-                    row.col(|ui| column.cell_value(ui, &object));
+                    row.col(|ui| column.cell_value(ui, object));
                 }
             });
-        }
-    });
+        });
 }
 
 #[derive(strum::EnumIter)]
@@ -206,7 +228,7 @@ impl ObjectTableColumn {
         match self {
             Self::Name => "Name",
             Self::Altitude => "Altitude",
-            Self::GroundSpeed => "Ground speed",
+            Self::GroundSpeed => "Ground\nspeed",
             Self::VerticalRate => "Vert rate",
             Self::Heading => "Heading",
         }
@@ -229,6 +251,47 @@ impl ObjectTableColumn {
             Self::Heading => format!("{:.0}", Heading::from_quat(data.rotation.0).degrees()).into(),
         };
         ui.label(text);
+    }
+
+    fn sort(&self, objects: &mut [ObjectTableDataItem], desc: bool) {
+        match self {
+            Self::Name => objects.sort_by_key(|data| ConditionalReverse(desc, &data.display.name)),
+            Self::Altitude => objects.sort_by_key(|data| {
+                ConditionalReverse(desc, OrderedFloat(data.object.position.altitude().get()))
+            }),
+            Self::GroundSpeed => objects.sort_by_key(|data| {
+                ConditionalReverse(
+                    desc,
+                    data.object.ground_speed.horizontal().magnitude_ord().unwrap_or_default(),
+                )
+            }),
+            Self::VerticalRate => objects.sort_by_key(|data| {
+                ConditionalReverse(desc, OrderedFloat(data.object.ground_speed.vertical().0))
+            }),
+            Self::Heading => objects.sort_by_key(|data| {
+                ConditionalReverse(
+                    desc,
+                    OrderedFloat(Heading::from_quat(data.rotation.0).radians().0),
+                )
+            }),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct ConditionalReverse<T>(bool, T);
+
+impl<T: Ord> PartialOrd for ConditionalReverse<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl<T: Ord> Ord for ConditionalReverse<T> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        if self.0 {
+            other.1.cmp(&self.1)
+        } else {
+            self.1.cmp(&other.1)
+        }
     }
 }
 

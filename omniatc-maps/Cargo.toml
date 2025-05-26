@@ -9,13 +9,13 @@ license = "GPL-3.0"
 
 [features]
 default = ["dev"]
-dev = []
+dev = ["bevy/dynamic_linking"]
 precommit-checks = []
 
 [dependencies]
 omniatc-core.workspace = true
 anyhow = "1.0.95"
-bevy = { workspace = true, features = ["dynamic_linking"] }
+bevy = { workspace = true }
 ciborium = "0.2.2"
 serde.workspace = true
 strum = { version = "0.26.3", features = ["derive"] }

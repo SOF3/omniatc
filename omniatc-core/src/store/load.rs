@@ -196,8 +196,8 @@ fn spawn_runway(
         .id();
 
     let heading = Heading::from_vec2((end_pos - start_pos).0);
-    let touchdown_position = (start_pos + runway.touchdown_displacement * heading.into_dir2())
-        .with_altitude(aerodrome.elevation);
+    let touchdown_position =
+        (start_pos + runway.touchdown_displacement * heading).with_altitude(aerodrome.elevation);
 
     runway::SpawnCommand {
         waypoint: Waypoint {
@@ -234,7 +234,7 @@ fn spawn_runway(
             name:         format!("ILS:{}/{}", aerodrome.code, runway.name),
             display_type: waypoint::DisplayType::None,
             position:     touchdown_position
-                + (runway.max_visual_distance * heading.opposite().into_dir2())
+                + (runway.max_visual_distance * heading.opposite())
                     .projected_from_elevation_angle(runway.glide_angle),
         },
     }
@@ -353,7 +353,7 @@ fn generate_apron_lines(
                 None => sweep::Line {
                     alpha:          apron.position,
                     beta:           apron.position
-                        - Distance::from_nm(100.) * apron.forward_heading.into_dir2(),
+                        - Distance::from_nm(100.) * apron.forward_heading,
                     need_intersect: true,
                 },
                 Some(non_apron_index) => {
@@ -646,7 +646,7 @@ fn spawn_plane(
 
     object::SpawnCommand {
         position: plane.aircraft.position.with_altitude(plane.aircraft.altitude),
-        ground_speed: (plane.aircraft.ground_speed * plane.aircraft.ground_dir.into_dir2())
+        ground_speed: (plane.aircraft.ground_speed * plane.aircraft.ground_dir)
             .with_vertical(plane.aircraft.vert_rate),
         display: object::Display { name: plane.aircraft.name.clone() },
         destination,

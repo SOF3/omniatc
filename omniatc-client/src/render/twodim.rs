@@ -50,6 +50,7 @@ pub enum Zorder {
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,
+    SetHeadingPreview,
 }
 
 impl Zorder {

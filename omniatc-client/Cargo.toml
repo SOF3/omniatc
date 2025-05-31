@@ -22,7 +22,6 @@ omniatc-macros.workspace = true
 bevy-inspector-egui = { version = "0.31.0", optional = true }
 anyhow = "1.0.97"
 async-lock = "3.4.0"
-bevy_egui = "0.34.1"
 ciborium = "0.2.2"
 dirs = "6.0.0"
 egui_extras = "0.31.1"
@@ -40,12 +39,7 @@ smallvec = "1.15.0"
 workspace = true
 default-features = false
 features = [
-	"animation",
 	"bevy_color",
-	"bevy_core_pipeline",
-	"bevy_gizmos",
-	"bevy_gltf",
-	"bevy_picking",
 	"bevy_render",
 	"bevy_state",
 	"bevy_text",
@@ -56,10 +50,13 @@ features = [
 	"multi_threaded",
 	"png",
 	"tonemapping_luts",
-	"webgl2",
 	"x11",
 ]
 
+[dependencies.bevy_egui]
+version = "0.34.1"
+default-features = false
+features = ["default_fonts", "manage_clipboard", "open_url", "render"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 idb = "0.6.4"

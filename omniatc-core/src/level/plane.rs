@@ -269,8 +269,7 @@ fn maintain_accel(
     }
 
     let new_speed = current_speed + control.horiz_accel * time.delta();
-    airborne.airspeed =
-        (new_speed * control.heading.into_dir2()).with_vertical(airborne.airspeed.vertical());
+    airborne.airspeed = (new_speed * control.heading).with_vertical(airborne.airspeed.vertical());
 }
 
 fn maintain_vert(

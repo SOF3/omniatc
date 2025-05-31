@@ -1,14 +1,23 @@
+use std::f32::consts::TAU;
+use std::{mem, ops};
+
+use bevy::asset::{Assets, Handle, RenderAssetUsages};
 use bevy::core_pipeline::core_2d::Camera2d;
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
-use bevy::ecs::query::With;
-use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
-use bevy::gizmos::gizmos::Gizmos;
+use bevy::ecs::query::{With, Without};
+use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
+use bevy::math::primitives::Circle;
 use bevy::math::Vec2;
-use bevy::transform::components::GlobalTransform;
+use bevy::render::mesh::{Indices, Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
+use bevy::render::view::Visibility;
+use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use bevy::transform::components::{GlobalTransform, Transform};
+use itertools::Itertools;
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
@@ -18,6 +27,8 @@ use ordered_float::OrderedFloat;
 
 use super::Conf;
 use crate::render::object_info;
+use crate::render::twodim::Zorder;
+use crate::util::shapes;
 use crate::{config, input};
 
 pub(super) fn input_system(
@@ -98,14 +109,23 @@ impl SelectObjectParams<'_, '_> {
 
 #[derive(SystemParam)]
 pub(super) struct SetHeadingParams<'w, 's> {
-    waypoint_query: Query<'w, 's, (Entity, &'static Waypoint)>,
+    waypoint_query:   Query<'w, 's, (Entity, &'static Waypoint)>,
     object_query:
         Query<'w, 's, (&'static Object, &'static nav::Limits, Option<&'static plane::Control>)>,
-    conf:           config::Read<'w, 's, Conf>,
-    instr_writer:   EventWriter<'w, comm::InstructionEvent>,
-    current_object: Res<'w, object_info::CurrentObject>,
-    buttons:        Res<'w, ButtonInput<KeyCode>>,
-    gizmos:         Gizmos<'w, 's>,
+    conf:             config::Read<'w, 's, Conf>,
+    instr_writer:     EventWriter<'w, comm::InstructionEvent>,
+    current_object:   Res<'w, object_info::CurrentObject>,
+    buttons:          Res<'w, ButtonInput<KeyCode>>,
+    meshes:           ResMut<'w, Assets<Mesh>>,
+    materials:        ResMut<'w, Assets<ColorMaterial>>,
+    arc_mesh:         Local<'s, Option<Handle<Mesh>>>,
+    commands:         Commands<'w, 's>,
+    shapes:           ResMut<'w, shapes::Meshes>,
+    ray_entity_query:
+        Option<Single<'w, &'static mut Transform, (With<RayEntity>, Without<ArcEntity>)>>,
+    arc_entity_query: Option<Single<'w, &'static mut Transform, With<ArcEntity>>>,
+    camera:           Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    preview_vis:      Query<'w, 's, &'static mut Visibility, With<SetHeadingPreview>>,
 }
 
 impl SetHeadingParams<'_, '_> {
@@ -134,6 +154,10 @@ impl SetHeadingParams<'_, '_> {
                 self.propose_set_heading(object, cursor_world_pos, commit);
             }
         }
+
+        for mut vis in &mut self.preview_vis {
+            *vis = if commit { Visibility::Hidden } else { Visibility::Visible };
+        }
     }
 
     fn propose_set_waypoint(
@@ -158,18 +182,18 @@ impl SetHeadingParams<'_, '_> {
             let current_track =
                 if let Some(plane) = plane { plane.heading } else { waypoint_heading };
             let speed = ground_speed.horizontal().magnitude_exact();
-            let completion_threshold = speed * self.conf.set_heading_preview_density;
-            self.draw_gizmos(
-                object_pos,
-                speed,
-                current_track,
-                |current_pos| {
-                    let delta = waypoint_pos - current_pos;
-                    (delta.magnitude_cmp() > completion_threshold).then(|| delta.heading())
-                },
-                current_track.closer_direction_to(waypoint_heading),
-                limits.max_yaw_speed,
-            );
+
+            let turn_radius = Distance(speed.0 / limits.max_yaw_speed.0);
+            let turn_center = object_pos
+                + match current_track.closer_direction_to(waypoint_heading) {
+                    TurnDirection::Clockwise => turn_radius * (current_track + Angle::RIGHT),
+                    TurnDirection::CounterClockwise => turn_radius * (current_track - Angle::RIGHT),
+                };
+
+            // TODO find point `tangent` such that turn_center.distance(tangent) == turn_radius
+            // && (tangent - turn_center).dot(tangent - waypoint_pos) == 0.
+
+            // TODO render
         }
     }
 
@@ -198,61 +222,154 @@ impl SetHeadingParams<'_, '_> {
         } else {
             let current_track =
                 if let Some(plane) = plane { plane.heading } else { target_heading };
-            let initial_direction = match target {
+            let direction = match target {
                 nav::YawTarget::Heading(_) => current_track.closer_direction_to(target_heading),
                 nav::YawTarget::TurnHeading { direction, .. } => direction,
             };
-            self.draw_gizmos(
-                object_pos,
-                ground_speed.horizontal().magnitude_exact(),
-                current_track,
-                |_| Some(target_heading),
-                initial_direction,
-                limits.max_yaw_speed,
-            );
+            let speed = ground_speed.horizontal().magnitude_exact();
+
+            let turn_radius = Distance(speed.0 / limits.max_yaw_speed.0);
+            let start_pos_to_center = match direction {
+                TurnDirection::Clockwise => current_track + Angle::RIGHT,
+                TurnDirection::CounterClockwise => current_track - Angle::RIGHT,
+            };
+            let turn_center = object_pos + turn_radius * start_pos_to_center;
+            let turn_angle = current_track.distance(target_heading, direction);
+
+            let start_heading = start_pos_to_center.opposite();
+            let transition_heading = start_heading + turn_angle;
+
+            let range = if turn_angle.is_negative() {
+                transition_heading..start_heading
+            } else {
+                start_heading..transition_heading
+            };
+            self.draw_arc(turn_center, turn_radius, range);
+
+            let transition_point = turn_center + turn_radius * transition_heading;
+            self.draw_ray(transition_point, target_heading);
         }
     }
 
-    fn draw_gizmos(
+    fn draw_arc(
         &mut self,
-        object_pos: Position<Vec2>,
-        speed: Speed<f32>,
-        mut track: Heading,
-        target_heading: impl Fn(Position<Vec2>) -> Option<Heading>,
-        initial_direction: TurnDirection,
-        turn_rate: AngularSpeed<f32>,
+        center: Position<Vec2>,
+        radius: Distance<f32>,
+        heading_range: ops::Range<Heading>,
     ) {
-        let mut start = object_pos;
-        let mut dir = Some(initial_direction);
-        let mut remaining = speed * self.conf.set_heading_preview_limit;
+        fn draw_arc_mesh(
+            positions: &mut Vec<[f32; 3]>,
+            radius: Distance<f32>,
+            heading_range: ops::Range<Heading>,
+            thickness: f32,
+            density: Angle<f32>,
+        ) {
+            positions.clear();
 
-        let max_turn_size = turn_rate * self.conf.set_heading_preview_density;
-
-        while remaining.is_positive() {
-            let mut pos_delta = speed * track.into_dir2() * self.conf.set_heading_preview_density;
-            let pos_delta_length = pos_delta.magnitude_exact();
-            if pos_delta_length > remaining {
-                pos_delta *= remaining / pos_delta_length;
-                remaining = Distance::ZERO;
-            } else {
-                remaining -= pos_delta_length;
+            let angular_dist =
+                heading_range.start.distance(heading_range.end, TurnDirection::Clockwise);
+            let steps = (angular_dist / density).ceil() as u32;
+            for step in 0..=steps {
+                let heading = heading_range.start + density * (step as f32);
+                let inner = (radius - Distance(thickness / 2.)) * heading;
+                let outer = (radius + Distance(thickness / 2.)) * heading;
+                positions.push([inner.0.x, inner.0.y, 0.]);
+                positions.push([outer.0.x, outer.0.y, 0.]);
             }
+        }
 
-            let end = start + pos_delta;
-
-            self.gizmos.line_2d(start.get(), end.get(), self.conf.set_heading_preview_color);
-
-            start = end;
-            let Some(this_target_heading) = target_heading(start) else { break };
-            if track.closest_distance(this_target_heading).abs() < Angle::RIGHT {
-                dir = None;
+        let mesh = match *self.arc_mesh {
+            None => {
+                let mut positions = Vec::new();
+                draw_arc_mesh(
+                    &mut positions,
+                    radius,
+                    heading_range,
+                    self.conf.set_heading_preview_thickness * self.camera.scale().y,
+                    self.conf.set_heading_preview_density,
+                );
+                let handle = self.meshes.add(
+                    Mesh::new(PrimitiveTopology::TriangleStrip, RenderAssetUsages::all())
+                        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions),
+                );
+                &*self.arc_mesh.insert(handle)
             }
-            let this_dir = dir.unwrap_or_else(|| track.closer_direction_to(this_target_heading));
-            let mut this_turn_size = track.distance(this_target_heading, this_dir);
-            if this_turn_size.abs() > max_turn_size {
-                this_turn_size = max_turn_size * this_turn_size.signum();
+            Some(ref handle) => {
+                let mesh = self.meshes.get_mut(handle).expect("get by strong reference");
+
+                let Some(VertexAttributeValues::Float32x3(positions)) =
+                    mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+                else {
+                    panic!(
+                        "mesh attribute type changed to {:?}",
+                        mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+                    )
+                };
+                draw_arc_mesh(
+                    positions,
+                    radius,
+                    heading_range,
+                    self.conf.set_heading_preview_thickness * self.camera.scale().y,
+                    self.conf.set_heading_preview_density,
+                );
+
+                handle
             }
-            track += this_turn_size;
+        };
+
+        match self.arc_entity_query {
+            None => {
+                self.commands.spawn((
+                    Mesh2d(mesh.clone()),
+                    MeshMaterial2d(
+                        self.materials
+                            .add(ColorMaterial::from_color(self.conf.set_heading_preview_color)),
+                    ),
+                    ArcEntity,
+                    Transform {
+                        translation: Zorder::SetHeadingPreview.pos2_to_translation(center),
+                        ..Default::default()
+                    },
+                ));
+            }
+            Some(ref mut tf) => {
+                tf.translation = Zorder::SetHeadingPreview.pos2_to_translation(center);
+            }
+        }
+    }
+
+    fn draw_ray(&mut self, start: Position<Vec2>, dir: Heading) {
+        let end = start + Distance::from_nm(1000.) * dir;
+        match self.ray_entity_query {
+            None => {
+                self.commands.spawn((
+                    self.shapes.line_from_to(
+                        self.conf.set_heading_preview_thickness,
+                        Zorder::SetHeadingPreview,
+                        start,
+                        end,
+                    ),
+                    MeshMaterial2d(
+                        self.materials
+                            .add(ColorMaterial::from_color(self.conf.set_heading_preview_color)),
+                    ),
+                    RayEntity,
+                ));
+            }
+            Some(ref mut tf) => {
+                shapes::set_square_line_transform(&mut *tf, start, end);
+            }
         }
     }
 }
+
+#[derive(Component)]
+#[require(SetHeadingPreview)]
+struct ArcEntity;
+
+#[derive(Component)]
+#[require(SetHeadingPreview)]
+struct RayEntity;
+
+#[derive(Component, Default)]
+struct SetHeadingPreview;

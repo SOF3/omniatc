@@ -273,6 +273,14 @@ macro_rules! decl_units {
             }
         }
 
+        impl ops::Mul<Heading> for $ty<f32> {
+            type Output = $ty<Vec2>;
+
+            fn mul(self, other: Heading) -> $ty<Vec2> {
+                self * other.into_dir2()
+            }
+        }
+
         impl ops::Mul<Dir3> for $ty<f32> {
             type Output = $ty<Vec3>;
 

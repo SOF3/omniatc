@@ -471,40 +471,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_animation"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3647b67c6bfd456922b2720ccef980dec01742d155d0eb454dc3d8fdc65e7aff"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_color",
- "bevy_derive",
- "bevy_ecs",
- "bevy_log",
- "bevy_math",
- "bevy_mesh",
- "bevy_platform",
- "bevy_reflect",
- "bevy_render",
- "bevy_time",
- "bevy_transform",
- "bevy_utils",
- "blake3",
- "derive_more 1.0.0",
- "downcast-rs 2.0.1",
- "either",
- "petgraph",
- "ron",
- "serde",
- "smallvec",
- "thiserror 2.0.12",
- "thread_local",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "bevy_app"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -717,7 +683,6 @@ dependencies = [
  "bevy_input",
  "bevy_log",
  "bevy_math",
- "bevy_picking",
  "bevy_platform",
  "bevy_reflect",
  "bevy_render",
@@ -763,7 +728,6 @@ dependencies = [
  "bevy_gizmos_macros",
  "bevy_image",
  "bevy_math",
- "bevy_pbr",
  "bevy_reflect",
  "bevy_render",
  "bevy_sprite",
@@ -784,41 +748,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "bevy_gltf"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa25b809ee024ef2682bafc1ca22ca8275552edb549dc6f69a030fdffd976c63"
-dependencies = [
- "base64 0.22.1",
- "bevy_animation",
- "bevy_app",
- "bevy_asset",
- "bevy_color",
- "bevy_core_pipeline",
- "bevy_ecs",
- "bevy_image",
- "bevy_math",
- "bevy_mesh",
- "bevy_pbr",
- "bevy_platform",
- "bevy_reflect",
- "bevy_render",
- "bevy_scene",
- "bevy_tasks",
- "bevy_transform",
- "bevy_utils",
- "fixedbitset",
- "gltf",
- "itertools 0.14.0",
- "percent-encoding",
- "serde",
- "serde_json",
- "smallvec",
- "thiserror 2.0.12",
- "tracing",
 ]
 
 [[package]]
@@ -890,7 +819,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "526ffd64c58004cb97308826e896c07d0e23dc056c243b97492e31cdf72e2830"
 dependencies = [
  "bevy_a11y",
- "bevy_animation",
  "bevy_app",
  "bevy_asset",
  "bevy_color",
@@ -899,14 +827,11 @@ dependencies = [
  "bevy_diagnostic",
  "bevy_ecs",
  "bevy_gizmos",
- "bevy_gltf",
  "bevy_image",
  "bevy_input",
  "bevy_input_focus",
  "bevy_log",
  "bevy_math",
- "bevy_pbr",
- "bevy_picking",
  "bevy_platform",
  "bevy_ptr",
  "bevy_reflect",
@@ -1043,29 +968,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_picking"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f73674f62b1033006bd75c89033f5d3516386cfd7d43bb9f7665012c0ab14d22"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_derive",
- "bevy_ecs",
- "bevy_input",
- "bevy_math",
- "bevy_platform",
- "bevy_reflect",
- "bevy_render",
- "bevy_time",
- "bevy_transform",
- "bevy_utils",
- "bevy_window",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "bevy_platform"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1106,7 +1008,6 @@ dependencies = [
  "erased-serde",
  "foldhash",
  "glam",
- "petgraph",
  "serde",
  "smallvec",
  "smol_str",
@@ -2631,42 +2532,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gltf"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3ce1918195723ce6ac74e80542c5a96a40c2b26162c1957a5cd70799b8cacf7"
-dependencies = [
- "byteorder",
- "gltf-json",
- "lazy_static",
- "serde_json",
-]
-
-[[package]]
-name = "gltf-derive"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14070e711538afba5d6c807edb74bcb84e5dbb9211a3bf5dea0dfab5b24f4c51"
-dependencies = [
- "inflections",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "gltf-json"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6176f9d60a7eab0a877e8e96548605dedbde9190a7ae1e80bbcc1c9af03ab14"
-dependencies = [
- "gltf-derive",
- "serde",
- "serde_derive",
- "serde_json",
-]
-
-[[package]]
 name = "glutin_wgl_sys"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3100,12 +2965,6 @@ dependencies = [
  "hashbrown 0.15.3",
  "serde",
 ]
-
-[[package]]
-name = "inflections"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a257582fdcde896fd96463bf2d40eefea0580021c0712a0e2b028b60b47a837a"
 
 [[package]]
 name = "interpolate_name"
@@ -4103,18 +3962,6 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
-
-[[package]]
-name = "petgraph"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
-dependencies = [
- "fixedbitset",
- "indexmap 2.9.0",
- "serde",
- "serde_derive",
-]
 
 [[package]]
 name = "phf"

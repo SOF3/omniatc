@@ -132,7 +132,7 @@ mod route;
 mod speed;
 
 fn highlight_selected_system(
-    conf: config::Read<super::twodim::camera::Conf>,
+    conf: config::Read<super::twodim::pick::Conf>,
     current_hovered_object: Res<CurrentHoveredObject>,
     current_object: Res<CurrentObject>,
     mut color_theme_query: Query<&mut super::twodim::object::ColorTheme>,

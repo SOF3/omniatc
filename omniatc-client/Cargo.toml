@@ -50,6 +50,7 @@ features = [
 	"multi_threaded",
 	"png",
 	"tonemapping_luts",
+	"webgl2",
 	"x11",
 ]
 

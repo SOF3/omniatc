@@ -171,6 +171,16 @@ pub enum YawTarget {
     },
 }
 
+impl YawTarget {
+    /// The eventual target heading, regardless of direction.
+    #[must_use]
+    pub fn heading(self) -> Heading {
+        match self {
+            Self::Heading(heading) | Self::TurnHeading { heading, .. } => heading,
+        }
+    }
+}
+
 /// Desired altitude in feet.
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.

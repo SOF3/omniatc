@@ -31,6 +31,7 @@ mod base_color;
 mod label;
 use label::IsLabelOf;
 
+pub mod preview;
 mod separation_ring;
 mod track;
 
@@ -52,6 +53,7 @@ impl Plugin for Plug {
         );
         app.add_plugins(separation_ring::Plug);
         app.add_plugins(track::Plug);
+        app.add_plugins(preview::Plug);
         app.add_plugins(base_color::Plug);
         omniatc::util::configure_ordered_system_sets::<SetColorThemeSystemSet>(app, app::Update);
     }
@@ -216,6 +218,11 @@ struct Conf {
     /// Top altitude for track point coloring.
     track_point_top_altitude:  Position<f32>,
 
+    /// Thickness of planned track preview line.
+    preview_line_thickness: f32,
+    /// Color of planned track preview line.
+    preview_line_color:     Color,
+
     /// Object color will be based on this scheme.
     color_scheme: base_color::Scheme,
 }
@@ -236,6 +243,8 @@ impl Default for Conf {
             track_point_base_altitude: Position::SEA_LEVEL,
             track_point_top_color:     Color::srgb(0.4, 0.8, 0.6),
             track_point_top_altitude:  TROPOPAUSE_ALTITUDE,
+            preview_line_color:        Color::srgb(0.9, 0.7, 0.8),
+            preview_line_thickness:    1.,
             color_scheme:              base_color::Scheme::default(),
         }
     }

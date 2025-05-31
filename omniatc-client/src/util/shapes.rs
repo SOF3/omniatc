@@ -56,9 +56,11 @@ impl Meshes {
         zorder: Zorder,
         from: Position<Vec2>,
         to: Position<Vec2>,
+        camera: &GlobalTransform,
     ) -> impl Bundle {
         let mut tf = square_line_transform(zorder);
         set_square_line_transform_relative(&mut tf, from.0, to.0);
+        tf.scale.x = thickness * camera.scale().y;
         (Mesh2d(self.square().clone()), tf, MaintainThickness(thickness))
     }
 }

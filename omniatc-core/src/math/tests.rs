@@ -1,8 +1,8 @@
 use bevy::math::Vec2;
 
 use super::line_circle_intersect;
-use crate::math::range_steps;
-use crate::units::{Position, Squared};
+use crate::math::{find_circle_tangent_towards, range_steps};
+use crate::units::{Distance, Position, Squared, TurnDirection};
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
     assert_eq!(actual.is_none(), expect.is_none());
@@ -92,4 +92,79 @@ fn range_intervals_singleton() {
 #[test]
 fn range_intervals_empty() {
     assert_eq!(range_steps(0.3, 0.2, 0.5).collect::<Vec<_>>(), Vec::<f32>::new());
+}
+
+fn assert_option_pos(actual: Option<Position<Vec2>>, expect: Option<Position<Vec2>>) {
+    assert_eq!(actual.is_some(), expect.is_some());
+    if let (Some(actual), Some(expect)) = (actual, expect) {
+        assert!(
+            actual.distance_cmp(expect) < Distance::from_nm(0.001),
+            "expect {expect:?}, got {actual:?}"
+        );
+    }
+}
+
+#[test]
+fn find_circle_tangent_towards_clockwise_positive() {
+    assert_option_pos(
+        find_circle_tangent_towards(
+            Position::from_origin_nm(5.0, 6.0),
+            Position::from_origin_nm(3.0, 4.0),
+            Distance::from_nm(2.0),
+            TurnDirection::Clockwise,
+        ),
+        Some(Position::from_origin_nm(3.0, 6.0)),
+    );
+}
+
+#[test]
+fn find_circle_tangent_towards_counter_clockwise_positive() {
+    assert_option_pos(
+        find_circle_tangent_towards(
+            Position::from_origin_nm(5.0, 6.0),
+            Position::from_origin_nm(3.0, 4.0),
+            Distance::from_nm(2.0),
+            TurnDirection::CounterClockwise,
+        ),
+        Some(Position::from_origin_nm(5.0, 4.0)),
+    );
+}
+
+#[test]
+fn find_circle_tangent_towards_clockwise_negative() {
+    assert_option_pos(
+        find_circle_tangent_towards(
+            Position::from_origin_nm(3.0, 4.0),
+            Position::from_origin_nm(5.0, 6.0),
+            Distance::from_nm(2.0),
+            TurnDirection::Clockwise,
+        ),
+        Some(Position::from_origin_nm(5.0, 4.0)),
+    );
+}
+
+#[test]
+fn find_circle_tangent_towards_counter_clockwise_negative() {
+    assert_option_pos(
+        find_circle_tangent_towards(
+            Position::from_origin_nm(3.0, 4.0),
+            Position::from_origin_nm(5.0, 6.0),
+            Distance::from_nm(2.0),
+            TurnDirection::CounterClockwise,
+        ),
+        Some(Position::from_origin_nm(3.0, 6.0)),
+    );
+}
+
+#[test]
+fn find_circle_tangent_towards_inside() {
+    assert_option_pos(
+        find_circle_tangent_towards(
+            Position::from_origin_nm(5.0, 6.0),
+            Position::from_origin_nm(5.0, 6.0),
+            Distance::from_nm(2.0),
+            TurnDirection::CounterClockwise,
+        ),
+        None,
+    );
 }

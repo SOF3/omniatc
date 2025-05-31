@@ -7,7 +7,7 @@ use std::{cmp, fmt, iter, ops};
 
 use bevy::math::{Dir2, Mat2, Vec2};
 
-use crate::units::{Distance, Position, Speed, Squared};
+use crate::units::{Distance, Position, Speed, Squared, TurnDirection};
 
 mod consts;
 pub use consts::*;
@@ -106,4 +106,45 @@ pub fn line_intersect(s1: Vec2, d1: Vec2, s2: Vec2, d2: Vec2) -> (f32, f32) {
     let mat = Mat2::from_cols(d1, -d2);
     let t = mat.inverse() * (s2 - s1);
     (t.x, t.y)
+}
+
+/// Returns the two points on the circle at `center` with radius `radius`
+/// such that the tangent of the circle at each point intersects with `outside`.
+///
+/// Returns `None` if `outside` is inside the circle.
+#[must_use]
+pub fn find_circle_tangents_intersecting(outside: Vec2, radius: f32) -> Option<[Vec2; 2]> {
+    // Solve radial.dot(radial - shifted) = 0 for radial, which reduces to a quadratic equation:
+    let a = outside.length_squared();
+    let b = -2.0 * outside.x * radius.powi(2);
+    let c = radius.powi(4) - (outside.y * radius).powi(2);
+
+    let discrim = b.powi(2) - 4.0 * a * c;
+    if discrim <= 0. {
+        None
+    } else {
+        let low = (-b - discrim.sqrt()) / a / 2.;
+        let high = (-b + discrim.sqrt()) / a / 2.;
+        Some([low, high].map(|x| {
+            // Solve radius^2 = radial.dot(shifted) for radial.y
+            let y = (radius.powi(2) - outside.x * x) / outside.y;
+            Vec2 { x, y }
+        }))
+    }
+}
+
+#[must_use]
+pub fn find_circle_tangent_towards(
+    outside: Position<Vec2>,
+    center: Position<Vec2>,
+    radius: Distance<f32>,
+    direction: TurnDirection,
+) -> Option<Position<Vec2>> {
+    let direct = outside - center;
+    let radials = find_circle_tangents_intersecting(direct.0, radius.0)?.map(Distance);
+    if TurnDirection::from_triangle_23(radials[0], direct) == Some(direction) {
+        Some(center + radials[0])
+    } else {
+        Some(center + radials[1])
+    }
 }

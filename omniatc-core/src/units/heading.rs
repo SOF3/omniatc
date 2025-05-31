@@ -5,7 +5,7 @@ use std::{fmt, ops};
 use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 use ordered_float::{FloatIsNan, NotNan};
 
-use super::Angle;
+use super::{Angle, Distance, Position};
 
 #[cfg(test)]
 mod tests;
@@ -230,6 +230,31 @@ pub enum TurnDirection {
     Clockwise,
 }
 
+impl TurnDirection {
+    /// Similar to [`Self::from_triangle`], but assumes `p1` is the origin.
+    #[must_use]
+    pub fn from_triangle_23(p1_to_p2: Distance<Vec2>, p1_to_p3: Distance<Vec2>) -> Option<Self> {
+        let dot = p1_to_p2.0.perp_dot(p1_to_p3.0);
+        if dot > 0. {
+            Some(Self::CounterClockwise)
+        } else if dot < 0. {
+            Some(Self::Clockwise)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the closer turn direction from p1 to p2 to p3.
+    #[must_use]
+    pub fn from_triangle(
+        p1: Position<Vec2>,
+        p2: Position<Vec2>,
+        p3: Position<Vec2>,
+    ) -> Option<Self> {
+        Self::from_triangle_23(p2 - p1, p3 - p1)
+    }
+}
+
 impl ops::Neg for TurnDirection {
     type Output = Self;
 
@@ -240,3 +265,22 @@ impl ops::Neg for TurnDirection {
         }
     }
 }
+
+macro_rules! impl_angle_mul_dir {
+    ($ty:ty) => {
+        impl ops::Mul<TurnDirection> for $ty {
+            type Output = Self;
+
+            fn mul(mut self, dir: TurnDirection) -> Self {
+                if dir == TurnDirection::CounterClockwise {
+                    self.0 = -self.0;
+                }
+                self
+            }
+        }
+    };
+}
+
+impl_angle_mul_dir!(Angle<f32>);
+impl_angle_mul_dir!(super::AngularSpeed<f32>);
+impl_angle_mul_dir!(super::AngularAccel<f32>);

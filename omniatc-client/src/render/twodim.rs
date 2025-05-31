@@ -5,8 +5,9 @@ use bevy::transform::components::Transform;
 use omniatc::units::{Distance, Position};
 
 mod aerodrome;
-pub mod camera;
+mod camera;
 pub mod object;
+pub mod pick;
 mod runway;
 mod wake;
 mod waypoint;
@@ -18,6 +19,7 @@ impl Plugin for Plug {
         app.add_plugins((
             camera::Plug,
             object::Plug,
+            pick::Plug,
             waypoint::Plug,
             runway::Plug,
             aerodrome::Plug,
@@ -50,7 +52,7 @@ pub enum Zorder {
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,
-    SetHeadingPreview,
+    ObjectTrackPreview,
 }
 
 impl Zorder {

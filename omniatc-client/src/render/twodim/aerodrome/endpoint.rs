@@ -1,11 +1,12 @@
+use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, Single, SystemParam};
 use bevy::math::Vec2;
 use bevy::sprite::MeshMaterial2d;
-use bevy::transform::components::Transform;
+use bevy::transform::components::{GlobalTransform, Transform};
 use either::Either;
 use itertools::Itertools;
 use omniatc::level::ground;
@@ -41,6 +42,7 @@ pub(super) struct RegenerateParam<'w, 's> {
     conf:                config::Read<'w, 's, Conf>,
     materials:           Res<'w, super::ColorMaterials>,
     viewable_query:      Query<'w, 's, ()>,
+    camera:              Single<'w, &'static GlobalTransform, With<Camera2d>>,
 }
 
 impl RegenerateParam<'_, '_> {
@@ -92,6 +94,7 @@ impl RegenerateParam<'_, '_> {
                         Zorder::GroundSegmentCenterline,
                         start,
                         end,
+                        &self.camera,
                     ),
                     MeshMaterial2d(materials.taxiway.clone().expect("initialized at startup")),
                 ))

@@ -3,15 +3,17 @@ use std::mem;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::Assets;
 use bevy::color::{Alpha, Color};
+use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single, SystemParam};
 use bevy::math::Vec2;
 use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
+use bevy::transform::components::GlobalTransform;
 use itertools::Itertools;
 use omniatc::level::wake;
 use omniatc::try_log;
@@ -78,6 +80,7 @@ struct SpawnVortexParams<'w, 's> {
     meshes:    Res<'w, shapes::Meshes>,
     conf:      config::Read<'w, 's, Conf>,
     materials: ResMut<'w, Assets<ColorMaterial>>,
+    camera:    Single<'w, &'static GlobalTransform, With<Camera2d>>,
 }
 
 fn spawn_vortex(vortex_entity: Entity, vortex: &wake::Vortex, params: &mut SpawnVortexParams) {
@@ -90,7 +93,13 @@ fn spawn_vortex(vortex_entity: Entity, vortex: &wake::Vortex, params: &mut Spawn
     for (from, to) in side_iter {
         params.commands.spawn((
             IsSpriteOf(vortex_entity),
-            params.meshes.line_from_to(params.conf.square_thickness, Zorder::WakeOverlay, from, to),
+            params.meshes.line_from_to(
+                params.conf.square_thickness,
+                Zorder::WakeOverlay,
+                from,
+                to,
+                &params.camera,
+            ),
             MeshMaterial2d(params.materials.add(ColorMaterial {
                 color: params.conf.color_for_intensity(vortex.intensity),
                 alpha_mode: AlphaMode2d::Blend,

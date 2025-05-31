@@ -1,13 +1,15 @@
 use bevy::asset::Handle;
+use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
-use bevy::ecs::system::{Commands, ParamSet, Query, Res, SystemParam};
+use bevy::ecs::query::With;
+use bevy::ecs::system::{Commands, ParamSet, Query, Res, Single, SystemParam};
 use bevy::math::Vec2;
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
-use bevy::transform::components::Transform;
+use bevy::transform::components::{GlobalTransform, Transform};
 use omniatc::level::ground;
 use omniatc::try_log_return;
 use omniatc::units::{Distance, Position};
@@ -41,6 +43,7 @@ pub(super) struct RegenerateParam<'w, 's> {
     >,
     endpoint_query:         Query<'w, 's, &'static ground::Endpoint>,
     shapes:                 Res<'w, shapes::Meshes>,
+    camera:                 Single<'w, &'static GlobalTransform, With<Camera2d>>,
     conf:                   config::Read<'w, 's, Conf>,
     materials:              Res<'w, super::ColorMaterials>,
     viewable_label_queries: ParamSet<
@@ -81,6 +84,7 @@ impl RegenerateParam<'_, '_> {
                     Zorder::GroundSegmentCenterline,
                     alpha_trimmed,
                     beta_trimmed,
+                    &self.camera,
                 ),
                 MeshMaterial2d(match segment_label {
                     ground::SegmentLabel::RunwayPair(..) => {

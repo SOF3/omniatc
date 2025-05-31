@@ -1,8 +1,6 @@
 use std::cmp;
-use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
-use bevy::color::Color;
 use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -47,12 +45,6 @@ impl Plugin for Plug {
             app::Update,
             scroll_zoom_system
                 .before(drag_camera_system)
-                .in_set(UpdateSystemSets::Input)
-                .in_set(input::ReadCurrentCursorCameraSystemSet),
-        );
-        app.add_systems(
-            app::Update,
-            select::input_system
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
@@ -286,49 +278,26 @@ fn scroll_zoom_system(
     }
 }
 
-mod select;
-
 #[derive(Resource, Config)]
 #[config(id = "2d/camera", name = "Camera (2D)")]
-pub struct Conf {
+struct Conf {
     /// Zoom speed based on vertical scroll per line.
-    scroll_step_line:              f32,
+    scroll_step_line:      f32,
     /// Zoom speed based on vertical scroll per pixel.
-    scroll_step_pixel:             f32,
+    scroll_step_pixel:     f32,
     /// Rotation speed based on horizontal scroll.
-    rotation_step:                 Angle<f32>,
-    /// Tolerated distance when clicking on an object in window coordinates.
-    object_select_tolerance:       f32,
-    /// Tolerated distance when clicking on a waypoint in window coordinates.
-    waypoint_select_tolerance:     f32,
-    /// Hovered objects are highlighted with this color.
-    pub hovered_color:             Color,
-    /// Selected objects are highlighted with this color.
-    pub selected_color:            Color, // TODO reorganize these two fields to a better category
+    rotation_step:         Angle<f32>,
     /// Direction to move camera when dragging with right button.
-    camera_drag_direction:         CameraDragDirection,
-    /// Color of the preview line when setting heading.
-    set_heading_preview_color:     Color,
-    /// Thickness of the preview line when setting heading, in window coordinates.
-    set_heading_preview_thickness: f32,
-    /// Angle of line segments to render the arc for the preview line.
-    set_heading_preview_density:   Angle<f32>,
+    camera_drag_direction: CameraDragDirection,
 }
 
 impl Default for Conf {
     fn default() -> Self {
         Self {
-            scroll_step_line:              1.05,
-            scroll_step_pixel:             1.007,
-            rotation_step:                 Angle::from_degrees(6.),
-            object_select_tolerance:       50.,
-            waypoint_select_tolerance:     30.,
-            hovered_color:                 Color::srgb(0.5, 1., 0.7),
-            selected_color:                Color::srgb(0.5, 0.7, 1.),
-            camera_drag_direction:         CameraDragDirection::WithMap,
-            set_heading_preview_color:     Color::srgb(0.9, 0.7, 0.8),
-            set_heading_preview_thickness: 1.5,
-            set_heading_preview_density:   Angle::from_degrees(15.),
+            scroll_step_line:      1.05,
+            scroll_step_pixel:     1.007,
+            rotation_step:         Angle::from_degrees(6.),
+            camera_drag_direction: CameraDragDirection::WithMap,
         }
     }
 }

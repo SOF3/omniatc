@@ -254,25 +254,24 @@ fn scroll_zoom_system(
     conf: config::Read<Conf>,
 ) {
     for event in wheel_events.read() {
-        if let Some(input::CurrentCursorCameraValue { camera_entity, world_pos: _, .. }) =
-            current_cursor_camera.0
+        if let Some(input::CurrentCursorCameraValue { camera_entity, .. }) = current_cursor_camera.0
         {
             let mut camera_tf = camera_query.get_mut(camera_entity).expect(
                 "CurrentCursorCamera::update_system should maintain an updated camera entity",
             );
-            let scroll_step = match event.unit {
-                MouseScrollUnit::Line => conf.scroll_step_line,
-                MouseScrollUnit::Pixel => conf.scroll_step_pixel,
+            let (scroll_step, rotation_step) = match event.unit {
+                MouseScrollUnit::Line => (conf.scroll_step_line, conf.rotation_step_line),
+                MouseScrollUnit::Pixel => (conf.scroll_step_pixel, conf.rotation_step_pixel),
             };
-            let scale_rate = scroll_step.powf(-event.y);
 
+            let scale_rate = scroll_step.powf(-event.y);
             // ensure (camera_tf.translation - world_pos) / camera_tf.scale is unchanged
             // i.e. (new_translation - world_pos) / new_scale = (camera_tf.translation - world_pos) / camera_tf.scale
             // i.e. new_translation = (camera_tf.translation - world_pos) * (new_scale / camera_tf.scale) + world_pos
             // camera_tf.translation = (camera_tf.translation - Vec3::from((world_pos, 0.))) * scale_rate + Vec3::from((world_pos, 0.)); // TODO FIXME
             camera_tf.scale *= scale_rate;
 
-            let rot_rate = conf.rotation_step * event.x;
+            let rot_rate = rotation_step * event.x;
             camera_tf.rotate_z(rot_rate.0);
         }
     }
@@ -285,8 +284,10 @@ struct Conf {
     scroll_step_line:      f32,
     /// Zoom speed based on vertical scroll per pixel.
     scroll_step_pixel:     f32,
-    /// Rotation speed based on horizontal scroll.
-    rotation_step:         Angle<f32>,
+    /// Rotation speed based on horizontal scroll per line.
+    rotation_step_line:    Angle<f32>,
+    /// Rotation speed based on horizontal scroll per pixel.
+    rotation_step_pixel:   Angle<f32>,
     /// Direction to move camera when dragging with right button.
     camera_drag_direction: CameraDragDirection,
 }
@@ -296,7 +297,8 @@ impl Default for Conf {
         Self {
             scroll_step_line:      1.05,
             scroll_step_pixel:     1.007,
-            rotation_step:         Angle::from_degrees(6.),
+            rotation_step_line:    Angle::from_degrees(6.),
+            rotation_step_pixel:   Angle::from_degrees(1.),
             camera_drag_direction: CameraDragDirection::WithMap,
         }
     }

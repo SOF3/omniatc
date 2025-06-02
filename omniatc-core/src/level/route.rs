@@ -810,3 +810,21 @@ fn distance_trigger_system(
         }
     });
 }
+
+#[derive(Component)]
+pub struct Preset {
+    pub title: String,
+    pub nodes: Vec<Node>,
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = WaypointPresetList)]
+pub struct PresetFromWaypoint(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = PresetFromWaypoint)]
+pub struct WaypointPresetList(Vec<Entity>);
+
+impl WaypointPresetList {
+    pub fn iter(&self) -> impl Iterator<Item = Entity> + use<'_> { self.0.iter().copied() }
+}

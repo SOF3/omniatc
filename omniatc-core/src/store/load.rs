@@ -65,6 +65,8 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     let aerodromes = spawn_aerodromes(world, &file.level.aerodromes)?;
     let waypoints = spawn_waypoints(world, &file.level.waypoints)?;
 
+    spawn_route_presets(world, &aerodromes, &waypoints, &file.level.route_presets)?;
+
     spawn_objects(world, &aerodromes, &waypoints, &file.level.objects)?;
 
     world.resource_mut::<store::CameraAdvice>().0 = Some(file.ui.camera.clone());
@@ -601,6 +603,28 @@ impl WaypointMap {
     }
 }
 
+fn spawn_route_presets(
+    world: &mut World,
+    aerodromes: &AerodromeMap,
+    waypoints: &WaypointMap,
+    presets: &[store::RoutePreset],
+) -> Result<(), Error> {
+    for preset in presets {
+        let mut entity = world.spawn((route::Preset {
+            title: preset.title.clone(),
+            nodes: convert_route(aerodromes, waypoints, &preset.nodes)
+                .collect::<Result<_, Error>>()?,
+        },));
+        match &preset.trigger {
+            store::RoutePresetTrigger::Waypoint(waypoint) => {
+                let waypoint = resolve_waypoint_ref(aerodromes, waypoints, waypoint)?;
+                entity.insert(route::PresetFromWaypoint(waypoint));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn spawn_objects(
     world: &mut World,
     aerodromes: &AerodromeMap,
@@ -674,7 +698,10 @@ fn spawn_plane(
         insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
     }
 
-    insert_route(&mut plane_ref, aerodromes, waypoints, &plane.route)?;
+    plane_ref.insert(
+        convert_route(aerodromes, waypoints, &plane.route.nodes)
+            .collect::<Result<Route, Error>>()?,
+    );
     route::RunCurrentNode.apply(world.entity_mut(plane_entity));
 
     insert_wake(world.entity_mut(plane_entity), plane);
@@ -730,46 +757,35 @@ fn insert_airborne_nav_targets(
     Ok(())
 }
 
-fn insert_route(
-    plane_entity: &mut EntityWorldMut,
-    aerodromes: &AerodromeMap,
-    waypoints: &WaypointMap,
-    route: &store::Route,
-) -> Result<(), Error> {
-    let route_rt = route
-        .nodes
-        .iter()
-        .map(|node| {
-            Ok(match *node {
-                store::RouteNode::DirectWaypoint {
-                    ref waypoint,
-                    distance,
-                    proximity,
-                    altitude,
-                } => route::DirectWaypointNode {
+fn convert_route<'a>(
+    aerodromes: &'a AerodromeMap,
+    waypoints: &'a WaypointMap,
+    route_nodes: &'a [store::RouteNode],
+) -> impl Iterator<Item = Result<route::Node, Error>> + use<'a> {
+    route_nodes.iter().map(|node| {
+        Ok(match *node {
+            store::RouteNode::DirectWaypoint { ref waypoint, distance, proximity, altitude } => {
+                route::DirectWaypointNode {
                     waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
                     distance,
                     proximity,
                     altitude,
                 }
-                .into(),
-                store::RouteNode::SetAirSpeed { goal, error } => {
-                    route::SetAirspeedNode { speed: goal, error }.into()
-                }
-                store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
-                    route::StartSetAltitudeNode { altitude: goal, error, expedite }.into()
-                }
-                store::RouteNode::AlignRunway { ref runway, expedite } => route::AlignRunwayNode {
-                    runway: resolve_runway_ref(aerodromes, runway)?.runway,
-                    expedite,
-                }
-                .into(),
-            })
+                .into()
+            }
+            store::RouteNode::SetAirSpeed { goal, error } => {
+                route::SetAirspeedNode { speed: goal, error }.into()
+            }
+            store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
+                route::StartSetAltitudeNode { altitude: goal, error, expedite }.into()
+            }
+            store::RouteNode::AlignRunway { ref runway, expedite } => route::AlignRunwayNode {
+                runway: resolve_runway_ref(aerodromes, runway)?.runway,
+                expedite,
+            }
+            .into(),
         })
-        .collect::<Result<Route, Error>>()?;
-
-    plane_entity.insert(route_rt);
-    Ok(())
+    })
 }
 
 fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {

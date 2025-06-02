@@ -49,11 +49,12 @@ pub struct Meta {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Level {
-    pub environment: Environment,
-    pub aerodromes:  Vec<Aerodrome>,
-    pub waypoints:   Vec<Waypoint>,
+    pub environment:   Environment,
+    pub aerodromes:    Vec<Aerodrome>,
+    pub waypoints:     Vec<Waypoint>,
+    pub route_presets: Vec<RoutePreset>,
     #[serde(default)]
-    pub objects:     Vec<Object>,
+    pub objects:       Vec<Object>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -434,6 +435,42 @@ pub struct TargetAlignment {
     /// within which direction control is activated for alignment.
     /// This is used to avoid prematurely turning directly towards the localizer.
     pub activation_range: Distance<f32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RoutePreset {
+    /// When is this preset available for use?
+    pub trigger: RoutePresetTrigger,
+    /// Display name of this route. Not a unique identifier.
+    pub title:   String,
+    /// Nodes of this route.
+    /// If the trigger is a waypoint,
+    /// the first node should be [`DirectWaypoint`](RouteNode::DirectWaypoint) to that waypoint.
+    pub nodes:   Vec<RouteNode>,
+}
+
+/// Generates [`RoutePreset`] starting at each waypoint on the way.
+#[must_use]
+pub fn route_presets_at_waypoints(title: &str, nodes: Vec<RouteNode>) -> Vec<RoutePreset> {
+    nodes
+        .iter()
+        .enumerate()
+        .rev()
+        .filter_map(|(start_index, start_node)| {
+            let RouteNode::DirectWaypoint { waypoint, .. } = start_node else { return None };
+            Some(RoutePreset {
+                trigger: RoutePresetTrigger::Waypoint(waypoint.clone()),
+                title:   title.to_owned(),
+                nodes:   nodes[start_index..].to_vec(),
+            })
+        })
+        .collect()
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RoutePresetTrigger {
+    /// This preset may be selected when the current direct target is the waypoint.
+    Waypoint(WaypointRef),
 }
 
 #[derive(Clone, Serialize, Deserialize)]

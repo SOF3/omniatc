@@ -81,6 +81,45 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
     ]
 }
 
+fn route_dwind_18r() -> Vec<store::RouteNode> {
+    vec![
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("DWIND".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("LONG".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  Some(Position::from_amsl_feet(4000.)),
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("SHORT".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("APPNW".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
+        store::RouteNode::AlignRunway {
+            runway:   store::RunwayRef {
+                aerodrome_code: "MAIN".into(),
+                runway_name:    "18R".into(),
+            },
+            expedite: true,
+        },
+    ]
+}
+
 fn route_polar_18l() -> Vec<store::RouteNode> {
     vec![
         store::RouteNode::DirectWaypoint {
@@ -108,6 +147,39 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
             runway:   store::RunwayRef {
                 aerodrome_code: "MAIN".into(),
                 runway_name:    "18L".into(),
+            },
+            expedite: true,
+        },
+    ]
+}
+
+fn route_polar_18r() -> Vec<store::RouteNode> {
+    vec![
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("POLAR".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("SHORT".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  Some(Position::from_amsl_feet(4000.)),
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("APPNW".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
+        store::RouteNode::AlignRunway {
+            runway:   store::RunwayRef {
+                aerodrome_code: "MAIN".into(),
+                runway_name:    "18R".into(),
             },
             expedite: true,
         },
@@ -448,7 +520,9 @@ pub fn file() -> store::File {
             ],
             route_presets: [
                 store::route_presets_at_waypoints("DWIND 18L", route_dwind_18l()),
+                store::route_presets_at_waypoints("DWIND 18R", route_dwind_18r()),
                 store::route_presets_at_waypoints("POLAR 18L", route_polar_18l()),
+                store::route_presets_at_waypoints("POLAR 18R", route_polar_18r()),
             ]
             .into_iter()
             .flatten()

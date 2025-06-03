@@ -4,11 +4,13 @@ use std::mem;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
 use bevy::core_pipeline::core_2d::Camera2d;
+use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
+use bevy::ecs::world::Mut;
 use bevy::math::Vec2;
 use bevy::render::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::view::Visibility;
@@ -47,41 +49,68 @@ impl Plugin for Plug {
 struct Viewable;
 
 fn update_system(
-    mut color_material: Local<Option<Handle<ColorMaterial>>>,
-    mut stages: ParamSet<(Init, DrawCurrent, DrawRoute)>,
+    mut materials: Local<Materials>,
+    mut stages: ParamSet<(Init, DrawCurrent, DrawRoute, DrawPresets)>,
 ) {
-    let (object, material) = {
+    let materials = &mut *materials;
+    let (object, current_material, route_material, preset_material) = {
         let mut init = stages.p0();
 
         for mut vis in init.vis_query {
             *vis = if init.object.0.is_some() { Visibility::Visible } else { Visibility::Hidden };
         }
 
-        let material = match (&*color_material, init.conf.consume_change().is_some()) {
-            (None, _) => color_material.insert(init.materials.add(init.conf.preview_line_color)),
-            (Some(handle), false) => handle,
-            (Some(handle), true) => {
-                *init.materials.get_mut(handle).expect("strong reference must exist") =
-                    ColorMaterial::from_color(init.conf.preview_line_color);
+        let [normal_material, set_heading_material, preset_material] = [
+            (&mut materials.normal, init.conf.preview_line_color_normal),
+            (&mut materials.set_heading, init.conf.preview_line_color_set_heading),
+            (&mut materials.preset, init.conf.preview_line_color_preset),
+        ]
+        .map(|(local, color)| &*match local {
+            None => local.insert(init.materials.add(color)),
+            Some(handle) => {
+                *init.materials.get_mut(&*handle).expect("strong reference must exist") =
+                    ColorMaterial::from_color(color);
                 handle
             }
-        };
+        });
 
         let Some(object) = init.object.0 else { return };
+        let current_material = match init.override_query.get(object) {
+            Ok(TargetOverride { cause: TargetOverrideCause::SetHeading, .. }) => {
+                set_heading_material
+            }
+            _ => normal_material,
+        };
 
-        (object, material)
+        (object, current_material, normal_material, preset_material)
     };
 
-    stages.p1().draw(object, material);
-    stages.p2().draw(object, material);
+    let target = stages.p1().draw(object, current_material);
+    stages.p2().draw_current_plan(object, route_material);
+    if let Some(target) = target {
+        stages.p3().draw_avail_presets(target, preset_material);
+    } else {
+        let mut stage = stages.p3();
+        for (entity, _) in stage.viewable_query {
+            stage.draw_once.commands.entity(entity).despawn();
+        }
+    }
 }
 
 #[derive(SystemParam)]
 struct Init<'w, 's> {
-    vis_query: Query<'w, 's, &'static mut Visibility, With<Viewable>>,
-    object:    Res<'w, object_info::CurrentObject>,
-    materials: ResMut<'w, Assets<ColorMaterial>>,
-    conf:      config::Read<'w, 's, super::Conf>,
+    vis_query:      Query<'w, 's, &'static mut Visibility, With<Viewable>>,
+    object:         Res<'w, object_info::CurrentObject>,
+    override_query: Query<'w, 's, &'static TargetOverride>,
+    materials:      ResMut<'w, Assets<ColorMaterial>>,
+    conf:           config::Read<'w, 's, super::Conf>,
+}
+
+#[derive(Default)]
+struct Materials {
+    normal:      Option<Handle<ColorMaterial>>,
+    set_heading: Option<Handle<ColorMaterial>>,
+    preset:      Option<Handle<ColorMaterial>>,
 }
 
 #[derive(SystemParam)]
@@ -109,7 +138,7 @@ struct DrawCurrentObject {
 }
 
 impl DrawCurrent<'_, '_> {
-    fn draw(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) {
+    fn draw(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) -> Option<Target> {
         let Ok(DrawCurrentObjectItem {
             object: &Object { position: curr_pos, ground_speed: speed },
             vel_target: &nav::VelocityTarget { yaw: yaw_target, .. },
@@ -119,7 +148,7 @@ impl DrawCurrent<'_, '_> {
             target_override,
         }) = self.object_query.get(object_id)
         else {
-            return; // TODO ground object
+            return None; // TODO ground object
         };
 
         let curr_pos = curr_pos.horizontal();
@@ -141,9 +170,10 @@ impl DrawCurrent<'_, '_> {
 
         match target.target {
             Target::Waypoint(waypoint_entity) => {
-                let &Waypoint { position: waypoint_pos, .. } = try_log_return!(
+                let &Waypoint { position: waypoint_pos, .. } = try_log!(
                     self.waypoint_query.get(waypoint_entity),
                     expect "nav::TargetWaypoint must reference valid waypoint"
+                    or return None
                 );
                 let waypoint_pos = waypoint_pos.horizontal();
 
@@ -185,6 +215,8 @@ impl DrawCurrent<'_, '_> {
                 }
             }
         }
+
+        Some(target.target)
     }
 
     fn draw_turn_to_waypoint(
@@ -364,21 +396,81 @@ impl DrawCurrent<'_, '_> {
 
 #[derive(SystemParam)]
 struct DrawRoute<'w, 's> {
-    commands:       Commands<'w, 's>,
-    shapes:         Res<'w, shapes::Meshes>,
-    conf:           config::Read<'w, 's, Conf>,
     object_query:   Query<'w, 's, &'static Route>,
-    waypoint_query: Query<'w, 's, &'static Waypoint>,
     viewable_query: Query<'w, 's, (Entity, &'static mut Transform), With<RouteViewable>>,
-    camera:         Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    draw_once:      DrawOnce<'w, 's>,
 }
 
 impl DrawRoute<'_, '_> {
-    fn draw(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) {
+    fn draw_current_plan(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) {
         let Ok(route) = self.object_query.get(object_id) else { return };
+        let nodes = route.iter();
+        let mut viewables = self.viewable_query.iter_mut();
 
+        self.draw_once.draw_route::<RouteViewable>(
+            nodes,
+            material,
+            &mut viewables.by_ref().map(|(_, tf)| tf),
+            Zorder::ObjectTrackPreview,
+        );
+        for (entity, _) in viewables {
+            self.draw_once.commands.entity(entity).despawn();
+        }
+    }
+}
+
+#[derive(SystemParam)]
+struct DrawPresets<'w, 's> {
+    waypoint_presets_query: Query<'w, 's, &'static route::WaypointPresetList>,
+    preset_query:           Query<'w, 's, &'static route::Preset>,
+    viewable_query:         Query<'w, 's, (Entity, &'static mut Transform), With<PresetViewable>>,
+    draw_once:              DrawOnce<'w, 's>,
+}
+
+impl DrawPresets<'_, '_> {
+    fn draw_avail_presets(&mut self, target: Target, material: &Handle<ColorMaterial>) {
+        let Target::Waypoint(waypoint) = target else { return };
+        let Ok(presets) = self.waypoint_presets_query.get(waypoint) else { return };
+        let mut viewables = self.viewable_query.iter_mut();
+
+        for preset_id in presets.iter() {
+            let preset = try_log!(
+                self.preset_query.get(preset_id),
+                expect "waypoint presets references invalid preset {preset_id:?}"
+                or continue
+            );
+            self.draw_once.draw_route::<PresetViewable>(
+                preset.nodes.iter(),
+                material,
+                &mut viewables.by_ref().map(|(_, tf)| tf),
+                Zorder::RoutePresetPreview,
+            );
+        }
+        for (entity, _) in viewables {
+            self.draw_once.commands.entity(entity).despawn();
+        }
+    }
+}
+
+#[derive(SystemParam)]
+struct DrawOnce<'w, 's> {
+    commands:       Commands<'w, 's>,
+    shapes:         Res<'w, shapes::Meshes>,
+    conf:           config::Read<'w, 's, Conf>,
+    waypoint_query: Query<'w, 's, &'static Waypoint>,
+    camera:         Single<'w, &'static GlobalTransform, With<Camera2d>>,
+}
+
+impl DrawOnce<'_, '_> {
+    fn draw_route<'w, MarkerT: Bundle + Default>(
+        &mut self,
+        nodes: impl Iterator<Item = &'w route::Node>,
+        material: &Handle<ColorMaterial>,
+        viewables: &mut impl Iterator<Item = Mut<'w, Transform>>,
+        zorder: Zorder,
+    ) {
         let mut positions = Vec::new();
-        for node in route.iter() {
+        for node in nodes {
             match node {
                 route::Node::DirectWaypoint(node) => {
                     let waypoint = try_log!(
@@ -400,26 +492,22 @@ impl DrawRoute<'_, '_> {
             }
         }
 
-        let mut viewables = self.viewable_query.iter_mut();
         for (&start, &end) in positions.iter().tuple_windows() {
-            if let Some((_, mut tf)) = viewables.next() {
+            if let Some(mut tf) = viewables.next() {
                 shapes::set_square_line_transform(&mut tf, start, end);
             } else {
                 self.commands.spawn((
                     self.shapes.line_from_to(
                         self.conf.preview_line_thickness,
-                        Zorder::ObjectTrackPreview,
+                        zorder,
                         start,
                         end,
                         &self.camera,
                     ),
                     MeshMaterial2d(material.clone()),
-                    RouteViewable,
+                    MarkerT::default(),
                 ));
             }
-        }
-        for (entity, _) in viewables {
-            self.commands.entity(entity).despawn();
         }
     }
 }
@@ -439,9 +527,15 @@ struct TurnViewable;
 struct DirectViewable;
 
 /// Marks an entity as an extended route viewable to follow the current target.
-#[derive(Component)]
+#[derive(Component, Default)]
 #[require(Viewable)]
 struct RouteViewable;
+
+/// Marks an entity as the route preset viewable available for selection from the current target
+/// waypoint.
+#[derive(Component, Default)]
+#[require(Viewable)]
+struct PresetViewable;
 
 #[derive(Component, Clone)]
 #[component(storage = "SparseSet")]

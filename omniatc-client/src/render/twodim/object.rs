@@ -219,9 +219,13 @@ struct Conf {
     track_point_top_altitude:  Position<f32>,
 
     /// Thickness of planned track preview line.
-    preview_line_thickness: f32,
+    preview_line_thickness:         f32,
     /// Color of planned track preview line.
-    preview_line_color:     Color,
+    preview_line_color_normal:      Color,
+    /// Color of planned track preview line when setting heading.
+    preview_line_color_set_heading: Color,
+    /// Color of available route presets from the current target waypoint.
+    preview_line_color_preset:      Color,
 
     /// Object color will be based on this scheme.
     color_scheme: base_color::Scheme,
@@ -230,22 +234,24 @@ struct Conf {
 impl Default for Conf {
     fn default() -> Self {
         Self {
-            plane_sprite:              SpriteType::Plane,
-            plane_sprite_size:         1.0,
-            label_size:                0.5,
-            label_distance:            50.,
-            label_anchor:              Anchor::BottomLeft,
-            separation_ring_radius:    Distance::from_nm(1.5),
-            separation_ring_thickness: 0.5,
-            track_normal_max_points:   5,
-            track_point_size:          1.0,
-            track_point_base_color:    Color::srgb(0.8, 0.4, 0.6),
-            track_point_base_altitude: Position::SEA_LEVEL,
-            track_point_top_color:     Color::srgb(0.4, 0.8, 0.6),
-            track_point_top_altitude:  TROPOPAUSE_ALTITUDE,
-            preview_line_color:        Color::srgb(0.9, 0.7, 0.8),
-            preview_line_thickness:    1.,
-            color_scheme:              base_color::Scheme::default(),
+            plane_sprite:                   SpriteType::Plane,
+            plane_sprite_size:              1.0,
+            label_size:                     0.5,
+            label_distance:                 50.,
+            label_anchor:                   Anchor::BottomLeft,
+            separation_ring_radius:         Distance::from_nm(1.5),
+            separation_ring_thickness:      0.5,
+            track_normal_max_points:        5,
+            track_point_size:               1.0,
+            track_point_base_color:         Color::srgb(0.8, 0.4, 0.6),
+            track_point_base_altitude:      Position::SEA_LEVEL,
+            track_point_top_color:          Color::srgb(0.4, 0.8, 0.6),
+            track_point_top_altitude:       TROPOPAUSE_ALTITUDE,
+            preview_line_color_normal:      Color::srgb(0.9, 0.7, 0.8),
+            preview_line_color_set_heading: Color::srgb(0.9, 0.9, 0.6),
+            preview_line_color_preset:      Color::srgb(0.5, 0.6, 0.8),
+            preview_line_thickness:         1.,
+            color_scheme:                   base_color::Scheme::default(),
         }
     }
 }

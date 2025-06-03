@@ -52,6 +52,7 @@ pub enum Zorder {
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,
+    RoutePresetPreview,
     ObjectTrackPreview,
 }
 

@@ -110,9 +110,9 @@ pub(super) struct DetermineMode<'w, 's> {
 
 impl DetermineMode<'_, '_> {
     fn determine(&self) -> Mode {
-        if self.key_inputs.pressed(KeyCode::KeyY) {
+        if self.key_inputs.pressed(KeyCode::KeyV) {
             Mode::PreviewHeading
-        } else if self.key_inputs.just_released(KeyCode::KeyY) {
+        } else if self.key_inputs.just_released(KeyCode::KeyV) {
             Mode::SetHeading
         } else {
             Mode::SelectObject

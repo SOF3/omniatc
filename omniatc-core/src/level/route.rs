@@ -57,6 +57,12 @@ impl Plugin for Plug {
     }
 }
 
+/// The preset ID that the current [`Route`] was loaded from.
+///
+/// This is to track the origin of routes to allow easier switching.
+#[derive(Component)]
+pub struct Id(pub Option<String>);
+
 /// Stores the flight plan of the object.
 ///
 /// Always manipulate through commands e.g. [`Push`], [`ClearAll`], etc.
@@ -180,6 +186,25 @@ impl EntityCommand for ClearAllNodes {
             let entity_id = entity.id();
             entity.world_scope(|world| run_current_node(world, entity_id));
         }
+    }
+}
+
+pub struct ReplaceNodes(pub Vec<Node>);
+
+impl EntityCommand for ReplaceNodes {
+    fn apply(self, mut entity: EntityWorldMut) {
+        let mut route =
+            entity.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
+
+        route.current = None;
+        route.next_queue.clear();
+
+        for node in self.0 {
+            route.push(node);
+        }
+
+        let entity_id = entity.id();
+        entity.world_scope(|world| run_current_node(world, entity_id));
     }
 }
 
@@ -813,6 +838,7 @@ fn distance_trigger_system(
 
 #[derive(Component)]
 pub struct Preset {
+    pub id:    String,
     pub title: String,
     pub nodes: Vec<Node>,
 }

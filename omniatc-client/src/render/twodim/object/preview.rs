@@ -23,7 +23,7 @@ use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{nav, plane};
 use omniatc::units::{Angle, Distance, Heading, Position, TurnDirection};
 use omniatc::util::EnumScheduleConfig;
-use omniatc::{math, try_log, try_log_return};
+use omniatc::{math, try_log};
 
 use super::{Conf, SetColorThemeSystemSet};
 use crate::render::object_info;

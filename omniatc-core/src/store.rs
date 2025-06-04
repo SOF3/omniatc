@@ -441,6 +441,14 @@ pub struct TargetAlignment {
 pub struct RoutePreset {
     /// When is this preset available for use?
     pub trigger: RoutePresetTrigger,
+    /// Identifies the preset.
+    ///
+    /// Different triggers of the same preset can have the same `id`,
+    /// used for identifying that a route starting at another trigger
+    /// can be considered equivalent when the user selects a route change.
+    ///
+    /// Different presets from the same trigger must not have duplicate `id`s.
+    pub id:      String,
     /// Display name of this route. Not a unique identifier.
     pub title:   String,
     /// Nodes of this route.
@@ -451,7 +459,11 @@ pub struct RoutePreset {
 
 /// Generates [`RoutePreset`] starting at each waypoint on the way.
 #[must_use]
-pub fn route_presets_at_waypoints(title: &str, nodes: Vec<RouteNode>) -> Vec<RoutePreset> {
+pub fn route_presets_at_waypoints(
+    id: &str,
+    title: &str,
+    nodes: Vec<RouteNode>,
+) -> Vec<RoutePreset> {
     nodes
         .iter()
         .enumerate()
@@ -460,6 +472,7 @@ pub fn route_presets_at_waypoints(title: &str, nodes: Vec<RouteNode>) -> Vec<Rou
             let RouteNode::DirectWaypoint { waypoint, .. } = start_node else { return None };
             Some(RoutePreset {
                 trigger: RoutePresetTrigger::Waypoint(waypoint.clone()),
+                id:      id.to_owned(),
                 title:   title.to_owned(),
                 nodes:   nodes[start_index..].to_vec(),
             })
@@ -475,6 +488,7 @@ pub enum RoutePresetTrigger {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Route {
+    pub id:    Option<String>,
     pub nodes: Vec<RouteNode>,
 }
 

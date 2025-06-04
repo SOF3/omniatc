@@ -611,6 +611,7 @@ fn spawn_route_presets(
 ) -> Result<(), Error> {
     for preset in presets {
         let mut entity = world.spawn((route::Preset {
+            id:    preset.id.clone(),
             title: preset.title.clone(),
             nodes: convert_route(aerodromes, waypoints, &preset.nodes)
                 .collect::<Result<_, Error>>()?,
@@ -698,10 +699,11 @@ fn spawn_plane(
         insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
     }
 
-    plane_ref.insert(
+    plane_ref.insert((
+        route::Id(plane.route.id.clone()),
         convert_route(aerodromes, waypoints, &plane.route.nodes)
             .collect::<Result<Route, Error>>()?,
-    );
+    ));
     route::RunCurrentNode.apply(world.entity_mut(plane_entity));
 
     insert_wake(world.entity_mut(plane_entity), plane);

@@ -25,7 +25,7 @@ use ordered_float::OrderedFloat;
 use super::object::preview;
 use crate::config::AppExt;
 use crate::render::object_info;
-use crate::{config, input, UpdateSystemSets};
+use crate::{config, input, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
 
@@ -75,6 +75,7 @@ impl Default for Conf {
 }
 
 pub(super) fn input_system(
+    margins: Res<EguiUsedMargins>,
     mut params: ParamSet<(
         DetermineMode,
         SelectObjectParams,
@@ -82,14 +83,20 @@ pub(super) fn input_system(
         CleanupPreviewParams,
     )>,
 ) {
-    let determine_mode = params.p0();
+    if margins.pointer_acquired {
+        return;
+    }
+
+    let mut determine_mode = params.p0();
     let mut is_preview = false;
     if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.0 {
         if let Ok(&camera_tf) = determine_mode.camera_query.get(cursor_camera_value.camera_entity) {
             let mode = determine_mode.determine();
             match mode {
                 Mode::SelectObject => params.p1().run(cursor_camera_value.world_pos, camera_tf),
-                Mode::SetHeading => params.p2().run(cursor_camera_value.world_pos, camera_tf, true),
+                Mode::CommitHeading => {
+                    params.p2().run(cursor_camera_value.world_pos, camera_tf, true);
+                }
                 Mode::PreviewHeading => {
                     is_preview = true;
                     params.p2().run(cursor_camera_value.world_pos, camera_tf, false);
@@ -105,15 +112,18 @@ pub(super) fn input_system(
 pub(super) struct DetermineMode<'w, 's> {
     current_cursor_camera: Res<'w, input::CurrentCursorCamera>,
     camera_query:          Query<'w, 's, &'static GlobalTransform, With<Camera2d>>,
-    key_inputs:            Res<'w, ButtonInput<KeyCode>>,
+    margins:               Res<'w, EguiUsedMargins>,
+    was_setting_heading:   Local<'s, bool>,
+    hotkeys:               Res<'w, input::Hotkeys>,
 }
 
 impl DetermineMode<'_, '_> {
-    fn determine(&self) -> Mode {
-        if self.key_inputs.pressed(KeyCode::KeyV) {
+    fn determine(&mut self) -> Mode {
+        if self.hotkeys.pick_vector {
+            *self.was_setting_heading = true;
             Mode::PreviewHeading
-        } else if self.key_inputs.just_released(KeyCode::KeyV) {
-            Mode::SetHeading
+        } else if *self.was_setting_heading {
+            Mode::CommitHeading
         } else {
             Mode::SelectObject
         }
@@ -122,7 +132,7 @@ impl DetermineMode<'_, '_> {
 
 enum Mode {
     SelectObject,
-    SetHeading,
+    CommitHeading,
     PreviewHeading,
 }
 
@@ -176,6 +186,7 @@ pub(super) struct SetHeadingParams<'w, 's> {
     current_object: Res<'w, object_info::CurrentObject>,
     buttons:        Res<'w, ButtonInput<KeyCode>>,
     commands:       Commands<'w, 's>,
+    margins:        Res<'w, EguiUsedMargins>,
 }
 
 impl SetHeadingParams<'_, '_> {
@@ -241,7 +252,9 @@ impl SetHeadingParams<'_, '_> {
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
         let mut target = nav::YawTarget::Heading(target_heading);
-        if self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+        if !self.margins.keyboard_acquired
+            && self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
+        {
             if let Some(plane) = plane {
                 let reflex_dir = -plane.heading.closer_direction_to(target_heading);
                 target = nav::YawTarget::TurnHeading {

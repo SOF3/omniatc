@@ -17,7 +17,7 @@ use bevy::ecs::system::ResMut;
 use bevy::prelude::{IntoScheduleConfigs, PluginGroup, SystemSet};
 use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
-use bevy_egui::EguiContextPass;
+use bevy_egui::{EguiContextPass, EguiContexts};
 use itertools::Itertools;
 use omniatc::level;
 use strum::IntoEnumIterator;
@@ -107,8 +107,18 @@ struct EguiUsedMargins {
     right:  f32,
     top:    f32,
     bottom: f32,
+
+    pointer_acquired:  bool,
+    keyboard_acquired: bool,
 }
 
 impl EguiUsedMargins {
-    fn reset_system(mut margins: ResMut<Self>) { *margins = Self::default(); }
+    fn reset_system(mut margins: ResMut<Self>, mut contexts: EguiContexts) {
+        *margins = Self::default();
+
+        if let Some(ctx) = contexts.try_ctx_mut() {
+            margins.pointer_acquired = ctx.wants_pointer_input();
+            margins.keyboard_acquired = ctx.wants_keyboard_input();
+        }
+    }
 }

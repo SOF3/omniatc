@@ -4,9 +4,12 @@ use bevy::app::{App, Plugin};
 use bevy::diagnostic::{
     Diagnostic, DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin,
 };
+use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
+use bevy::input::keyboard::KeyCode;
+use bevy::input::ButtonInput;
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
 use bevy::render::camera::Camera;
 use bevy::time::{self, Time};
@@ -18,7 +21,7 @@ use omniatc::units::{Angle, Heading};
 use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 
-use super::config_editor;
+use super::{config_editor, object_info};
 use crate::{input, EguiSystemSets, EguiUsedMargins};
 
 pub struct Plug;
@@ -160,6 +163,7 @@ impl WriteCameras<'_, '_> {
 
 #[derive(QueryData)]
 struct ObjectTableData {
+    entity:   Entity,
     display:  &'static object::Display,
     rotation: &'static object::Rotation,
     object:   &'static object::Object,
@@ -167,16 +171,50 @@ struct ObjectTableData {
 
 #[derive(SystemParam)]
 struct WriteObjectParams<'w, 's> {
-    object_query: Query<'w, 's, ObjectTableData>,
-    last_rows:    Local<'s, Option<usize>>,
-    sort_key:     Local<'s, (usize, bool)>,
+    object_query:    Query<'w, 's, ObjectTableData>,
+    last_rows:       Local<'s, Option<usize>>,
+    sort_key:        Local<'s, (usize, bool)>,
+    search_str:      Local<'s, String>,
+    keys:            Res<'w, ButtonInput<KeyCode>>,
+    hotkeys:         Res<'w, input::Hotkeys>,
+    selected_object: ResMut<'w, object_info::CurrentObject>,
 }
 
 fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
+    let mut select_first = false;
+    ui.horizontal(|ui| {
+        ui.label("Search");
+
+        let search_resp = ui.add(
+            egui::TextEdit::singleline(&mut *params.search_str)
+                .hint_text("'/' to focus, Enter to select first match"),
+        );
+        if search_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            select_first = true;
+        }
+        if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Slash)) {
+            params.search_str.clear();
+        }
+        if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            search_resp.surrender_focus();
+        }
+        if params.hotkeys.search {
+            search_resp.request_focus();
+        }
+    });
+
     let columns: Vec<_> = ObjectTableColumn::iter().collect();
-
-    let mut objects: Vec<_> = params.object_query.iter().collect();
-
+    let mut objects: Vec<_> = params
+        .object_query
+        .iter()
+        .filter(|object| {
+            if params.search_str.is_empty() {
+                true
+            } else {
+                object.display.name.to_lowercase().contains(&params.search_str.to_lowercase())
+            }
+        })
+        .collect();
     let rows_changed = params.last_rows.replace(objects.len()) != Some(objects.len());
 
     TableBuilder::new(ui)
@@ -205,8 +243,17 @@ fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
         .body(|body| {
             columns[params.sort_key.0].sort(&mut objects[..], params.sort_key.1);
 
+            if select_first {
+                if let Some(first) = objects.first() {
+                    params.selected_object.0 = Some(first.entity);
+                }
+            }
+
             body.rows(20., objects.len(), |mut row| {
                 let object = &objects[row.index()];
+                let is_selected = params.selected_object.0 == Some(object.entity);
+                row.set_selected(is_selected);
+
                 for column in &columns {
                     row.col(|ui| column.cell_value(ui, object));
                 }
@@ -226,7 +273,7 @@ enum ObjectTableColumn {
 impl ObjectTableColumn {
     fn header(&self) -> impl Into<egui::RichText> {
         match self {
-            Self::Name => "Name",
+            Self::Name => "Object name",
             Self::Altitude => "Altitude",
             Self::GroundSpeed => "Ground\nspeed",
             Self::VerticalRate => "Vert rate",
@@ -236,7 +283,7 @@ impl ObjectTableColumn {
 
     fn cell_value(&self, ui: &mut egui::Ui, data: &ObjectTableDataItem) {
         let text: egui::WidgetText = match self {
-            Self::Name => data.display.name.as_str().into(),
+            Self::Name => egui::WidgetText::from(data.display.name.as_str()).strong(),
             Self::Altitude => {
                 format!("{:.0}", &data.object.position.altitude().amsl().into_feet()).into()
             }

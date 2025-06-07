@@ -3,7 +3,7 @@ use std::any::TypeId;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Query, SystemParam};
+use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object};
@@ -12,6 +12,7 @@ use omniatc::try_log_return;
 use omniatc::units::Position;
 
 use super::Writer;
+use crate::input;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -26,6 +27,7 @@ pub struct ObjectQuery {
 pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     instr_writer:   EventWriter<'w, comm::InstructionEvent>,
+    hotkeys:        Res<'w, input::Hotkeys>,
 }
 
 impl Writer for ObjectQuery {
@@ -53,10 +55,19 @@ impl Writer for ObjectQuery {
                 .amsl()
                 .into_feet();
             let mut slider_alt = initial_alt;
-            ui.add(egui::Slider::new(
+            let slider_resp = ui.add(egui::Slider::new(
                 &mut slider_alt,
                 0.0..=TROPOPAUSE_ALTITUDE.amsl().into_feet(),
             ));
+            if params.hotkeys.set_altitude {
+                slider_resp.request_focus();
+            }
+            if params.hotkeys.inc_altitude {
+                slider_alt = (slider_alt / 1000.).floor() * 1000. + 1000.;
+            }
+            if params.hotkeys.dec_altitude {
+                slider_alt = (slider_alt / 1000.).ceil() * 1000. - 1000.;
+            }
 
             let expedite = this.target_alt.is_some_and(|t| t.expedite);
             let mut checkbox_expedite = expedite;
@@ -64,6 +75,9 @@ impl Writer for ObjectQuery {
                 egui::Checkbox::new(&mut checkbox_expedite, "Exp")
                     .indeterminate(this.target_alt.is_none()),
             );
+            if params.hotkeys.toggle_expedite {
+                checkbox_expedite = !checkbox_expedite;
+            }
 
             #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
             if slider_alt != initial_alt

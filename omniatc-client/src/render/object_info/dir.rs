@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Query, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
@@ -10,6 +10,7 @@ use omniatc::try_log_return;
 use omniatc::units::{Heading, TurnDirection};
 
 use super::Writer;
+use crate::input;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -37,7 +38,7 @@ impl Writer for ObjectQuery {
             ui.label(format!("Current yaw: {:.0}\u{b0}", control.heading.degrees()));
         }
         if let Some(nav_vel) = this.nav_vel {
-            show_yaw_target(ui, nav_vel, &mut params.commands, this.entity);
+            show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
         }
         if let Some(target) = this.target_waypoint {
             let waypoint = try_log_return!(
@@ -58,6 +59,7 @@ impl Writer for ObjectQuery {
 pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     commands:       Commands<'w, 's>,
+    hotkeys:        Res<'w, input::Hotkeys>,
 }
 
 fn show_yaw_target(
@@ -65,6 +67,7 @@ fn show_yaw_target(
     nav_vel: &nav::VelocityTarget,
     commands: &mut Commands,
     object: Entity,
+    hotkeys: &input::Hotkeys,
 ) {
     let target = &nav_vel.yaw;
 
@@ -96,7 +99,16 @@ fn show_yaw_target(
     };
 
     let mut slider_degrees = target_degrees;
-    ui.add(egui::Slider::new(&mut slider_degrees, 0. ..=360.).suffix('\u{b0}'));
+    let slider_resp = ui.add(egui::Slider::new(&mut slider_degrees, 0. ..=360.).suffix('\u{b0}'));
+    if hotkeys.set_heading {
+        slider_resp.request_focus();
+    }
+    if hotkeys.inc_heading {
+        slider_degrees = (slider_degrees / 5.).floor() * 5. + 5.;
+    }
+    if hotkeys.dec_heading {
+        slider_degrees = (slider_degrees / 5.).ceil() * 5. - 5.;
+    }
 
     #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
     if target_degrees != slider_degrees {

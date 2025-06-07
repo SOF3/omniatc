@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Query, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::nav;
@@ -12,6 +12,7 @@ use omniatc::level::waypoint::Waypoint;
 use omniatc::{try_log, try_log_return};
 
 use super::Writer;
+use crate::input;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -29,6 +30,7 @@ pub struct WriteRouteParams<'w, 's> {
     runway_query:           Query<'w, 's, (&'static Runway, &'static Waypoint)>,
     aerodrome_query:        Query<'w, 's, &'static Aerodrome>,
     commands:               Commands<'w, 's>,
+    hotkeys:                Res<'w, input::Hotkeys>,
 }
 
 impl Writer for ObjectQuery {
@@ -48,6 +50,7 @@ impl Writer for ObjectQuery {
                     this.entity,
                     presets,
                     this.route_id.and_then(|id| id.0.as_deref()),
+                    &params.hotkeys,
                 );
             }
         }
@@ -67,6 +70,7 @@ fn write_route_options(
     object: Entity,
     presets: &route::WaypointPresetList,
     current_route_id: Option<&str>,
+    hotkeys: &input::Hotkeys,
 ) {
     #[derive(Clone, Copy, PartialEq)]
     enum Selection {
@@ -99,6 +103,18 @@ fn write_route_options(
     };
 
     let mut selection = current_selection;
+    if hotkeys.next_route {
+        selection = match selection {
+            Selection::None => Selection::Available(0),
+            Selection::Available(n) => Selection::Available(n + 1),
+            Selection::Retain => Selection::None,
+        };
+        if let Selection::Available(n) = selection {
+            if presets.get(n).is_none() {
+                selection = Selection::None;
+            }
+        }
+    }
 
     egui::ComboBox::from_label("Standard route")
         .selected_text(current_route_id.unwrap_or("None"))

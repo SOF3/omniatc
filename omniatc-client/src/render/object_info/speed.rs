@@ -1,11 +1,12 @@
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, SystemParam};
+use bevy::ecs::system::{Commands, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::{comm, nav, object};
 use omniatc::units::Speed;
 
 use super::Writer;
+use crate::input;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -18,6 +19,7 @@ pub struct ObjectQuery {
 #[derive(SystemParam)]
 pub struct WriteParams<'w, 's> {
     commands: Commands<'w, 's>,
+    hotkeys:  Res<'w, input::Hotkeys>,
 }
 
 impl Writer for ObjectQuery {
@@ -47,7 +49,17 @@ impl Writer for ObjectQuery {
             ui.label(format!("Target IAS: {target_knots:.0} kt"));
 
             let mut slider_knots = target_knots;
-            ui.add(egui::Slider::new(&mut slider_knots, 0. ..=300.).suffix('\u{b0}'));
+            let slider_resp =
+                ui.add(egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"));
+            if params.hotkeys.set_speed {
+                slider_resp.request_focus();
+            }
+            if params.hotkeys.inc_speed {
+                slider_knots = (slider_knots / 10.).floor() * 10. + 10.;
+            }
+            if params.hotkeys.dec_speed {
+                slider_knots = (slider_knots / 10.).ceil() * 10. - 10.;
+            }
 
             #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
             if target_knots != slider_knots {

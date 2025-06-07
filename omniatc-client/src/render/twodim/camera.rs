@@ -178,6 +178,7 @@ struct DraggingState {
     start_translation:  Vec3,
 }
 
+#[expect(clippy::too_many_arguments)]
 fn drag_camera_system(
     buttons: Res<ButtonInput<MouseButton>>,
     mut motion_events: EventReader<MouseMotion>,
@@ -186,9 +187,13 @@ fn drag_camera_system(
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
     conf: config::Read<Conf>,
+    margins: Res<EguiUsedMargins>,
 ) {
     let Some(window) = window else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
+    if margins.pointer_acquired {
+        return;
+    }
 
     match (&mut *dragging_camera, buttons.pressed(MouseButton::Right)) {
         (option @ Some(_), false) => {
@@ -252,7 +257,12 @@ fn scroll_zoom_system(
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
     conf: config::Read<Conf>,
+    margins: Res<EguiUsedMargins>,
 ) {
+    if margins.pointer_acquired {
+        return;
+    }
+
     for event in wheel_events.read() {
         if let Some(input::CurrentCursorCameraValue { camera_entity, .. }) = current_cursor_camera.0
         {

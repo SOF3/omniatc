@@ -47,7 +47,8 @@ impl UpdateParam<'_, '_> {
         let list = list.map(|list| &list.0[..]).unwrap_or_default();
 
         let start_altitude = waypoint.position.altitude();
-        let end_altitude = start_altitude + localizer_length * runway.glide_angle.tan();
+        let end_altitude =
+            start_altitude + localizer_length * runway.glide_angle.acute_signed_tan();
 
         let density = self.conf.glide_point_density;
 

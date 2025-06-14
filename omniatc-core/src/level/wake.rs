@@ -32,6 +32,7 @@ use smallvec::SmallVec;
 use super::{object, wind, SystemSets};
 use crate::try_log;
 use crate::units::{Distance, Position, Speed};
+use crate::util::RateLimit;
 
 const GRID_SIZE: Distance<Vec3> =
     Distance::from_nm(0.25).splat2().with_vertical(Distance::from_feet(500.));
@@ -249,17 +250,14 @@ pub struct Producer {
 }
 
 fn spawn_vortex_system(
-    time: Res<Time<time::Virtual>>,
-    mut last_execute_period: Local<Option<u128>>,
+    mut rl: RateLimit,
     mut commands: Commands,
     conf: Res<Conf>,
     mut index: ResMut<VortexIndex>,
     aircraft_query: Query<(Entity, &object::Object, &object::Airborne, &Producer)>,
     mut spawn_event_writer: EventWriter<SpawnEvent>,
 ) {
-    let period = time.elapsed().as_nanos() / conf.spawn_period.as_nanos();
-    let last_period = last_execute_period.replace(period);
-    if Some(period) == last_period {
+    if rl.should_run(conf.spawn_period).is_none() {
         return;
     }
 
@@ -292,16 +290,13 @@ pub struct Detector {
 }
 
 fn detect_vortex_system(
-    time: Res<Time<time::Virtual>>,
-    mut last_execute_period: Local<Option<u128>>,
+    mut rl: RateLimit,
     conf: Res<Conf>,
     index: Res<VortexIndex>,
     mut object_query: Query<(Entity, &object::Object, &mut Detector)>,
     vortex_query: Query<&Vortex>,
 ) {
-    let period = time.elapsed().as_nanos() / conf.detect_period.as_nanos();
-    let last_period = last_execute_period.replace(period);
-    if Some(period) == last_period {
+    if rl.should_run(conf.detect_period).is_none() {
         return;
     }
 

@@ -4,8 +4,9 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without};
 use smallvec::SmallVec;
 
+use super::navaid::Navaid;
 use super::waypoint::{self, Waypoint};
-use super::SystemSets;
+use super::{navaid, SystemSets};
 use crate::try_log_return;
 use crate::units::{Angle, Distance, Position};
 
@@ -97,8 +98,8 @@ pub struct LocalizerWaypointRef {
 
 fn maintain_localizer_waypoint_system(
     mut waypoint_query: Query<(Entity, &mut Waypoint, &LocalizerWaypoint), Without<Runway>>,
-    runway_query: Query<(&Waypoint, &Runway, &waypoint::NavaidList)>,
-    navaid_query: Query<&waypoint::Navaid>,
+    runway_query: Query<(&Waypoint, &Runway, &navaid::ListAtWaypoint)>,
+    navaid_query: Query<&Navaid>,
 ) {
     waypoint_query.iter_mut().for_each(
         |(waypoint_entity, mut waypoint, &LocalizerWaypoint { runway_ref })| {

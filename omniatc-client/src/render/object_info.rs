@@ -121,7 +121,8 @@ writer_def! {
     p2: alt::ObjectQuery,
     p3: speed::ObjectQuery,
     p4: env::ObjectQuery,
-    p5: route::ObjectQuery,
+    p5: signal::ObjectQuery,
+    p6: route::ObjectQuery,
 }
 
 mod alt;
@@ -129,6 +130,7 @@ mod dest;
 mod dir;
 mod env;
 mod route;
+mod signal;
 mod speed;
 
 fn highlight_selected_system(

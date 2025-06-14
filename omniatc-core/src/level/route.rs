@@ -780,7 +780,8 @@ fn fly_by_trigger_system(
                         speed.horizontal().magnitude_exact().0 / nav_limits.max_yaw_speed.0,
                     ); // (L/T) / (1/T) = L
                     let turn_distance = turn_radius
-                        * (current_heading.closest_distance(next_heading).abs() / 2.).tan();
+                        * (current_heading.closest_distance(next_heading).abs() / 2.)
+                            .acute_signed_tan();
 
                     if current_pos.horizontal().distance_cmp(current_target) <= turn_distance {
                         commands.entity(object_entity).queue(NextNode);

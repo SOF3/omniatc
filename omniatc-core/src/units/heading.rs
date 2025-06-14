@@ -120,6 +120,35 @@ impl Heading {
         output
     }
 
+    /// Radians to turn from `self` to `other` in the given direction.
+    /// The output is always in the range (0, FULL] for `Clockwise`,
+    /// or [-FULL, 0) for `CounterClockwise`.
+    #[must_use]
+    pub fn nonzero_distance(self, other: Heading, dir: TurnDirection) -> Angle<f32> {
+        if self.0 == other.0 {
+            return match dir {
+                TurnDirection::Clockwise => Angle::FULL,
+                TurnDirection::CounterClockwise => -Angle::FULL,
+            };
+        }
+
+        let mut output = (other.0 - self.0) % Angle::FULL;
+        match dir {
+            TurnDirection::Clockwise => {
+                if output.is_negative() {
+                    output += Angle::FULL;
+                }
+            }
+            TurnDirection::CounterClockwise => {
+                if output.is_positive() {
+                    output -= Angle::FULL;
+                }
+            }
+        }
+
+        output
+    }
+
     /// Returns the signed angle closest to zero such that
     /// adding it to `self` approximately returns `other`.
     #[must_use]

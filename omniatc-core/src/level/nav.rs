@@ -10,7 +10,7 @@ use bevy::time::{self, Time};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
-use super::{object, SystemSets};
+use super::{navaid, object, SystemSets};
 use crate::math::{line_circle_intersect, line_intersect};
 use crate::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
@@ -42,6 +42,7 @@ impl Plugin for Plug {
 ///
 /// This optional component is removed when the plane is not airborne.
 #[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
+#[require(navaid::ObjectUsageList)]
 pub struct VelocityTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
@@ -282,7 +283,7 @@ fn glide_control_system(
             let horiz_distance = direction.horizontal().magnitude_exact();
             let lookahead_distance = ground_speed * glide.lookahead;
 
-            let glide_tan = glide.glide_angle.tan();
+            let glide_tan = glide.glide_angle.acute_signed_tan();
 
             // elevation of the aim point relative to target waypoint.
             let aim_elevation = (horiz_distance - lookahead_distance) * -glide_tan;
@@ -297,7 +298,7 @@ fn glide_control_system(
             glide_status.altitude_deviation = current_elevation + horiz_distance * glide_tan;
             glide_status.glidepath_distance = horiz_distance + current_elevation / glide_tan;
 
-            signal.vert_rate = ground_speed * target_pitch.tan();
+            signal.vert_rate = ground_speed * target_pitch.acute_signed_tan();
             signal.expedite = glide.expedite;
         },
     );

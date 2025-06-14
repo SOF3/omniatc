@@ -324,7 +324,7 @@ macro_rules! decl_units {
             /// the horizontal projection of the result is equal to `self`.
             #[must_use]
             pub fn projected_from_elevation_angle(self, angle: Angle<f32>) -> $ty<Vec3> {
-                self.with_vertical(self.magnitude_exact() * angle.tan())
+                self.with_vertical(self.magnitude_exact() * angle.acute_signed_tan())
             }
 
             /// Rotates the `horizontally()` of this vector upwards by `angle`.
@@ -669,8 +669,25 @@ impl Angle<f32> {
     pub fn sin(self) -> f32 { self.0.sin() }
     #[must_use]
     pub fn cos(self) -> f32 { self.0.cos() }
+
+    /// Returns the slope of a line whose angle of elevation is the receiver value.
+    ///
+    /// This function clamps the angle between `-Angle::RIGHT..=Angle::RIGHT`,
+    /// and defines the following special cases:
+    /// - The tangent of `-Angle::RIGHT` (line downwards) is negative infinity.
+    /// - The tangent of `Angle::RIGHT` (line upwards) is positive infinity.
+    ///
+    /// This function is monotonic, and is strictly monotonic within the clamped closed range.
     #[must_use]
-    pub fn tan(self) -> f32 { self.0.tan() }
+    pub fn acute_signed_tan(self) -> f32 {
+        if self <= -Self::RIGHT {
+            f32::NEG_INFINITY
+        } else if self >= Self::RIGHT {
+            f32::INFINITY
+        } else {
+            self.0.tan()
+        }
+    }
 }
 
 impl AngularSpeed<f32> {

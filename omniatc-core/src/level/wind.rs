@@ -8,14 +8,14 @@ use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{EntityCommand, Local, Query, Res, SystemParam};
+use bevy::ecs::system::{EntityCommand, Query, Res, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3A};
-use bevy::time::{self, Time};
 
 use super::{object, SystemSets};
 use crate::units::{Position, Speed};
+use crate::util::RateLimit;
 
 pub struct Plug;
 
@@ -103,15 +103,12 @@ pub struct Detector {
 }
 
 fn detect_system(
-    time: Res<Time<time::Virtual>>,
-    mut last_execute_period: Local<Option<u128>>,
+    mut rl: RateLimit,
     conf: Res<Conf>,
     locator: Locator,
     mut object_query: Query<(&mut Detector, &object::Object)>,
 ) {
-    let period = time.elapsed().as_nanos() / conf.detect_period.as_nanos();
-    let last_period = last_execute_period.replace(period);
-    if Some(period) == last_period {
+    if rl.should_run(conf.detect_period).is_none() {
         return;
     }
 

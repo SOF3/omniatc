@@ -35,10 +35,10 @@ impl Plugin for Plug {
 fn setup_layout_system(
     mut contexts: EguiContexts,
     mut margins: ResMut<EguiUsedMargins>,
-    mut time: ResMut<Time<time::Virtual>>,
     mut write_cameras: WriteCameras,
     mut config_editor_opened: ResMut<config_editor::Opened>,
     diagnostics: Res<DiagnosticsStore>,
+    write_time_params: WriteTimeParams,
     write_object_params: WriteObjectParams,
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
@@ -58,7 +58,7 @@ fn setup_layout_system(
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::CollapsingHeader::new("Time")
                     .default_open(true)
-                    .show(ui, |ui| write_time(ui, &mut time));
+                    .show(ui, |ui| write_time(ui, write_time_params));
 
                 ui.collapsing("Camera", |ui| write_cameras.write(ui));
 
@@ -75,8 +75,18 @@ fn setup_layout_system(
     margins.left += resp.rect.width();
 }
 
-fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
-    let elapsed = time.elapsed().as_secs();
+const FAST_FORWARD_SPEED: f32 = 60.;
+
+#[derive(SystemParam)]
+struct WriteTimeParams<'w, 's> {
+    time:          ResMut<'w, Time<time::Virtual>>,
+    regular_speed: Local<'s, Option<f32>>,
+    hotkeys:       Res<'w, input::Hotkeys>,
+    paused:        Local<'s, bool>,
+}
+
+fn write_time(ui: &mut egui::Ui, mut params: WriteTimeParams) {
+    let elapsed = params.time.elapsed().as_secs();
 
     ui.label(format!(
         "Time: {hours}:{minutes:02}:{seconds:02}",
@@ -85,15 +95,34 @@ fn write_time(ui: &mut egui::Ui, time: &mut ResMut<Time<time::Virtual>>) {
         seconds = elapsed % 60
     ));
 
-    let mut speed = time.relative_speed();
-    ui.add(egui::Slider::new(&mut speed, 0. ..=30.).prefix("Game speed: ").suffix("x"));
+    if params.hotkeys.toggle_pause {
+        *params.paused = !*params.paused;
+    }
+
+    let desired_speed = ui
+        .horizontal(|ui| {
+            let regular_speed = params.regular_speed.get_or_insert(1.);
+            ui.add(egui::Slider::new(regular_speed, 0. ..=20.).prefix("Game speed: ").suffix("x"));
+
+            if params.hotkeys.fast_forward {
+                ui.label(format!("{FAST_FORWARD_SPEED}x"));
+                FAST_FORWARD_SPEED
+            } else if *params.paused {
+                ui.label("Paused");
+                0.0
+            } else {
+                *regular_speed
+            }
+        })
+        .inner;
+
     #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
-    if speed != time.relative_speed() {
-        time.set_relative_speed(speed);
-        if speed > 0. {
-            time.unpause();
+    if params.time.relative_speed() != desired_speed {
+        params.time.set_relative_speed(desired_speed);
+        if desired_speed > 0. {
+            params.time.unpause();
         } else {
-            time.pause();
+            params.time.pause();
         }
     }
 }
@@ -203,6 +232,10 @@ fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
         }
     });
 
+    if params.hotkeys.deselect {
+        params.selected_object.0 = None;
+    }
+
     let columns: Vec<_> = ObjectTableColumn::iter().collect();
     let mut objects: Vec<_> = params
         .object_query
@@ -274,9 +307,9 @@ impl ObjectTableColumn {
     fn header(&self) -> impl Into<egui::RichText> {
         match self {
             Self::Name => "Object name",
-            Self::Altitude => "Altitude",
-            Self::GroundSpeed => "Ground\nspeed",
-            Self::VerticalRate => "Vert rate",
+            Self::Altitude => "Altitude (ft)",
+            Self::GroundSpeed => "Ground\nspeed (kt)",
+            Self::VerticalRate => "Vert rate\n(fpm)",
             Self::Heading => "Heading",
         }
     }
@@ -295,7 +328,9 @@ impl ObjectTableColumn {
             Self::VerticalRate => {
                 format!("{:+.0}", &data.object.ground_speed.vertical().into_fpm()).into()
             }
-            Self::Heading => format!("{:.0}", Heading::from_quat(data.rotation.0).degrees()).into(),
+            Self::Heading => {
+                format!("{:.0}\u{b0}", Heading::from_quat(data.rotation.0).degrees()).into()
+            }
         };
         ui.label(text);
     }

@@ -116,32 +116,41 @@ fn write_route_options(
         }
     }
 
-    egui::ComboBox::from_label("Standard route")
-        .selected_text(current_route_id.unwrap_or("None"))
-        .show_ui(ui, |ui| {
-            ui.selectable_value(&mut selection, Selection::None, "None");
-            if current_selection == Selection::Retain {
-                ui.selectable_value(&mut selection, Selection::Retain, current_route_id.unwrap());
+    ui.horizontal(|ui| {
+        ui.label("Route");
+
+        egui::ComboBox::from_label("").selected_text(current_route_id.unwrap_or("None")).show_ui(
+            ui,
+            |ui| {
+                ui.selectable_value(&mut selection, Selection::None, "None");
+                if current_selection == Selection::Retain {
+                    ui.selectable_value(
+                        &mut selection,
+                        Selection::Retain,
+                        current_route_id.unwrap(),
+                    );
+                }
+                for (i, preset) in presets.iter().enumerate() {
+                    ui.selectable_value(&mut selection, Selection::Available(i), &preset.title);
+                }
+            },
+        );
+        if selection != current_selection {
+            match selection {
+                Selection::None => {
+                    commands.entity(object).queue(route::ClearAllNodes).remove::<route::Id>();
+                }
+                Selection::Available(index) => {
+                    let new_preset = presets[index];
+                    commands
+                        .entity(object)
+                        .queue(route::ReplaceNodes(new_preset.nodes.clone()))
+                        .insert(route::Id(Some(new_preset.id.clone())));
+                }
+                Selection::Retain => {}
             }
-            for (i, preset) in presets.iter().enumerate() {
-                ui.selectable_value(&mut selection, Selection::Available(i), &preset.title);
-            }
-        });
-    if selection != current_selection {
-        match selection {
-            Selection::None => {
-                commands.entity(object).queue(route::ClearAllNodes).remove::<route::Id>();
-            }
-            Selection::Available(index) => {
-                let new_preset = presets[index];
-                commands
-                    .entity(object)
-                    .queue(route::ReplaceNodes(new_preset.nodes.clone()))
-                    .insert(route::Id(Some(new_preset.id.clone())));
-            }
-            Selection::Retain => {}
         }
-    }
+    });
 }
 
 fn write_route_node(

@@ -698,7 +698,7 @@ pub fn file() -> store::File {
                 center:       Position::from_origin_nm(0., 0.),
                 up:           Heading::NORTH,
                 scale_axis:   store::AxisDirection::X,
-                scale_length: Distance::from_nm(50.),
+                scale_length: Distance::from_nm(100.),
             }),
         },
     }

@@ -7,8 +7,9 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, ParamSet, Query};
 use bevy::render::view::Visibility;
 use bevy::transform::components::Transform;
+use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
-use omniatc::level::waypoint::{self, Waypoint};
+use omniatc::level::waypoint::Waypoint;
 use omniatc::try_log;
 use omniatc::units::{Distance, DistanceUnit};
 use omniatc_macros::Config;
@@ -47,12 +48,12 @@ fn update_system(
         Entity,
         &Waypoint,
         &Runway,
-        &waypoint::NavaidList,
+        &navaid::ListAtWaypoint,
         &localizer::HasLocalizer,
         &strip::HasStrip,
         Option<&glide_point::PointList>,
     )>,
-    navaid_query: Query<&waypoint::Navaid>,
+    navaid_query: Query<&Navaid>,
     mut params: ParamSet<(localizer::UpdateParam, strip::UpdateParam, glide_point::UpdateParam)>,
 ) {
     for (entity, waypoint, runway, navaids, localizer, strip, glide_point) in runway_query {

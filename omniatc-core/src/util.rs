@@ -1,5 +1,7 @@
 use std::fmt;
 use std::future::Future;
+use std::num::NonZero;
+use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::bundle::Bundle;
@@ -13,8 +15,9 @@ use bevy::ecs::schedule::graph::GraphInfo;
 use bevy::ecs::schedule::{
     Chain, IntoScheduleConfigs, Schedulable, ScheduleConfigs, ScheduleLabel, SystemSet,
 };
-use bevy::ecs::system::{Commands, IntoObserverSystem, ResMut};
+use bevy::ecs::system::{Commands, IntoObserverSystem, Local, Res, ResMut, SystemParam};
 use bevy::tasks::{self, IoTaskPool, Task};
+use bevy::time::{self, Time};
 use itertools::Itertools;
 
 pub struct Plug;
@@ -229,4 +232,25 @@ type AsyncPoll = Box<dyn FnMut(&mut Commands) -> AsyncPollResult + Send + Sync>;
 
 fn poll_async_system(mut poll_list: ResMut<AsyncPollList>, mut commands: Commands) {
     poll_list.0.extract_if(.., |poll| poll(&mut commands) == AsyncPollResult::Done).for_each(drop);
+}
+
+#[derive(SystemParam)]
+pub struct RateLimit<'w, 's> {
+    time:     Res<'w, Time<time::Virtual>>,
+    last_run: Local<'s, Option<u128>>,
+}
+
+impl RateLimit<'_, '_> {
+    pub fn should_run(&mut self, min_period: Duration) -> Option<NonZero<u128>> {
+        if self.time.is_paused() {
+            return None;
+        }
+
+        let now = self.time.elapsed().as_nanos() / min_period.as_nanos();
+
+        match self.last_run.replace(now) {
+            None => NonZero::new(1),
+            Some(last) => NonZero::new(now - last),
+        }
+    }
 }

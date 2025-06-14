@@ -9,7 +9,7 @@ use bevy::time::{self, Time};
 
 use super::nav::{self, VelocityTarget, YawTarget};
 use super::object::Object;
-use super::{object, SystemSets};
+use super::{navaid, object, SystemSets};
 use crate::units::{Accel, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection};
 
 pub struct Plug;
@@ -79,6 +79,7 @@ impl EntityCommand for SpawnCommand {
         };
 
         entity.insert((control, self.limits));
+
         let entity_id = entity.id();
         entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }

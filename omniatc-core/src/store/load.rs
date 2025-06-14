@@ -12,6 +12,7 @@ use bevy::prelude::{
 };
 use itertools::Itertools;
 
+use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
@@ -220,7 +221,7 @@ fn spawn_runway(
     }
     .apply(world.entity_mut(runway_entity));
 
-    world.entity_mut(runway_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
+    world.entity_mut(runway_entity).with_related_entities::<navaid::OwnerWaypoint>(|b| {
         spawn_runway_navaids(b, heading, runway);
     });
 
@@ -253,30 +254,33 @@ fn spawn_runway_navaids(
     runway: &store::Runway,
 ) {
     b.spawn((
-        waypoint::Navaid {
+        Navaid {
+            kind:                navaid::Kind::Visual,
             heading_range:       Heading::NORTH..Heading::NORTH,
-            pitch_range:         Angle(0.)..Angle::RIGHT,
-            min_dist_horizontal: Distance(0.),
-            min_dist_vertical:   Distance(0.),
+            pitch_range_tan:     Angle::ZERO.acute_signed_tan()..Angle::RIGHT.acute_signed_tan(),
+            min_dist_horizontal: Distance::ZERO,
+            min_dist_vertical:   Distance::ZERO,
             // TODO overwrite these two fields with visibility
             max_dist_horizontal: runway.max_visual_distance,
             max_dist_vertical:   Distance(100.),
         },
-        waypoint::Visual { max_range: runway.max_visual_distance },
+        navaid::Visual { max_range: runway.max_visual_distance },
     ));
 
     if let Some(ils) = &runway.ils {
         b.spawn((
-            waypoint::Navaid {
+            Navaid {
+                kind:                navaid::Kind::Localizer,
                 heading_range:       (heading.opposite() - ils.half_width)
                     ..(heading.opposite() + ils.half_width),
-                pitch_range:         ils.min_pitch..ils.max_pitch,
+                pitch_range_tan:     ils.min_pitch.acute_signed_tan()
+                    ..ils.max_pitch.acute_signed_tan(),
                 min_dist_horizontal: ils.visual_range,
                 min_dist_vertical:   ils.decision_height,
                 max_dist_horizontal: ils.horizontal_range,
                 max_dist_vertical:   ils.vertical_range,
             },
-            waypoint::HasCriticalRegion {},
+            navaid::CriticalRegion {},
         ));
     }
 }
@@ -560,7 +564,7 @@ fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<W
             }
             .apply(world.entity_mut(waypoint_entity));
 
-            world.entity_mut(waypoint_entity).with_related_entities::<waypoint::NavaidOf>(|b| {
+            world.entity_mut(waypoint_entity).with_related_entities::<navaid::OwnerWaypoint>(|b| {
                 waypoint.navaids.iter().for_each(|navaid| spawn_waypoint_navaid(b, navaid));
             });
 
@@ -585,9 +589,13 @@ fn choose_waypoint_display_type(navaids: &[store::Navaid]) -> waypoint::DisplayT
 }
 
 fn spawn_waypoint_navaid(b: &mut RelatedSpawner<'_, impl Relationship>, navaid: &store::Navaid) {
-    b.spawn((waypoint::Navaid {
+    b.spawn((Navaid {
+        kind:                match navaid.ty {
+            store::NavaidType::Vor => navaid::Kind::Vor,
+            store::NavaidType::Dme => navaid::Kind::Dme,
+        },
         heading_range:       navaid.heading_start..navaid.heading_end,
-        pitch_range:         navaid.min_pitch..Angle::RIGHT,
+        pitch_range_tan:     navaid.min_pitch.acute_signed_tan()..Angle::RIGHT.acute_signed_tan(),
         min_dist_horizontal: Distance::ZERO,
         min_dist_vertical:   Distance::ZERO,
         max_dist_horizontal: navaid.max_dist_horizontal,

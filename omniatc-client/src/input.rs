@@ -115,6 +115,9 @@ pub struct ReadCurrentCursorCameraSystemSet;
 #[expect(clippy::struct_excessive_bools)] // multiple independent flags
 pub struct Hotkeys {
     pub search:          bool,
+    pub deselect:        bool,
+    pub fast_forward:    bool,
+    pub toggle_pause:    bool,
     pub pick_vector:     bool,
     pub set_speed:       bool,
     pub inc_speed:       bool,
@@ -141,6 +144,10 @@ impl Hotkeys {
         }
 
         this.search = buttons.just_pressed(KeyCode::Slash);
+        this.deselect = buttons.just_pressed(KeyCode::Escape);
+        this.fast_forward = buttons.pressed(KeyCode::Space) && buttons.pressed(KeyCode::ShiftLeft);
+        this.toggle_pause =
+            buttons.just_pressed(KeyCode::Space) && !buttons.pressed(KeyCode::ShiftLeft);
         this.pick_vector = buttons.pressed(KeyCode::KeyV);
         this.set_speed = buttons.just_pressed(KeyCode::KeyS);
         this.inc_speed = buttons.just_pressed(KeyCode::Period);

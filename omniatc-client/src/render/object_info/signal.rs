@@ -47,8 +47,8 @@ impl Writer for ObjectQuery {
             );
 
             ui.label(match navaid.kind {
-                navaid::Kind::Visual => format!("{} in sight", &waypoint.name),
-                navaid::Kind::Localizer => format!("ILS {} available", &waypoint.name),
+                navaid::Kind::Visual => format!("{} visual contact", &waypoint.name),
+                navaid::Kind::Localizer => format!("{} ILS available", &waypoint.name),
                 navaid::Kind::Vor => format!("{} VOR available", &waypoint.name),
                 navaid::Kind::Dme => format!("{} DME available", &waypoint.name),
                 navaid::Kind::Gnss => "GNSS usable".into(),

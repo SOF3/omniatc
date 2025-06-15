@@ -3,9 +3,10 @@ use std::mem;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::event::EventReader;
 use bevy::ecs::system::SystemState;
 use bevy::ecs::world::EntityWorldMut;
-use bevy::math::{Vec2, Vec3};
+use bevy::math::{Dir2, Vec2, Vec3};
 use bevy::prelude::{
     Commands, Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, Query, Res, World,
 };
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use super::object::{self, GroundSpeedCalculator, Object};
 use super::runway::{self, Runway};
 use super::waypoint::Waypoint;
-use super::{nav, SystemSets};
+use super::{nav, navaid, SystemSets};
 use crate::level::object::RefAltitudeType;
 use crate::math::Between;
 use crate::units::{Angle, Distance, Heading, Position, Speed};
@@ -51,6 +52,7 @@ impl Plugin for Plug {
                 fly_by_trigger_system,
                 time_trigger_system,
                 distance_trigger_system,
+                navaid_trigger_system,
             )
                 .in_set(SystemSets::Action),
         );
@@ -73,11 +75,22 @@ pub struct Route {
 }
 
 impl Route {
+    pub fn clear(&mut self) {
+        self.current = None;
+        self.next_queue.clear();
+    }
+
     pub fn push(&mut self, node: Node) {
         if self.current.is_none() {
             self.current = Some(node);
         } else {
             self.next_queue.push_back(node);
+        }
+    }
+
+    pub fn extend(&mut self, nodes: impl IntoIterator<Item = Node>) {
+        for node in nodes {
+            self.push(node);
         }
     }
 
@@ -196,12 +209,8 @@ impl EntityCommand for ReplaceNodes {
         let mut route =
             entity.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
 
-        route.current = None;
-        route.next_queue.clear();
-
-        for node in self.0 {
-            route.push(node);
-        }
+        route.clear();
+        route.extend(self.0);
 
         let entity_id = entity.id();
         entity.world_scope(|world| run_current_node(world, entity_id));
@@ -226,8 +235,21 @@ fn run_current_node(world: &mut World, entity: Entity) {
                         let mut entity_ref = world.entity_mut(entity);
                         let mut route = entity_ref
                             .get_mut::<Route>()
-                            .expect("route should not be shifted by run_current_node");
+                            .expect("route should not be removed by run_current_node");
                         route.shift();
+                    }
+                    RunNodeResult::ReplaceWithPreset(preset_id) => {
+                        let new_nodes = preset_id.map_or_else(Vec::new, |preset_id| {
+                            let preset = try_log!(world.get::<Preset>(preset_id), expect "invalid route preset reference" or return Vec::new());
+                            preset.nodes.clone()
+                        });
+
+                        let mut entity_ref = world.entity_mut(entity);
+                        let mut route = entity_ref
+                            .get_mut::<Route>()
+                            .expect("route should not be removed by run_current_node");
+                        route.clear();
+                        route.extend(new_nodes);
                     }
                 },
             }
@@ -414,7 +436,13 @@ fn plan_altitude(
 }
 
 fn clear_all_triggers(world: &mut World, entity: Entity) {
-    world.entity_mut(entity).remove::<(FlyByTrigger, FlyOverTrigger)>();
+    world.entity_mut(entity).remove::<(
+        FlyByTrigger,
+        FlyOverTrigger,
+        DistanceTrigger,
+        TimeTrigger,
+        NavaidChangeTrigger,
+    )>();
 }
 
 #[portrait::make]
@@ -443,6 +471,8 @@ enum RunNodeResult {
     PendingTrigger,
     /// Current node is done, skip to the next node.
     NodeDone,
+    /// The entire route should be aborted and replaced with the specified preset.
+    ReplaceWithPreset(Option<Entity>),
 }
 
 enum ConfiguresHeading {
@@ -548,7 +578,7 @@ impl NodeKind for DirectWaypointNode {
     }
 }
 
-/// Set the speed to the desired value.
+/// Increase/reduce the speed to the desired value.
 ///
 /// When the object is not yet airborne, this would control the expected airspeed
 /// if the object is immediately airborne.
@@ -621,52 +651,296 @@ impl NodeKind for StartSetAltitudeNode {
     fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }
 
+fn align_runway(object: &mut EntityWorldMut, runway: Entity, expedite: bool) -> Result<(), ()> {
+    let Some((glide_descent, localizer_waypoint)) = object.world_scope(|world| {
+        Some((
+            try_log!(
+                world.get::<Runway>(runway),
+                expect "AlignRunwayNode references non-runway entity {runway:?}"
+                or return None
+            )
+            .glide_descent,
+            try_log!(
+                world.get::<runway::LocalizerWaypointRef>(runway),
+                expect "Runway {runway:?} has no LocalizerWaypointRef"
+                or return None
+            )
+            .localizer_waypoint,
+        ))
+    }) else {
+        return Err(());
+    };
+
+    object.remove::<(nav::TargetWaypoint, nav::TargetAltitude)>().insert((
+        nav::TargetAlignment {
+            start_waypoint:   localizer_waypoint,
+            end_waypoint:     runway,
+            activation_range: ALIGN_RUNWAY_ACTIVATION_RANGE,
+            lookahead:        ALIGN_RUNWAY_LOOKAHEAD,
+        },
+        nav::TargetGlide {
+            target_waypoint: runway,
+            glide_angle: -glide_descent,
+            // the actual minimum pitch is regulated by maximum descent rate.
+            min_pitch: -Angle::RIGHT,
+            max_pitch: Angle::ZERO,
+            lookahead: ALIGN_RUNWAY_LOOKAHEAD,
+            expedite,
+        },
+    ));
+
+    Ok(())
+}
+
+/// Aligns the object with a runway localizer during the final leg,
+/// before switching to short final.
+///
+/// Short final here is defined as the point at which
+/// the object must start reducing to threshold crossing speed.
+///
+/// Must be followed by [`ShortFinalNode`].
+/// Completes when distance from runway is less than
+/// [`nav::Limits::short_final_dist`].
 #[derive(Clone, Copy)]
 pub struct AlignRunwayNode {
     /// The runway waypoint entity.
-    pub runway:   Entity,
+    pub runway:          Entity,
     /// Whether to allow descent expedition to align with the glidepath.
-    pub expedite: bool,
+    pub expedite:        bool,
+    /// The preset to switch to in case of missed approach.
+    pub goaround_preset: Option<Entity>,
 }
 
 impl NodeKind for AlignRunwayNode {
     fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let &Runway { glide_angle, .. } = try_log!(
-            world.get::<Runway>(self.runway),
-            expect "AlignRunwayNode references non-runway entity {:?}" (self.runway)
-            or return RunNodeResult::PendingTrigger
-        );
-        let &runway::LocalizerWaypointRef { localizer_waypoint } = try_log!(
-            world.get(self.runway),
-            expect "Runway {:?} has no LocalizerWaypointRef" (self.runway)
+        let &Waypoint { position: runway_position, .. } = try_log!(
+            world.get::<Waypoint>(self.runway),
+            expect "Runway {:?} must have a corresponding waypoint" (self.runway)
             or return RunNodeResult::PendingTrigger
         );
 
-        let mut entity_ref = world.entity_mut(entity);
-        entity_ref.remove::<(nav::TargetWaypoint, nav::TargetAltitude)>().insert((
-            nav::TargetAlignment {
-                start_waypoint:   localizer_waypoint,
-                end_waypoint:     self.runway,
-                activation_range: ALIGN_RUNWAY_ACTIVATION_RANGE,
-                lookahead:        ALIGN_RUNWAY_LOOKAHEAD,
-            },
-            nav::TargetGlide {
-                target_waypoint: self.runway,
-                glide_angle:     -glide_angle,
-                // the actual minimum pitch is regulated by maximum descent rate.
-                min_pitch:       -Angle::RIGHT,
-                max_pitch:       Angle::ZERO,
-                lookahead:       ALIGN_RUNWAY_LOOKAHEAD,
-                expedite:        self.expedite,
-            },
-        ));
+        let mut object = world.entity_mut(entity);
+        if align_runway(&mut object, self.runway, self.expedite).is_err() {
+            return RunNodeResult::PendingTrigger;
+        }
 
-        RunNodeResult::NodeDone
+        let position = object.get::<Object>().expect("entity must be an Object").position;
+        let limits = try_log!(
+            object.get::<nav::Limits>(),
+            expect "Landing aircraft must have nav limits"
+            or return RunNodeResult::PendingTrigger
+        );
+        let dist = position.horizontal_distance_exact(runway_position);
+        if dist < limits.short_final_dist {
+            RunNodeResult::NodeDone
+        } else {
+            let dist_before_short = dist - limits.short_final_dist;
+            object.insert(DistanceTrigger {
+                last_observed_pos:  position.horizontal(),
+                remaining_distance: dist_before_short,
+            });
+            RunNodeResult::PendingTrigger
+        }
     }
 
     fn configures_heading(self, world: &World) -> Option<ConfiguresHeading> {
         let runway = world.get::<Runway>(self.runway)?;
         Some(ConfiguresHeading::Heading(Heading::from_vec2(runway.landing_length.0)))
+    }
+}
+
+/// Enforces final approach speed and wait for visual contact with runway.
+///
+/// Completes when visual contact is established with the runway.
+/// Switches to goaround preset if ILS is lost before visual contact is established,
+/// e.g. due to ILS interference or low visibility
+/// (no visual contact within minimum runway visual range).
+///
+/// The main goal of this node is to ensure allow ILS-only approach before visual contact;
+/// ILS is no longer used after this node completes.
+///
+/// Must be followed by [`VisualLandingNode`].
+#[derive(Clone, Copy)]
+pub struct ShortFinalNode {
+    /// The runway waypoint entity.
+    pub runway:          Entity,
+    /// The preset to switch to in case of missed approach.
+    pub goaround_preset: Option<Entity>,
+}
+
+impl NodeKind for ShortFinalNode {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+        fn classify_navaid(
+            runway: Entity,
+            navaid: Entity,
+            world: &World,
+            has_visual: &mut bool,
+            has_ils: &mut bool,
+        ) {
+            let owner = try_log_return!(world.get::<navaid::OwnerWaypoint>(navaid), expect "navaid must have an owner waypoint");
+            if owner.0 == runway {
+                if world.entity(navaid).contains::<navaid::Visual>() {
+                    *has_visual = true;
+                }
+                if world.entity(navaid).contains::<navaid::LandingAid>() {
+                    *has_ils = true;
+                }
+            }
+        }
+
+        let mut object = world.entity_mut(entity);
+        if align_runway(&mut object, self.runway, true).is_err() {
+            return RunNodeResult::PendingTrigger;
+        }
+
+        let &nav::Limits { short_final_speed, .. } = try_log!(
+            object.get(),
+            expect "Landing aircraft must have nav limits"
+            or return RunNodeResult::PendingTrigger
+        );
+
+        let mut vel_target = try_log!(
+            object.get_mut::<nav::VelocityTarget>(),
+            expect "Landing aircraft must have navigation target"
+            or return RunNodeResult::PendingTrigger
+        );
+        vel_target.horiz_speed = short_final_speed;
+
+        let navaids =
+            object.get::<navaid::ObjectUsageList>().expect("dependency of VelocityTarget");
+
+        let mut has_visual = false;
+        let mut has_ils = false;
+        for &navaid in &navaids.0 {
+            classify_navaid(self.runway, navaid, object.world(), &mut has_visual, &mut has_ils);
+        }
+
+        if has_visual {
+            RunNodeResult::NodeDone
+        } else if has_ils {
+            object.insert(NavaidChangeTrigger);
+            RunNodeResult::PendingTrigger
+        } else {
+            RunNodeResult::ReplaceWithPreset(self.goaround_preset)
+        }
+    }
+}
+
+/// Maintains final approach configuration until touchdown.
+///
+/// Completes when the altitude is below or runway elevation.
+/// Switches to goaround preset if:
+/// - runway is not clear
+/// - runway length is shorter than full deceleration distance to zero speed
+/// - unsafe crosswind
+/// - intolerable wake
+/// - too high (above runway elevation but beyond runway length)
+/// - not aligned (beyond runway threshold but not within runway width)
+#[derive(Clone, Copy)]
+pub struct VisualLandingNode {
+    /// The runway waypoint entity.
+    pub runway:          Entity,
+    /// The preset to switch to in case of missed approach.
+    pub goaround_preset: Option<Entity>,
+}
+
+impl NodeKind for VisualLandingNode {
+    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+        let Ok(state) = determine_landing_state(&world.entity(entity), &world.entity(self.runway)) else { return RunNodeResult::PendingTrigger };
+
+        let virtual_time_now = world.resource::<Time<time::Virtual>>().elapsed();
+
+        let mut object = world.entity_mut(entity);
+        if align_runway(&mut object, self.runway, true).is_err() {
+            return RunNodeResult::PendingTrigger;
+        }
+
+        match state {
+            LandingState::Approaching { remaining_time } => {
+                object.insert(TimeTrigger ( virtual_time_now + remaining_time ));
+                RunNodeResult::PendingTrigger
+            }
+            LandingState::TooHigh => {
+                // TODO send message
+                RunNodeResult::ReplaceWithPreset(self.goaround_preset)
+            }
+            LandingState::NotAligned => {
+                // TODO send message
+                RunNodeResult::ReplaceWithPreset(self.goaround_preset)
+            }
+            LandingState::MayLand { track_deviation } => {
+                // TODO check track deviation
+                // TODO set to ground
+                RunNodeResult::NodeDone
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+enum LandingState {
+    Approaching { remaining_time: Duration },
+    MayLand { track_deviation: Angle<f32> },
+    TooHigh,
+    NotAligned,
+}
+
+fn determine_landing_state(object: &EntityRef, runway: &EntityRef) -> Result<LandingState, ()> {
+    let &Object { position: object_position, ground_speed } =
+        object.get().expect("entity must be an Object");
+    let &Waypoint { position: runway_position, .. } = try_log!(
+        runway.get(), expect "runway must be a waypoint" or return Err(())
+    );
+    let &Runway { landing_length, width: runway_width, .. } = try_log!(
+        runway.get(), expect "runway must be valid" or return Err(())
+    );
+    let &runway::Condition { friction_factor } = try_log!(
+        runway.get(), expect "runway must have condition" or return Err(())
+    );
+
+    let runway_dir = try_log!(
+        Dir2::new(landing_length.0),
+        expect "runway must have nonzero landing length" or return Err(())
+    );
+
+    let projected_speed = ground_speed.horizontal().project_onto_dir(runway_dir);
+
+    let threshold_dist = runway_position - object_position;
+    let height = -threshold_dist.vertical();
+    let projected_threshold_dist = threshold_dist.horizontal().project_onto_dir(runway_dir);
+
+    if height.is_positive() && projected_threshold_dist.is_positive() {
+        let remaining_time = height
+            .try_div(-ground_speed.vertical())
+            .unwrap_or(Duration::ZERO)
+            .min(projected_threshold_dist.try_div(projected_speed).unwrap_or(Duration::ZERO));
+        Ok(LandingState::Approaching { remaining_time })
+    } else {
+        let centerline_dist =
+            threshold_dist.horizontal().magnitude_squared() - projected_threshold_dist.squared();
+        if centerline_dist > runway_width.squared() {
+            return Ok(LandingState::NotAligned);
+        }
+
+        // if height is non-positive but threshold distance is positive,
+        // it basically ditched into terrain before reaching the runway...
+        // but for simplicity we just assume it is an extended runway for now.
+        // TODO handle aircraft crash
+        let remaining_runway_dist = projected_threshold_dist + landing_length.magnitude_exact();
+
+        // TODO compute from nav::Limits based on deceleration, current ground speed and runway
+        // condition
+        let required_landing_dist = Distance::from_meters(1000.);
+
+        if remaining_runway_dist < required_landing_dist {
+            Ok(LandingState::TooHigh)
+        } else {
+            let runway_heading = landing_length.heading();
+            let track_heading = ground_speed.horizontal().heading();
+            Ok(LandingState::MayLand {
+                track_deviation: track_heading.closest_distance(runway_heading),
+            })
+        }
     }
 }
 
@@ -679,7 +953,11 @@ pub enum Node {
     SetAirSpeed(SetAirspeedNode),
     StartSetAltitude(StartSetAltitudeNode),
     AlignRunway(AlignRunwayNode),
+    ShortFinal(ShortFinalNode),
+    VisualLanding(VisualLandingNode),
 }
+
+pub fn node_vec(node: impl Into<Node>) -> Vec<Node> { Vec::from([node.into()]) }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum WaypointProximity {
@@ -835,6 +1113,18 @@ fn distance_trigger_system(
             commands.entity(object_entity).queue(RunCurrentNode);
         }
     });
+}
+
+#[derive(Component)]
+struct NavaidChangeTrigger;
+
+fn navaid_trigger_system(
+    mut event_reader: EventReader<navaid::UsageChangeEvent>,
+    mut commands: Commands,
+) {
+    for event in event_reader.read() {
+        commands.entity(event.object).queue(RunCurrentNode);
+    }
 }
 
 #[derive(Component)]

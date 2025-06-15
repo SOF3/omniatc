@@ -42,10 +42,6 @@ impl Control {
     }
 }
 
-/// Structural limitations of a plane.
-#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Limits {}
-
 pub struct SpawnCommand {
     pub control: Option<Control>,
     pub limits:  nav::Limits,

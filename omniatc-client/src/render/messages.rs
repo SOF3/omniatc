@@ -1,11 +1,12 @@
 use std::collections::VecDeque;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::ResMut;
+use bevy::ecs::system::{Command, ResMut};
+use bevy::ecs::world::World;
 use bevy_egui::{egui, EguiContextPass, EguiContexts};
 
 use crate::{EguiSystemSets, EguiUsedMargins};
@@ -71,4 +72,21 @@ fn setup_messages_system(
         .rect
         .height();
     margins.bottom += height;
+}
+
+pub struct SendMessage {
+    pub content: String,
+    pub color: Color,
+    pub duration: Duration,
+}
+
+impl Command for SendMessage {
+    fn apply(self, world: &mut World) {
+        let mut messages = world.resource_mut::<Messages>();
+        messages.0.push_back(Message {
+            expiry: Instant::now() + self.duration,
+            content: self.content,
+            color: self.color,
+        })
+    }
 }

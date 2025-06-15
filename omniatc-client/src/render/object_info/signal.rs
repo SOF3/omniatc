@@ -1,19 +1,12 @@
-use std::any::TypeId;
 
-use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::ecs::system::{Query, SystemParam};
 use bevy_egui::egui;
-use omniatc::level::aerodrome::Aerodrome;
-use omniatc::level::nav;
 use omniatc::level::navaid::{self, Navaid};
-use omniatc::level::route::{self, Route};
-use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::{try_log, try_log_return};
+use omniatc::try_log;
 
 use super::Writer;
-use crate::input;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -47,8 +40,8 @@ impl Writer for ObjectQuery {
             );
 
             ui.label(match navaid.kind {
-                navaid::Kind::Visual => format!("{} in sight", &waypoint.name),
-                navaid::Kind::Localizer => format!("ILS {} available", &waypoint.name),
+                navaid::Kind::Visual => format!("{} visual contact", &waypoint.name),
+                navaid::Kind::Localizer => format!("{} ILS available", &waypoint.name),
                 navaid::Kind::Vor => format!("{} VOR available", &waypoint.name),
                 navaid::Kind::Dme => format!("{} DME available", &waypoint.name),
                 navaid::Kind::Gnss => "GNSS usable".into(),

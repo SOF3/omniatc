@@ -12,13 +12,13 @@ use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
 
-use super::{wind, Config, SystemSets};
+use super::{ground, message, nav, wind, Config, SystemSets};
 use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
-use crate::try_log;
 use crate::units::{Distance, Position, Speed};
+use crate::{try_log, try_log_return};
 
 mod dest;
 pub use dest::Destination;
@@ -44,10 +44,6 @@ impl Plugin for Plug {
         app.add_systems(app::Update, track_position_system.in_set(SystemSets::ReconcileForRead));
     }
 }
-
-/// Marker component for object entities.
-#[derive(Component)]
-pub struct Marker;
 
 /// Display details of an object.
 #[derive(Component)]
@@ -94,10 +90,10 @@ impl EntityCommand for SpawnCommand {
         entity.insert((
             Rotation::default(),
             Object { position: self.position, ground_speed: self.ground_speed },
+            message::Sender { display: self.display.name.clone() },
             self.display,
             self.destination,
             Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
-            Marker,
         ));
 
         let entity_id = entity.id();
@@ -114,6 +110,8 @@ pub struct SetAirborneCommand;
 
 impl EntityCommand for SetAirborneCommand {
     fn apply(self, mut entity: EntityWorldMut) {
+        entity.remove::<OnGround>();
+
         let (position, ground_speed) = {
             let &Object { position, ground_speed } = try_log!(
                 entity.get(),
@@ -132,6 +130,30 @@ impl EntityCommand for SetAirborneCommand {
         let airspeed = ground_speed - wind.horizontally();
         entity.insert(Airborne { airspeed, true_airspeed: airspeed });
         // TODO insert/remove nav::VelocityTarget?
+    }
+}
+
+#[derive(Component)]
+pub struct OnGround {
+    pub segment:   Entity,
+    pub direction: ground::SegmentDirection,
+}
+
+/// Sets an entity from airborne to ground.
+pub struct SetOnGroundCommand {
+    pub segment:   Entity,
+    pub direction: ground::SegmentDirection,
+}
+
+impl EntityCommand for SetOnGroundCommand {
+    fn apply(self, mut entity: EntityWorldMut) {
+        let mut object = try_log_return!(entity.get_mut::<Object>(), expect "SetOnGroundCommand must be used on objects");
+        // must not descend anymore since we have hit the ground.
+        object.ground_speed = object.ground_speed.horizontal().horizontally();
+
+        entity
+            .remove::<(Airborne, nav::VelocityTarget)>()
+            .insert(OnGround { segment: self.segment, direction: self.direction });
     }
 }
 

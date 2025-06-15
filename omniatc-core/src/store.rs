@@ -449,6 +449,16 @@ pub struct RoutePreset {
     ///
     /// Different presets from the same trigger must not have duplicate `id`s.
     pub id:      String,
+    /// Identifier used to reference the preset from other places in the save file.
+    ///
+    /// This field is only used in the save file and is not visible to users.
+    /// If specified, it MUST be a unique value among all presets,
+    /// unlike `id` which may be shared between similar presets.
+    /// This field is optional and only useful when the route needs to be referenced,
+    /// e.g. to initiate a goaround route.
+    ///
+    /// It is recommended to compose `ref_id` by appending the name of the first waypoint to `id`.
+    pub ref_id:  Option<String>,
     /// Display name of this route. Not a unique identifier.
     pub title:   String,
     /// Nodes of this route.
@@ -469,10 +479,17 @@ pub fn route_presets_at_waypoints(
         .enumerate()
         .rev()
         .filter_map(|(start_index, start_node)| {
-            let RouteNode::DirectWaypoint { waypoint, .. } = start_node else { return None };
+            let RouteNode::DirectWaypoint {
+                waypoint: waypoint @ WaypointRef::Named(waypoint_name),
+                ..
+            } = start_node
+            else {
+                return None;
+            };
             Some(RoutePreset {
                 trigger: RoutePresetTrigger::Waypoint(waypoint.clone()),
                 id:      id.to_owned(),
+                ref_id:  Some(format!("{id} {waypoint_name}")),
                 title:   title.to_owned(),
                 nodes:   nodes[start_index..].to_vec(),
             })
@@ -521,9 +538,11 @@ pub enum RouteNode {
         expedite: bool,
         // TODO pressure altitude?
     },
-    AlignRunway {
-        runway:   RunwayRef,
-        expedite: bool,
+    RunwayLanding {
+        /// Runway to land on.
+        runway:          RunwayRef,
+        /// Preset to switch to upon missed approach.
+        goaround_preset: Option<String>,
     },
 }
 

@@ -1,4 +1,4 @@
-//! Controls machines for navigation.
+//! Controls machines for aerial navigation.
 
 use std::time::Duration;
 
@@ -94,10 +94,19 @@ pub struct Limits {
     /// Simple formula to derive a reasonable drag coefficient:
     /// `level.accel / (max cruise speed in kt)^2`.
     pub drag_coef:         f32,
+    /// Braking deceleration under optimal conditions.
+    /// Always positive.
+    pub base_braking:      Accel<f32>,
 
     // Z axis rotation limits.
     /// Max absolute rate of change of yaw speed.
     pub max_yaw_accel: AngularAccel<f32>,
+
+    /// Distance from runway threshold at which the aircraft
+    /// must start reducing to `short_final_speed`.
+    pub short_final_dist:  Distance<f32>,
+    /// The runway threshold crossing speed.
+    pub short_final_speed: Speed<f32>,
 }
 
 impl Limits {

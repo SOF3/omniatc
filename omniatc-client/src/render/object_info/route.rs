@@ -206,7 +206,20 @@ fn write_route_node(
         route::Node::AlignRunway(node) => {
             let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
             let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
-            ui.label(format!("Align towards runway {} of {}", &waypoint.name, &aerodrome.name));
+            ui.label(format!("Align with ILS {} of {}", &waypoint.name, &aerodrome.name));
+        }
+        route::Node::ShortFinal(node) => {
+            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
+            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            ui.label(format!("Short final to ILS {} of {}", &waypoint.name, &aerodrome.name));
+        }
+        route::Node::VisualLanding(node) => {
+            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
+            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            ui.label(format!(
+                "Visual short final to runway {} of {}",
+                &waypoint.name, &aerodrome.name
+            ));
         }
     }
 }

@@ -1,10 +1,10 @@
 use bevy::app::{App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
-use bevy::math::Vec2;
+use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, Name};
 use smallvec::SmallVec;
 
-use crate::units::Position;
+use crate::units::{Distance, Position};
 
 pub struct Plug;
 
@@ -14,6 +14,48 @@ impl Plugin for Plug {
         app.add_event::<EndpointChangedEvent>();
     }
 }
+
+/// The aerodrome owning a segment.
+#[derive(Component)]
+#[relationship_target(relationship = SegmentOf, linked_spawn)]
+pub struct AerodromeSegments(Vec<Entity>);
+
+impl AerodromeSegments {
+    #[must_use]
+    pub fn segments(&self) -> &[Entity] { &self.0 }
+}
+
+/// The aerodrome owning a segment.
+#[derive(Component)]
+#[relationship(relationship_target = AerodromeSegments)]
+pub struct SegmentOf(pub Entity);
+
+/// The aerodrome owning a endpoint.
+#[derive(Component)]
+#[relationship_target(relationship = EndpointOf, linked_spawn)]
+pub struct AerodromeEndpoints(Vec<Entity>);
+
+impl AerodromeEndpoints {
+    #[must_use]
+    pub fn endpoints(&self) -> &[Entity] { &self.0 }
+}
+
+/// The aerodrome owning a endpoint.
+#[derive(Component)]
+#[relationship(relationship_target = AerodromeEndpoints)]
+pub struct EndpointOf(pub Entity);
+
+/// The runway owning a segment.
+///
+/// This is not a relationship component because there are two owner runways for each segment.
+#[derive(Component)]
+pub struct SegmentOfRunway(pub [Entity; 2]);
+
+/// The segments owned by a runway.
+///
+/// This is not a relationship component because there are two owner runways for each segment.
+#[derive(Component, Default)]
+pub struct RunwaySegments(pub Vec<Entity>);
 
 /// A segment of a ground path to taxi on.
 ///
@@ -27,6 +69,7 @@ pub struct Segment {
     pub alpha:     Entity,
     /// An [`Endpoint`] entity.
     pub beta:      Entity,
+    pub width:     Distance<f32>,
     pub elevation: Position<f32>,
 }
 
@@ -44,6 +87,29 @@ impl Segment {
             None
         }
     }
+
+    #[must_use]
+    pub fn contains_pos(
+        &self,
+        alpha: Position<Vec2>,
+        beta: Position<Vec2>,
+        pos: Position<Vec2>,
+    ) -> bool {
+        let ab = beta - alpha;
+        let Ok(ab_dir) = Dir2::new(ab.0) else { return false };
+        let ap = pos - alpha;
+        let ap_on_ab = ap.project_onto_dir(ab_dir);
+        let horiz_dir = Dir2::new_unchecked(Vec2 { x: ab_dir.y, y: -ab_dir.x });
+        ab.magnitude_cmp() >= ap_on_ab
+            && !ap_on_ab.is_negative()
+            && self.width >= ap.project_onto_dir(horiz_dir).abs()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentDirection {
+    AlphaToBeta,
+    BetaToAlpha,
 }
 
 /// Identifies a segment.
@@ -76,11 +142,26 @@ impl EntityCommand for SpawnSegment {
         let alpha_endpoint = self.segment.alpha;
         let beta_endpoint = self.segment.beta;
 
+        if let SegmentLabel::RunwayPair(runways) = self.label {
+            entity.insert(SegmentOfRunway(runways));
+            let entity_id = entity.id();
+            entity.world_scope(|world| {
+                for runway_id in runways {
+                    let mut runway_ref = world.entity_mut(runway_id);
+                    runway_ref.insert_if_new(RunwaySegments(Vec::new()));
+                    let mut runway_segments =
+                        runway_ref.get_mut::<RunwaySegments>().expect("just inserted");
+                    runway_segments.0.push(entity_id);
+                }
+            });
+        }
+
         entity.insert((
             self.segment,
             Name::new(format!("GroundSegment {:?}", &self.label)),
             self.label,
         ));
+
         let entity_id = entity.id();
         entity.world_scope(|world| {
             world.send_event(SegmentChangedEvent(entity_id));

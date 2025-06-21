@@ -48,7 +48,7 @@ impl UpdateParam<'_, '_> {
 
         let start_altitude = waypoint.position.altitude();
         let end_altitude =
-            start_altitude + localizer_length * runway.glide_angle.acute_signed_tan();
+            start_altitude + localizer_length * runway.glide_descent.acute_signed_tan();
 
         let density = self.conf.glide_point_density;
 
@@ -59,7 +59,7 @@ impl UpdateParam<'_, '_> {
 
         let glide_direction = runway
             .landing_length
-            .projected_from_elevation_angle(-runway.glide_angle)
+            .projected_from_elevation_angle(-runway.glide_descent)
             .normalize_by_vertical(density)
             .horizontal();
 

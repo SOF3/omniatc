@@ -11,6 +11,7 @@ use strum::IntoEnumIterator;
 pub mod aerodrome;
 pub mod comm;
 pub mod ground;
+pub mod message;
 pub mod nav;
 pub mod navaid;
 pub mod object;
@@ -35,6 +36,7 @@ impl Plugin for Plug {
             app.configure_sets(app::Update, before.before(after));
         }
 
+        app.add_plugins(message::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug);
         app.add_plugins(plane::Plug);

@@ -3837,6 +3837,7 @@ dependencies = [
  "bevy",
  "ciborium",
  "derive_more 2.0.1",
+ "either",
  "enum-map",
  "itertools 0.14.0",
  "ordered-float 5.0.0",

@@ -440,6 +440,13 @@ macro_rules! decl_units {
                 }
             }
 
+            impl $int_dt<f32> {
+                #[must_use]
+                pub fn try_div(self, other: $ty<f32>) -> Option<Duration> {
+                    Duration::try_from_secs_f32(self.0 / other.0).ok()
+                }
+            }
+
             impl<T: ops::Div<f32, Output = T>> ops::Div<Duration> for $int_dt<T> {
                 type Output = $ty<T>;
 

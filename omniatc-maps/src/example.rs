@@ -36,10 +36,46 @@ pub fn default_plane_limits() -> nav::Limits {
             accel:     Accel::from_knots_per_sec(1.8),
             decel:     Accel::from_knots_per_sec(-0.2),
         },
-        drag_coef:         3. / 500. / 500.,
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
+        drag_coef:         3. / 500. / 500.,
+        base_braking:      Accel::from_knots_per_sec(3.0),
         max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
+        short_final_dist:  Distance::from_nm(4.),
+        short_final_speed: Speed::from_knots(150.),
     }
+}
+
+fn route_retry_18r() -> Vec<store::RouteNode> {
+    [
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("RETRY".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  Some(Position::from_amsl_feet(4000.)),
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("REMRG".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("APPNW".into()),
+            distance:  Distance::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  None,
+        },
+        store::RouteNode::RunwayLanding {
+            runway:          store::RunwayRef {
+                aerodrome_code: "MAIN".into(),
+                runway_name:    "18R".into(),
+            },
+            goaround_preset: Some("RETRY.RETRY18R".into()),
+        },
+    ]
+    .into()
 }
 
 fn route_dwind_18l() -> Vec<store::RouteNode> {
@@ -71,12 +107,12 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
-        store::RouteNode::AlignRunway {
-            runway:   store::RunwayRef {
+        store::RouteNode::RunwayLanding {
+            runway:          store::RunwayRef {
                 aerodrome_code: "MAIN".into(),
                 runway_name:    "18L".into(),
             },
-            expedite: true,
+            goaround_preset: Some("RETRY.RETRY18R".into()),
         },
     ]
     .into()
@@ -111,12 +147,12 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
-        store::RouteNode::AlignRunway {
-            runway:   store::RunwayRef {
+        store::RouteNode::RunwayLanding {
+            runway:          store::RunwayRef {
                 aerodrome_code: "MAIN".into(),
                 runway_name:    "18R".into(),
             },
-            expedite: true,
+            goaround_preset: Some("RETRY.RETRY18R".into()),
         },
     ]
     .into()
@@ -145,12 +181,12 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
-        store::RouteNode::AlignRunway {
-            runway:   store::RunwayRef {
+        store::RouteNode::RunwayLanding {
+            runway:          store::RunwayRef {
                 aerodrome_code: "MAIN".into(),
                 runway_name:    "18L".into(),
             },
-            expedite: true,
+            goaround_preset: Some("RETRY.RETRY18R".into()),
         },
     ]
     .into()
@@ -179,12 +215,12 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
-        store::RouteNode::AlignRunway {
-            runway:   store::RunwayRef {
+        store::RouteNode::RunwayLanding {
+            runway:          store::RunwayRef {
                 aerodrome_code: "MAIN".into(),
                 runway_name:    "18R".into(),
             },
-            expedite: true,
+            goaround_preset: Some("RETRY.RETRY18R".into()),
         },
     ]
     .into()
@@ -525,6 +561,20 @@ pub fn file() -> store::File {
                     navaids:   [].into(),
                 },
                 store::Waypoint {
+                    name:      "RETRY".into(),
+                    position:  Position::from_origin_nm(-6., 0.),
+                    elevation: None,
+                    visual:    None,
+                    navaids:   [].into(),
+                },
+                store::Waypoint {
+                    name:      "REMRG".into(),
+                    position:  Position::from_origin_nm(-6., 16.),
+                    elevation: None,
+                    visual:    None,
+                    navaids:   [].into(),
+                },
+                store::Waypoint {
                     name:      "APPNW".into(),
                     position:  Position::from_origin_nm(0., 16.),
                     elevation: None,
@@ -545,6 +595,16 @@ pub fn file() -> store::File {
                 store::route_presets_at_waypoints("DWIND18R", "DWIND 18R", route_dwind_18r()),
                 store::route_presets_at_waypoints("POLAR18L", "POLAR 18L", route_polar_18l()),
                 store::route_presets_at_waypoints("POLAR18R", "POLAR 18R", route_polar_18r()),
+                [store::RoutePreset {
+                    trigger: store::RoutePresetTrigger::Waypoint(store::WaypointRef::Named(
+                        "RETRY".into(),
+                    )),
+                    id:      "RETRY18R".into(),
+                    ref_id:  Some("RETRY.RETRY18R".into()),
+                    title:   "Missed approach 18R".into(),
+                    nodes:   route_retry_18r(),
+                }]
+                .into(),
             ]
             .into_iter()
             .flatten()

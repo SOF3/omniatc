@@ -49,13 +49,21 @@ pub struct Runway {
     pub display_start: Position<Vec3>,
     /// Ending point of the rendered runway.
     pub display_end:   Position<Vec3>,
-    /// The displayed width for the runway.
-    pub display_width: Distance<f32>,
+
+    /// The usable width for the runway.
+    pub width: Distance<f32>,
 
     /// Standard angle of depression for the glide path.
     ///
     /// Always positive.
-    pub glide_angle: Angle<f32>,
+    pub glide_descent: Angle<f32>,
+}
+
+/// Runway conditions due to environmental factors.
+#[derive(Component, Clone)]
+pub struct Condition {
+    /// A multiplier to the base braking rate of an object.
+    pub friction_factor: f32,
 }
 
 pub struct SpawnCommand {
@@ -71,7 +79,7 @@ impl EntityCommand for SpawnCommand {
             waypoint::SpawnCommand { waypoint: self.waypoint }.apply(world.entity_mut(entity_id));
         });
 
-        entity.insert(self.runway);
+        entity.insert((self.runway, Condition { friction_factor: 1. }));
         entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }
@@ -105,7 +113,7 @@ fn maintain_localizer_waypoint_system(
         |(waypoint_entity, mut waypoint, &LocalizerWaypoint { runway_ref })| {
             let (
                 &Waypoint { position: runway_position, .. },
-                &Runway { landing_length, glide_angle, .. },
+                &Runway { landing_length, glide_descent: glide_angle, .. },
                 navaids,
             ) = try_log_return!(
                 runway_query.get(runway_ref),

@@ -64,9 +64,9 @@ impl Plugin for Plug {
 
 #[derive(Resource)]
 pub struct Conf {
-    /// The preiod at which vortex entities are spawned.
+    /// The period at which vortex entities are spawned.
     pub spawn_period:  Duration,
-    /// The preiod at which vortex entities are spawned.
+    /// The period at which vortex entities are spawned.
     pub detect_period: Duration,
     /// Vertical rate (negative sink rate) for vortex entities.
     pub vert_rate:     Speed<f32>,

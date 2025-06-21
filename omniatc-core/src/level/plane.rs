@@ -1,5 +1,10 @@
 //! A flying object with forward thrust and takes off/lands on a runway.
 //! All plane entities are object entities.
+//!
+//! Plane components have no effect when the object is on ground.
+//!
+//! [`SpawnCommand`] does not require inserting [`nav::VelocityTarget`] in advance,
+//! but presence of a `VelocityTarget` allows a plane to be controlled by this plugin.
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
@@ -7,9 +12,8 @@ use bevy::math::Quat;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 
-use super::nav::{self, VelocityTarget, YawTarget};
 use super::object::Object;
-use super::{navaid, object, SystemSets};
+use super::{nav, object, SystemSets};
 use crate::units::{Accel, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection};
 
 pub struct Plug;
@@ -42,10 +46,6 @@ impl Control {
     }
 }
 
-/// Structural limitations of a plane.
-#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Limits {}
-
 pub struct SpawnCommand {
     pub control: Option<Control>,
     pub limits:  nav::Limits,
@@ -53,19 +53,6 @@ pub struct SpawnCommand {
 
 impl EntityCommand for SpawnCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(airborne) = entity.get::<object::Airborne>() {
-            let horiz_speed = airborne.airspeed.magnitude_exact();
-
-            let dt_target = VelocityTarget {
-                yaw: YawTarget::Heading(airborne.airspeed.horizontal().heading()),
-                horiz_speed,
-                vert_rate: Speed::ZERO,
-                expedite: false,
-            };
-
-            entity.insert(dt_target);
-        }
-
         let control = if let Some(control) = self.control {
             control
         } else {
@@ -92,7 +79,7 @@ pub struct SpawnEvent(pub Entity);
 fn apply_forces_system(
     time: Res<Time<time::Virtual>>,
     mut plane_query: Query<(
-        &mut VelocityTarget,
+        &mut nav::VelocityTarget,
         &mut Control,
         &nav::Limits,
         &mut object::Airborne,
@@ -112,7 +99,7 @@ fn apply_forces_system(
 
 fn maintain_yaw(
     time: &Time<time::Virtual>,
-    target: &mut VelocityTarget,
+    target: &mut nav::VelocityTarget,
     control: &mut Control,
     limits: &nav::Limits,
     airborne: &object::Airborne,
@@ -122,7 +109,7 @@ fn maintain_yaw(
     let mut set_yaw_target = None;
 
     let desired_yaw_speed = match target.yaw {
-        YawTarget::Heading(target_heading) => {
+        nav::YawTarget::Heading(target_heading) => {
             let dir = current_yaw.closer_direction_to(target_heading);
 
             // Test if the target heading is overshot when yaw speed reduces to 0
@@ -142,7 +129,7 @@ fn maintain_yaw(
                 }
             }
         }
-        YawTarget::TurnHeading {
+        nav::YawTarget::TurnHeading {
             heading: target_heading,
             ref mut remaining_crosses,
             direction,
@@ -179,13 +166,13 @@ fn maintain_yaw(
     }
 
     if let Some(target_yaw) = set_yaw_target {
-        target.yaw = YawTarget::Heading(target_yaw);
+        target.yaw = nav::YawTarget::Heading(target_yaw);
     }
 }
 
 fn maintain_accel(
     time: &Time<time::Virtual>,
-    target: &VelocityTarget,
+    target: &nav::VelocityTarget,
     control: &mut Control,
     limits: &nav::Limits,
     airborne: &mut object::Airborne,
@@ -275,7 +262,7 @@ fn maintain_accel(
 
 fn maintain_vert(
     time: &Time<time::Virtual>,
-    target: &VelocityTarget,
+    target: &nav::VelocityTarget,
     limits: &nav::Limits,
     airborne: &mut object::Airborne,
 ) {

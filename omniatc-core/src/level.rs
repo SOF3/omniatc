@@ -18,6 +18,7 @@ pub mod object;
 pub mod plane;
 pub mod route;
 pub mod runway;
+pub mod taxi;
 pub mod wake;
 pub mod waypoint;
 pub mod wind;
@@ -47,6 +48,7 @@ impl Plugin for Plug {
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);
+        app.add_plugins(taxi::Plug);
         app.add_plugins(wake::Plug);
         app.add_plugins(wind::Plug);
     }

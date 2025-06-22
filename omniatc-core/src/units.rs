@@ -349,6 +349,16 @@ macro_rules! decl_units {
                     self.0.y.midpoint(other.0.y),
                 ))
             }
+
+            #[must_use]
+            pub fn rotate_right_angle_counterclockwise(self) -> Self {
+                Self(Vec2::new(-self.0.y, self.0.x))
+            }
+
+            #[must_use]
+            pub fn rotate_right_angle_clockwise(self) -> Self {
+                Self(Vec2::new(self.0.y, -self.0.x))
+            }
         }
 
         impl $ty<Vec3> {
@@ -703,6 +713,10 @@ impl AngularSpeed<f32> {
 
     #[must_use]
     pub fn from_degrees_per_sec(degrees: f32) -> Self { Self(degrees.to_radians()) }
+
+    /// Reciprocal of this value, converting `rad/s` to `s/rad`.
+    #[must_use]
+    pub fn duration_per_radian(self) -> Duration { Duration::from_secs_f32(self.0.recip()) }
 }
 
 impl AngularAccel<f32> {

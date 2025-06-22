@@ -5,21 +5,32 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, nav, object, plane};
+use omniatc::level::{comm, ground, nav, object, plane};
 use omniatc::try_log_return;
 use omniatc::units::{Heading, TurnDirection};
 
 use super::Writer;
 use crate::input;
+use crate::util::heading_to_approx_name;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
     object:           &'static object::Object,
     plane_control:    Option<&'static plane::Control>,
     nav_vel:          Option<&'static nav::VelocityTarget>,
+    ground:           Option<&'static object::OnGround>,
     target_waypoint:  Option<&'static nav::TargetWaypoint>,
     target_alignment: Option<(&'static nav::TargetAlignment, &'static nav::TargetAlignmentStatus)>,
     entity:           Entity,
+}
+
+#[derive(SystemParam)]
+pub struct WriteParams<'w, 's> {
+    waypoint_query: Query<'w, 's, &'static Waypoint>,
+    segment_query:  Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
+    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+    commands:       Commands<'w, 's>,
+    hotkeys:        Res<'w, input::Hotkeys>,
 }
 
 impl Writer for ObjectQuery {
@@ -40,6 +51,15 @@ impl Writer for ObjectQuery {
         if let Some(nav_vel) = this.nav_vel {
             show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
         }
+        if let Some(ground) = this.ground {
+            show_ground(
+                ui,
+                ground,
+                &params.segment_query,
+                &params.endpoint_query,
+                &params.waypoint_query,
+            );
+        }
         if let Some(target) = this.target_waypoint {
             let waypoint = try_log_return!(
                 params.waypoint_query.get(target.waypoint_entity),
@@ -53,13 +73,6 @@ impl Writer for ObjectQuery {
             show_target_alignment(this, ui, &params.waypoint_query, target, target_status);
         }
     }
-}
-
-#[derive(SystemParam)]
-pub struct WriteParams<'w, 's> {
-    waypoint_query: Query<'w, 's, &'static Waypoint>,
-    commands:       Commands<'w, 's>,
-    hotkeys:        Res<'w, input::Hotkeys>,
 }
 
 fn show_yaw_target(
@@ -120,6 +133,51 @@ fn show_yaw_target(
             .into(),
         });
     }
+}
+
+fn show_ground(
+    ui: &mut egui::Ui,
+    ground: &object::OnGround,
+    segment_query: &Query<(&ground::Segment, &ground::SegmentLabel)>,
+    endpoint_query: &Query<&ground::Endpoint>,
+    waypoint_query: &Query<&Waypoint>,
+) {
+    let (segment, label) = try_log_return!(
+        segment_query.get(ground.segment),
+        expect "object::OnGround must reference valid segment {:?}",
+        ground.segment,
+    );
+
+    let (from_endpoint, to_endpoint) = match ground.direction {
+        ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
+        ground::SegmentDirection::BetaToAlpha => (segment.beta, segment.alpha),
+    };
+    let [from_endpoint, to_endpoint] = try_log_return!(
+        endpoint_query.get_many([from_endpoint, to_endpoint]),
+        expect "ground::Segment must reference valid endpoints {from_endpoint:?}, {to_endpoint:?}"
+    );
+
+    ui.label(format!(
+        "{}bound through {}",
+        heading_to_approx_name((to_endpoint.position - from_endpoint.position).heading()),
+        match label {
+            &ground::SegmentLabel::RunwayPair([forward, backward]) => {
+                let forward_name = &try_log_return!(
+                    waypoint_query.get(forward),
+                    expect "RunwayPair must reference valid waypoint {forward:?}"
+                )
+                .name;
+                let backward_name = &try_log_return!(
+                    waypoint_query.get(backward),
+                    expect "RunwayPair must reference valid waypoint {backward:?}"
+                )
+                .name;
+                format!("runway {forward_name}/{backward_name}")
+            }
+            ground::SegmentLabel::Taxiway { name } => format!("taxiway {name}"),
+            ground::SegmentLabel::Apron { name } => format!("apron {name}"),
+        },
+    ));
 }
 
 fn show_target_alignment(

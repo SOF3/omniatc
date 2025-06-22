@@ -17,7 +17,7 @@ use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
-use crate::units::{Distance, Position, Speed};
+use crate::units::{Distance, Heading, Position, Speed};
 use crate::{try_log, try_log_return};
 
 mod dest;
@@ -135,8 +135,10 @@ impl EntityCommand for SetAirborneCommand {
 
 #[derive(Component)]
 pub struct OnGround {
-    pub segment:   Entity,
-    pub direction: ground::SegmentDirection,
+    pub heading:      Heading,
+    pub segment:      Entity,
+    pub direction:    ground::SegmentDirection,
+    pub target_speed: Speed<f32>,
 }
 
 /// Sets an entity from airborne to ground.
@@ -151,9 +153,15 @@ impl EntityCommand for SetOnGroundCommand {
         // must not descend anymore since we have hit the ground.
         object.ground_speed = object.ground_speed.horizontal().horizontally();
 
-        entity
-            .remove::<(Airborne, nav::VelocityTarget)>()
-            .insert(OnGround { segment: self.segment, direction: self.direction });
+        let &Airborne { true_airspeed, .. } = try_log_return!(entity.get::<Airborne>(), expect "SetOnGroundCommand must be used on airborne objects");
+        let heading = true_airspeed.horizontal().heading();
+
+        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert(OnGround {
+            segment: self.segment,
+            direction: self.direction,
+            heading,
+            target_speed: Speed::ZERO,
+        });
     }
 }
 

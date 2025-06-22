@@ -1,4 +1,3 @@
-
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, SystemParam};
 use bevy_egui::egui;

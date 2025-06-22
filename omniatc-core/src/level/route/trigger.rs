@@ -3,17 +3,15 @@ use std::time::Duration;
 
 use bevy::ecs::event::EventReader;
 use bevy::math::Vec2;
-use bevy::prelude::{
-    Commands, Component, Entity, Query, Res,
-};
+use bevy::prelude::{Commands, Component, Entity, Query, Res};
 use bevy::time::{self, Time};
 
 use super::{HorizontalTarget, NextNode, RunCurrentNode};
 use crate::level::object::Object;
 use crate::level::waypoint::Waypoint;
 use crate::level::{nav, navaid};
-use crate::units::{Distance, Position};
 use crate::try_log_return;
+use crate::units::{Distance, Position};
 
 #[derive(Component)]
 pub(super) struct FlyOverTrigger {

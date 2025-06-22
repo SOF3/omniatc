@@ -1,4 +1,3 @@
-
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;

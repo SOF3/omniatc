@@ -193,6 +193,14 @@ impl Heading {
     /// Returns the opposite direction of this heading.
     #[must_use]
     pub fn opposite(self) -> Self { self + Angle::STRAIGHT }
+
+    /// Turns towards the desired heading, but does not exceed the maximum turn angle.
+    ///
+    /// `max_turn` must be non-negative.
+    #[must_use]
+    pub fn restricted_turn(self, desired: Heading, max_turn: Angle<f32>) -> Self {
+        self + self.closest_distance(desired).clamp(-max_turn, max_turn)
+    }
 }
 
 impl fmt::Debug for Heading {

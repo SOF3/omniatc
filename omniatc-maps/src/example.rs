@@ -1,12 +1,20 @@
 use bevy::math::Vec2;
-use omniatc::level::nav;
 use omniatc::level::route::WaypointProximity;
+use omniatc::level::{nav, taxi};
 use omniatc::store;
 use omniatc::units::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
 };
 
-pub fn default_plane_limits() -> nav::Limits {
+pub fn default_plane_taxi_limits() -> taxi::Limits {
+    taxi::Limits {
+        base_braking: Accel::from_knots_per_sec(3.0),
+        accel:        Accel::from_knots_per_sec(5.0),
+        turn_rate:    AngularSpeed::from_degrees_per_sec(8.0),
+    }
+}
+
+pub fn default_plane_nav_limits() -> nav::Limits {
     nav::Limits {
         min_horiz_speed:   Speed::from_knots(120.),
         max_yaw_speed:     AngularSpeed::from_degrees_per_sec(3.),
@@ -38,7 +46,6 @@ pub fn default_plane_limits() -> nav::Limits {
         },
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
         drag_coef:         3. / 500. / 500.,
-        base_braking:      Accel::from_knots_per_sec(3.0),
         max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
         short_final_dist:  Distance::from_nm(4.),
         short_final_speed: Speed::from_knots(150.),
@@ -611,7 +618,7 @@ pub fn file() -> store::File {
             .collect(),
             objects:       [
                 store::Object::Plane(store::Plane {
-                    aircraft:   store::BaseAircraft {
+                    aircraft:    store::BaseAircraft {
                         name:         "ABC123".into(),
                         dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
                         position:     Position::from_origin_nm(2., -14.),
@@ -622,13 +629,14 @@ pub fn file() -> store::File {
                         weight:       1e5,
                         wingspan:     Distance::from_meters(50.),
                     },
-                    control:    store::PlaneControl {
+                    control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
                         yaw_speed:   AngularSpeed::ZERO,
                         horiz_accel: Accel::ZERO,
                     },
-                    limits:     default_plane_limits(),
-                    nav_target: store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                    taxi_limits: default_plane_taxi_limits(),
+                    nav_limits:  default_plane_nav_limits(),
+                    nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                         yaw:              nav::YawTarget::Heading(Heading::from_degrees(80.)),
                         horiz_speed:      Speed::from_knots(280.),
                         vert_rate:        Speed::from_fpm(0.),
@@ -638,13 +646,13 @@ pub fn file() -> store::File {
                         target_waypoint:  None,
                         target_alignment: None,
                     })),
-                    route:      store::Route {
+                    route:       store::Route {
                         id:    Some("DWIND18L".into()),
                         nodes: route_dwind_18l(),
                     },
                 }),
                 store::Object::Plane(store::Plane {
-                    aircraft:   store::BaseAircraft {
+                    aircraft:    store::BaseAircraft {
                         name:         "DEF789".into(),
                         dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
                         position:     Position::from_origin_nm(2., -18.),
@@ -655,13 +663,14 @@ pub fn file() -> store::File {
                         weight:       1e5,
                         wingspan:     Distance::from_meters(50.),
                     },
-                    control:    store::PlaneControl {
+                    control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
                         yaw_speed:   AngularSpeed::ZERO,
                         horiz_accel: Accel::ZERO,
                     },
-                    limits:     default_plane_limits(),
-                    nav_target: store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                    taxi_limits: default_plane_taxi_limits(),
+                    nav_limits:  default_plane_nav_limits(),
+                    nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                         yaw:              nav::YawTarget::Heading(Heading::from_degrees(80.)),
                         horiz_speed:      Speed::from_knots(280.),
                         vert_rate:        Speed::from_fpm(0.),
@@ -671,13 +680,13 @@ pub fn file() -> store::File {
                         target_waypoint:  None,
                         target_alignment: None,
                     })),
-                    route:      store::Route {
+                    route:       store::Route {
                         id:    Some("DWIND18L".into()),
                         nodes: route_dwind_18l(),
                     },
                 }),
                 store::Object::Plane(store::Plane {
-                    aircraft:   store::BaseAircraft {
+                    aircraft:    store::BaseAircraft {
                         name:         "ARC512".into(),
                         dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
                         position:     Position::from_origin_nm(8., 28.),
@@ -688,13 +697,14 @@ pub fn file() -> store::File {
                         weight:       1e5,
                         wingspan:     Distance::from_meters(50.),
                     },
-                    control:    store::PlaneControl {
+                    control:     store::PlaneControl {
                         heading:     Heading::from_degrees(200.),
                         yaw_speed:   AngularSpeed::ZERO,
                         horiz_accel: Accel::ZERO,
                     },
-                    limits:     default_plane_limits(),
-                    nav_target: store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                    taxi_limits: default_plane_taxi_limits(),
+                    nav_limits:  default_plane_nav_limits(),
+                    nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                         yaw:              nav::YawTarget::Heading(Heading::from_degrees(80.)),
                         horiz_speed:      Speed::from_knots(220.),
                         vert_rate:        Speed::from_fpm(0.),
@@ -704,13 +714,13 @@ pub fn file() -> store::File {
                         target_waypoint:  None,
                         target_alignment: None,
                     })),
-                    route:      store::Route {
+                    route:       store::Route {
                         id:    Some("POLAR18L".into()),
                         nodes: route_polar_18l(),
                     },
                 }),
                 store::Object::Plane(store::Plane {
-                    aircraft:   store::BaseAircraft {
+                    aircraft:    store::BaseAircraft {
                         name:         "ADE127".into(),
                         weight:       1e5,
                         wingspan:     Distance::from_meters(50.),
@@ -727,13 +737,14 @@ pub fn file() -> store::File {
                         ground_dir:   Heading::EAST,
                         vert_rate:    Speed::ZERO,
                     },
-                    control:    store::PlaneControl {
+                    control:     store::PlaneControl {
                         heading:     Heading::EAST,
-                        yaw_speed:   default_plane_limits().max_yaw_speed,
+                        yaw_speed:   default_plane_nav_limits().max_yaw_speed,
                         horiz_accel: Accel::ZERO,
                     },
-                    limits:     default_plane_limits(),
-                    nav_target: store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
+                    taxi_limits: default_plane_taxi_limits(),
+                    nav_limits:  default_plane_nav_limits(),
+                    nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                         yaw:              nav::YawTarget::Heading(Heading::NORTH),
                         horiz_speed:      Speed::from_knots(250.),
                         vert_rate:        Speed::from_fpm(1000.),
@@ -748,7 +759,7 @@ pub fn file() -> store::File {
                         }),
                         target_alignment: None,
                     })),
-                    route:      store::Route { id: None, nodes: [].into() },
+                    route:       store::Route { id: None, nodes: [].into() },
                 }),
             ]
             .into(),

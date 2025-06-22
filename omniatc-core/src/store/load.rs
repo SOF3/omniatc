@@ -633,7 +633,12 @@ fn spawn_route_presets(
     waypoints: &WaypointMap,
     presets: &[store::RoutePreset],
 ) -> Result<RoutePresetMap, Error> {
-    let route_preset_entities: Vec<_> = presets.iter().map(|_| world.spawn_empty().id()).collect();
+    let route_preset_entities: Vec<_> = presets
+        .iter()
+        .map(|preset| {
+            world.spawn((store::LoadedEntity, Name::new(format!("Preset: {}", preset.id)))).id()
+        })
+        .collect();
     let route_preset_map = RoutePresetMap(
         presets
             .iter()
@@ -716,13 +721,15 @@ fn spawn_plane(
     }
     .apply(world.entity_mut(plane_entity));
 
+    world.entity_mut(plane_entity).insert(plane.taxi_limits.clone());
+
     plane::SpawnCommand {
         control: Some(plane::Control {
             heading:     plane.control.heading,
             yaw_speed:   plane.control.yaw_speed,
             horiz_accel: plane.control.horiz_accel,
         }),
-        limits:  plane.limits.clone(),
+        limits:  plane.nav_limits.clone(),
     }
     .apply(world.entity_mut(plane_entity));
 

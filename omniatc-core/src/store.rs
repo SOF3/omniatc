@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use bevy::app::{App, Plugin};
+use bevy::ecs::component::Component;
 use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
-use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
 
-use crate::level::nav;
 use crate::level::route::WaypointProximity;
+use crate::level::{nav, taxi};
 use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
 pub mod load;
@@ -314,11 +314,12 @@ pub enum Object {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Plane {
-    pub aircraft:   BaseAircraft,
-    pub control:    PlaneControl,
-    pub limits:     nav::Limits,
-    pub nav_target: NavTarget,
-    pub route:      Route,
+    pub aircraft:    BaseAircraft,
+    pub control:     PlaneControl,
+    pub taxi_limits: taxi::Limits,
+    pub nav_limits:  nav::Limits,
+    pub nav_target:  NavTarget,
+    pub route:       Route,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -94,9 +94,6 @@ pub struct Limits {
     /// Simple formula to derive a reasonable drag coefficient:
     /// `level.accel / (max cruise speed in kt)^2`.
     pub drag_coef:         f32,
-    /// Braking deceleration under optimal conditions.
-    /// Always positive.
-    pub base_braking:      Accel<f32>,
 
     // Z axis rotation limits.
     /// Max absolute rate of change of yaw speed.
@@ -532,3 +529,15 @@ fn alignment_control_system(
         },
     );
 }
+
+/// A bundle of all [`VelocityTarget`]-controlling components,
+/// used as the type parameter to `EntityWorldMut::remove`.
+pub type AllTargets = (
+    TargetAltitude,
+    TargetGlide,
+    TargetGlideStatus,
+    TargetGroundDirection,
+    TargetWaypoint,
+    TargetAlignment,
+    TargetAlignmentStatus,
+);

@@ -12,7 +12,7 @@ use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
 
-use super::{ground, message, nav, wind, Config, SystemSets};
+use super::{ground, message, nav, taxi, wind, Config, SystemSets};
 use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
@@ -135,9 +135,27 @@ impl EntityCommand for SetAirborneCommand {
 
 #[derive(Component)]
 pub struct OnGround {
+    /// Current heading of the object.
+    ///
+    /// This field is assigned by the taxi plugin during the Aviate phase.
     pub heading:      Heading,
+    /// Current segment the object is on.
+    ///
+    /// This field is updated by the taxi plugin during the Navigate phase.
     pub segment:      Entity,
+    /// Direction of motion on the segment.
+    ///
+    /// When `target_speed` is negative, this is the direction that the object is reversing *towards*.
+    /// For example, `AlphaToBeta` with a negative target speed means that
+    /// the object is facing alpha and reversing towards beta.
     pub direction:    ground::SegmentDirection,
+    /// Target speed to move.
+    ///
+    /// A negative value indicates that the object should reverse.
+    ///
+    /// This field is assigned by the taxi plugin during the Navigate phase.
+    /// The Aviate phase updates [`Object::ground_speed`] to attain this target speed subject to
+    /// taxi limits.
     pub target_speed: Speed<f32>,
 }
 
@@ -156,12 +174,12 @@ impl EntityCommand for SetOnGroundCommand {
         let &Airborne { true_airspeed, .. } = try_log_return!(entity.get::<Airborne>(), expect "SetOnGroundCommand must be used on airborne objects");
         let heading = true_airspeed.horizontal().heading();
 
-        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert(OnGround {
+        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {
             segment: self.segment,
             direction: self.direction,
             heading,
             target_speed: Speed::ZERO,
-        });
+        },));
     }
 }
 

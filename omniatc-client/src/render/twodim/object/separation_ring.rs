@@ -36,11 +36,7 @@ impl Plugin for Plug {
                 .in_set(render::SystemSets::Update)
                 .after_all::<SetColorThemeSystemSet>(),
         );
-        app.add_systems(
-            app::Update,
-            maintain_visible_system
-                .in_set(render::SystemSets::Update),
-        );
+        app.add_systems(app::Update, maintain_visible_system.in_set(render::SystemSets::Update));
     }
 }
 

@@ -10,7 +10,11 @@ pub fn default_plane_taxi_limits() -> taxi::Limits {
     taxi::Limits {
         base_braking: Accel::from_knots_per_sec(3.0),
         accel:        Accel::from_knots_per_sec(5.0),
+        max_speed:    Speed::from_knots(100.0),
+        min_speed:    Speed::from_knots(-4.0),
         turn_rate:    AngularSpeed::from_degrees_per_sec(8.0),
+        width:        Distance::from_meters(60.0),
+        half_length:  Distance::from_meters(70.0),
     }
 }
 
@@ -271,7 +275,7 @@ pub fn file() -> store::File {
                 full_name:      "Main Airport".into(),
                 elevation:      Position::from_amsl_feet(300.),
                 ground_network: store::GroundNetwork {
-                    taxiways: [
+                    taxiways:    [
                         store::Taxiway {
                             name:      "A".into(),
                             endpoints: [
@@ -404,7 +408,7 @@ pub fn file() -> store::File {
                         },
                     ]
                     .into(),
-                    aprons:   [
+                    aprons:      [
                         ('N', Heading::NORTH, Distance::from_meters(-800.)),
                         ('S', Heading::SOUTH, Distance::from_meters(-1200.)),
                         ('N', Heading::NORTH, Distance::from_meters(-1800.)),
@@ -431,10 +435,12 @@ pub fn file() -> store::File {
                             })
                     })
                     .collect(),
+                    taxi_speed:  Speed::from_knots(25.0),
+                    apron_speed: Speed::from_meter_per_sec(5.0),
                 },
                 runways:        [
                     store::RunwayPair {
-                        width:          Distance::from_feet(60.),
+                        width:          Distance::from_feet(100.),
                         forward_start:  Position::from_origin_nm(0., 0.),
                         forward:        store::Runway {
                             name:                   "18R".into(),
@@ -472,7 +478,7 @@ pub fn file() -> store::File {
                         },
                     },
                     store::RunwayPair {
-                        width:          Distance::from_feet(60.),
+                        width:          Distance::from_feet(100.),
                         forward_start:  Position::from_origin_nm(1., 0.),
                         forward:        store::Runway {
                             name:                   "18L".into(),

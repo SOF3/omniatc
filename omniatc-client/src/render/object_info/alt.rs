@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::QueryData;
@@ -13,6 +11,7 @@ use omniatc::units::Position;
 
 use super::Writer;
 use crate::input;
+use crate::util::new_type_id;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -130,22 +129,15 @@ fn display_glide(
         ));
     }
 
-    {
-        struct Indent;
-
-        ui.indent(TypeId::of::<Indent>(), |ui| {
-            ui.label(format!(
-                "Target pitch: {:.1}\u{b0}",
-                glide_status.current_pitch.into_degrees()
-            ));
-            ui.label(format!(
-                "Vertical deviation: {:+.0} ft",
-                glide_status.altitude_deviation.into_feet()
-            ));
-            ui.label(format!(
-                "Horizontal distance to glidepath: {:+.1} nm",
-                glide_status.glidepath_distance.into_nm()
-            ));
-        });
-    }
+    ui.indent(new_type_id!(), |ui| {
+        ui.label(format!("Target pitch: {:.1}\u{b0}", glide_status.current_pitch.into_degrees()));
+        ui.label(format!(
+            "Vertical deviation: {:+.0} ft",
+            glide_status.altitude_deviation.into_feet()
+        ));
+        ui.label(format!(
+            "Horizontal distance to glidepath: {:+.1} nm",
+            glide_status.glidepath_distance.into_nm()
+        ));
+    });
 }

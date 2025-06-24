@@ -16,15 +16,11 @@ use crate::units::{Distance, Position, Speed};
 pub struct StandbyNode;
 
 impl NodeKind for StandbyNode {
-    fn run_as_current_node(self, _: &mut World, _: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, _: &mut World, _: Entity) -> RunNodeResult {
         RunNodeResult::PendingTrigger
     }
 
-    fn configures_heading(self, _: &World) -> Option<HorizontalTarget> { None }
-
-    fn desired_altitude(self, _: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
-
-    fn configures_position(self, _: &World) -> Option<Position<Vec2>> { None }
+    fn desired_altitude(&self, _: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }
 
 /// Head towards a waypoint.
@@ -45,10 +41,13 @@ pub struct DirectWaypointNode {
 }
 
 impl NodeKind for DirectWaypointNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let Self { waypoint, distance, .. } = self;
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
+        let Self { waypoint, distance, .. } = *self;
 
-        world.entity_mut(entity).insert(nav::TargetWaypoint { waypoint_entity: waypoint });
+        world
+            .entity_mut(entity)
+            .remove::<(nav::TargetAlignment, nav::TargetAlignmentStatus)>()
+            .insert(nav::TargetWaypoint { waypoint_entity: waypoint });
 
         match self.proximity {
             WaypointProximity::FlyOver => {
@@ -72,11 +71,11 @@ impl NodeKind for DirectWaypointNode {
         }
     }
 
-    fn configures_heading(self, _world: &World) -> Option<HorizontalTarget> {
+    fn configures_heading(&self, _world: &World) -> Option<HorizontalTarget> {
         Some(HorizontalTarget::Waypoint(self.waypoint))
     }
 
-    fn desired_altitude(self, world: &World) -> DesiredAltitude {
+    fn desired_altitude(&self, world: &World) -> DesiredAltitude {
         match self.altitude {
             Some(altitude) => {
                 if let Some(waypoint) = world.entity(self.waypoint).get::<Waypoint>() {
@@ -93,7 +92,7 @@ impl NodeKind for DirectWaypointNode {
         }
     }
 
-    fn configures_position(self, world: &World) -> Option<Position<Vec2>> {
+    fn configures_position(&self, world: &World) -> Option<Position<Vec2>> {
         world.get::<Waypoint>(self.waypoint).map(|waypoint| waypoint.position.horizontal())
     }
 }
@@ -113,7 +112,7 @@ pub struct SetAirspeedNode {
 }
 
 impl NodeKind for SetAirspeedNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
         if let Some(mut airborne) = world.entity_mut(entity).get_mut::<nav::VelocityTarget>() {
             airborne.horiz_speed = self.speed;
             // TODO: what about ground objects?
@@ -136,7 +135,7 @@ impl NodeKind for SetAirspeedNode {
         }
     }
 
-    fn configures_airspeed(self, _world: &World) -> Option<Speed<f32>> { Some(self.speed) }
+    fn configures_airspeed(&self, _world: &World) -> Option<Speed<f32>> { Some(self.speed) }
 }
 
 /// Start pitching to reach the given altitude.
@@ -153,7 +152,7 @@ pub struct StartSetAltitudeNode {
 }
 
 impl NodeKind for StartSetAltitudeNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
         let mut entity_ref = world.entity_mut(entity);
         let current_altitude =
             entity_ref.get::<Object>().expect("entity must be an Object").position.altitude();
@@ -168,5 +167,5 @@ impl NodeKind for StartSetAltitudeNode {
         }
     }
 
-    fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
+    fn desired_altitude(&self, _world: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }

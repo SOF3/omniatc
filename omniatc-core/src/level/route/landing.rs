@@ -88,7 +88,7 @@ pub struct AlignRunwayNode {
 }
 
 impl NodeKind for AlignRunwayNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
         let &Waypoint { position: runway_position, .. } = try_log!(
             world.get::<Waypoint>(self.runway),
             expect "Runway {:?} must have a corresponding waypoint" (self.runway)
@@ -119,7 +119,7 @@ impl NodeKind for AlignRunwayNode {
         }
     }
 
-    fn configures_heading(self, world: &World) -> Option<HorizontalTarget> {
+    fn configures_heading(&self, world: &World) -> Option<HorizontalTarget> {
         let runway = world.get::<Runway>(self.runway)?;
         Some(HorizontalTarget::Heading(Heading::from_vec2(runway.landing_length.0)))
     }
@@ -145,7 +145,7 @@ pub struct ShortFinalNode {
 }
 
 impl NodeKind for ShortFinalNode {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
         fn classify_navaid(
             runway: Entity,
             navaid: Entity,
@@ -221,7 +221,7 @@ pub struct VisualLandingNode {
 }
 
 impl NodeKind for VisualLandingNode {
-    fn run_as_current_node(self, world: &mut World, object_id: Entity) -> RunNodeResult {
+    fn run_as_current_node(&self, world: &mut World, object_id: Entity) -> RunNodeResult {
         let mut object = world.entity_mut(object_id);
 
         let exception =

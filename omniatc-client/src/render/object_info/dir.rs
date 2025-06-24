@@ -1,17 +1,15 @@
-use std::any::TypeId;
-
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, ground, nav, object, plane};
-use omniatc::try_log_return;
 use omniatc::units::{Heading, TurnDirection};
+use omniatc::{try_log, try_log_return};
 
 use super::Writer;
 use crate::input;
-use crate::util::heading_to_approx_name;
+use crate::util::{heading_to_approx_name, new_type_id};
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -160,23 +158,7 @@ fn show_ground(
     ui.label(format!(
         "{}bound through {}",
         heading_to_approx_name((to_endpoint.position - from_endpoint.position).heading()),
-        match label {
-            &ground::SegmentLabel::RunwayPair([forward, backward]) => {
-                let forward_name = &try_log_return!(
-                    waypoint_query.get(forward),
-                    expect "RunwayPair must reference valid waypoint {forward:?}"
-                )
-                .name;
-                let backward_name = &try_log_return!(
-                    waypoint_query.get(backward),
-                    expect "RunwayPair must reference valid waypoint {backward:?}"
-                )
-                .name;
-                format!("runway {forward_name}/{backward_name}")
-            }
-            ground::SegmentLabel::Taxiway { name } => format!("taxiway {name}"),
-            ground::SegmentLabel::Apron { name } => format!("apron {name}"),
-        },
+        display_segment_label(label, waypoint_query),
     ));
 }
 
@@ -206,50 +188,72 @@ fn show_target_alignment(
         end_distance.into_nm(),
     ));
 
-    {
-        struct Indent;
-
-        ui.indent(TypeId::of::<Indent>(), |ui| match target_status.activation {
-            nav::TargetAlignmentActivationStatus::Uninit => {}
-            nav::TargetAlignmentActivationStatus::PurePursuit(_) => {
+    ui.indent(new_type_id!(), |ui| match target_status.activation {
+        nav::TargetAlignmentActivationStatus::Uninit => {}
+        nav::TargetAlignmentActivationStatus::PurePursuit(_) => {
+            ui.label(format!(
+                "Angular deviation: {:+.1}\u{b0} ({:.0}m)",
+                target_status.angular_deviation.into_degrees(),
+                target_status.orthogonal_deviation.into_meters().abs(),
+            ));
+        }
+        nav::TargetAlignmentActivationStatus::Unactivated => {
+            ui.label(format!(
+                "Angular deviation: {:+.1}\u{b0}",
+                target_status.angular_deviation.into_degrees(),
+            ));
+            ui.label(format!(
+                "Orthogonal deviation: {:.1} nm (> {:.1} nm)",
+                target_status.orthogonal_deviation.into_nm(),
+                target.activation_range.into_nm(),
+            ));
+        }
+        nav::TargetAlignmentActivationStatus::BeyondLookahead {
+            intersect_time,
+            projected_dist,
+        } => {
+            let dist_to_start = projected_dist
+                - target.activation_range
+                - start_waypoint.position.horizontal_distance_exact(end_waypoint.position);
+            if dist_to_start.is_positive() {
+                let time_to_start =
+                    dist_to_start / this.object.ground_speed.horizontal().magnitude_exact();
                 ui.label(format!(
-                    "Angular deviation: {:+.1}\u{b0}",
-                    target_status.angular_deviation.into_degrees(),
+                    "Entering segment projected range in {:.1}s",
+                    time_to_start.as_secs_f32(),
                 ));
-            }
-            nav::TargetAlignmentActivationStatus::Unactivated => {
-                ui.label(format!(
-                    "Angular deviation: {:+.1}\u{b0}",
-                    target_status.angular_deviation.into_degrees(),
-                ));
-                ui.label(format!(
-                    "Orthogonal deviation: {:.1} nm (> {:.1} nm)",
-                    target_status.orthogonal_deviation.into_nm(),
-                    target.activation_range.into_nm(),
-                ));
-            }
-            nav::TargetAlignmentActivationStatus::BeyondLookahead {
-                intersect_time,
-                projected_dist,
-            } => {
-                let dist_to_start = projected_dist
-                    - target.activation_range
-                    - start_waypoint.position.horizontal_distance_exact(end_waypoint.position);
-                if dist_to_start.is_positive() {
-                    let time_to_start =
-                        dist_to_start / this.object.ground_speed.horizontal().magnitude_exact();
-                    ui.label(format!(
-                        "Entering segment projected range in {:.1}s",
-                        time_to_start.as_secs_f32(),
-                    ));
+            } else {
+                if let Some(intersect_time) = intersect_time {
+                    ui.label(format!("Converging in {:.1}s", intersect_time.as_secs_f32()));
                 } else {
-                    if let Some(intersect_time) = intersect_time {
-                        ui.label(format!("Converging in {:.1}s", intersect_time.as_secs_f32()));
-                    } else {
-                        ui.label("Diverging from target and beyond alignment activation range");
-                    }
+                    ui.label("Diverging from target and beyond alignment activation range");
                 }
             }
-        });
+        }
+    });
+}
+
+pub(super) fn display_segment_label(
+    label: &ground::SegmentLabel,
+    waypoint_query: &Query<&Waypoint>,
+) -> String {
+    match label {
+        &ground::SegmentLabel::RunwayPair([forward, backward]) => {
+            let forward_name = &try_log!(
+                waypoint_query.get(forward),
+                expect "RunwayPair must reference valid waypoint {forward:?}"
+                or return String::new()
+            )
+            .name;
+            let backward_name = &try_log!(
+                waypoint_query.get(backward),
+                expect "RunwayPair must reference valid waypoint {backward:?}"
+                or return String::new()
+            )
+            .name;
+            format!("runway {forward_name}/{backward_name}")
+        }
+        ground::SegmentLabel::Taxiway { name } => format!("taxiway {name}"),
+        ground::SegmentLabel::Apron { name } => format!("apron {name}"),
     }
 }

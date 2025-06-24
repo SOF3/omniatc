@@ -4,7 +4,7 @@ use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, Name};
 use smallvec::SmallVec;
 
-use crate::units::{Distance, Position};
+use crate::units::{Distance, Position, Speed};
 
 pub struct Plug;
 
@@ -70,6 +70,7 @@ pub struct Segment {
     /// An [`Endpoint`] entity.
     pub beta:      Entity,
     pub width:     Distance<f32>,
+    pub max_speed: Speed<f32>,
     pub elevation: Position<f32>,
 }
 
@@ -85,6 +86,36 @@ impl Segment {
             Some(self.alpha)
         } else {
             None
+        }
+    }
+
+    #[must_use]
+    pub fn direction_from(&self, from: Entity) -> Option<SegmentDirection> {
+        if self.alpha == from {
+            Some(SegmentDirection::AlphaToBeta)
+        } else if self.beta == from {
+            Some(SegmentDirection::BetaToAlpha)
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn direction_to(&self, to: Entity) -> Option<SegmentDirection> {
+        if self.alpha == to {
+            Some(SegmentDirection::BetaToAlpha)
+        } else if self.beta == to {
+            Some(SegmentDirection::AlphaToBeta)
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn by_direction(&self, direction: SegmentDirection) -> (Entity, Entity) {
+        match direction {
+            SegmentDirection::AlphaToBeta => (self.alpha, self.beta),
+            SegmentDirection::BetaToAlpha => (self.beta, self.alpha),
         }
     }
 
@@ -124,6 +155,27 @@ pub enum SegmentLabel {
     /// The segment is the path leading into an apron.
     Apron { name: String },
 }
+
+impl PartialEq for SegmentLabel {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (&SegmentLabel::RunwayPair(self_rwy), &SegmentLabel::RunwayPair(other_rwy)) => {
+                self_rwy == other_rwy || self_rwy == [other_rwy[1], other_rwy[0]]
+            }
+            (
+                SegmentLabel::Taxiway { name: self_twy },
+                SegmentLabel::Taxiway { name: other_twy },
+            ) => self_twy == other_twy,
+            (
+                SegmentLabel::Apron { name: self_apron },
+                SegmentLabel::Apron { name: other_apron },
+            ) => self_apron == other_apron,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for SegmentLabel {}
 
 /// The intersection between segments.
 #[derive(Component)]

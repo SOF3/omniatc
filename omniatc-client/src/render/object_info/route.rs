@@ -1,18 +1,18 @@
-use std::any::TypeId;
-
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
+use itertools::Itertools;
 use omniatc::level::aerodrome::Aerodrome;
-use omniatc::level::nav;
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
+use omniatc::level::{ground, nav};
 use omniatc::{try_log, try_log_return};
 
-use super::Writer;
+use super::{dir, Writer};
 use crate::input;
+use crate::util::new_type_id;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -175,8 +175,7 @@ fn write_route_node(
             };
 
             if let Some(altitude) = node.altitude {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Pass at altitude {:.0} ft", altitude.amsl().into_feet()));
                 });
             }
@@ -184,8 +183,7 @@ fn write_route_node(
         route::Node::SetAirSpeed(node) => {
             ui.label(format!("Set speed to {:.0} kt", node.speed.into_knots()));
             if let Some(error) = node.error {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Maintain until \u{b1}{:.0} kt", error.into_knots()));
                 });
             }
@@ -197,8 +195,7 @@ fn write_route_node(
                 node.altitude.amsl().into_feet()
             ));
             if let Some(error) = node.error {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Maintain until \u{b1}{:.0} ft", error.into_feet()));
                 });
             }
@@ -221,5 +218,21 @@ fn write_route_node(
                 &waypoint.name, &aerodrome.name
             ));
         }
+        route::Node::Taxi(node) => match node.step {
+            route::TaxiStep::Taxi(ref labels) => {
+                let label_strs = labels
+                    .iter()
+                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
+                    .join(" or ");
+                ui.label(format!("Taxi through {label_strs}"));
+            }
+            route::TaxiStep::HoldShort(ref labels) => {
+                let label_strs = labels
+                    .iter()
+                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
+                    .join(" or ");
+                ui.label(format!("Hold short at {label_strs}"));
+            }
+        },
     }
 }

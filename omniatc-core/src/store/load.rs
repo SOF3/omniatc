@@ -303,15 +303,16 @@ fn collect_non_apron_ground_lines(
                 .get(&pair.backward.name)
                 .expect("all declared runways have been inserted into `runways`");
             GroundLine {
-                label: ground::SegmentLabel::RunwayPair([
+                label:     ground::SegmentLabel::RunwayPair([
                     forward_runway.runway,
                     backward_runway.runway,
                 ]),
-                width: pair.width,
-                alpha: pair.forward_start
+                width:     pair.width,
+                max_speed: ground_network.taxi_speed,
+                alpha:     pair.forward_start
                     + (pair.forward_start - pair.backward_start)
                         .normalize_to_magnitude(pair.backward.stopway),
-                beta:  pair.backward_start
+                beta:      pair.backward_start
                     + (pair.backward_start - pair.forward_start)
                         .normalize_to_magnitude(pair.forward.stopway),
             }
@@ -320,6 +321,7 @@ fn collect_non_apron_ground_lines(
             taxiway.endpoints.iter().tuple_windows().map(|(&alpha, &beta)| GroundLine {
                 label: ground::SegmentLabel::Taxiway { name: taxiway.name.clone() },
                 width: taxiway.width,
+                max_speed: ground_network.taxi_speed,
                 alpha,
                 beta,
             })
@@ -347,10 +349,11 @@ fn generate_apron_lines(
 
     let non_apron_lines_len = lines.len();
     lines.extend(aprons.iter().map(|(_, apron)| GroundLine {
-        label: ground::SegmentLabel::Apron { name: apron.name.clone() },
-        width: apron.width,
-        alpha: apron.position,
-        beta:  apron.position, // we will update this later
+        label:     ground::SegmentLabel::Apron { name: apron.name.clone() },
+        width:     apron.width,
+        max_speed: ground_network.apron_speed,
+        alpha:     apron.position,
+        beta:      apron.position, // we will update this later
     }));
     let (non_apron_lines, apron_lines) = lines.split_at_mut(non_apron_lines_len);
 
@@ -531,12 +534,13 @@ fn spawn_ground_segments(
         });
 
         let segment_entity = world.spawn_empty().insert(ground::SegmentOf(aerodrome_entity)).id();
-        let &GroundLine { ref label, width, .. } = &lines[segment.line.0];
+        let &GroundLine { ref label, width, max_speed, .. } = &lines[segment.line.0];
         ground::SpawnSegment {
             segment: ground::Segment {
                 alpha: alpha_endpoint,
                 beta: beta_endpoint,
                 width,
+                max_speed,
                 elevation,
             },
             label:   label.clone(),
@@ -548,10 +552,11 @@ fn spawn_ground_segments(
 }
 
 struct GroundLine {
-    label: ground::SegmentLabel,
-    width: Distance<f32>,
-    alpha: Position<Vec2>,
-    beta:  Position<Vec2>,
+    label:     ground::SegmentLabel,
+    width:     Distance<f32>,
+    max_speed: Speed<f32>,
+    alpha:     Position<Vec2>,
+    beta:      Position<Vec2>,
 }
 
 fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<WaypointMap, Error> {
@@ -854,6 +859,12 @@ fn convert_route<'a>(
                         route::ShortFinalNode { runway, goaround_preset }.into(),
                         route::VisualLandingNode { runway, goaround_preset }.into(),
                     ])
+                }
+                store::RouteNode::Taxi { ref options } => {
+                    todo!()
+                }
+                store::RouteNode::HoldShort { ref segment } => {
+                    todo!()
                 }
             })
         })

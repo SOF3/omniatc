@@ -5,6 +5,14 @@ use omniatc::units::{Angle, Heading};
 pub mod billboard;
 pub mod shapes;
 
+macro_rules! new_type_id {
+    () => {{
+        struct Anonymous;
+        std::any::TypeId::of::<Anonymous>()
+    }};
+}
+pub(crate) use new_type_id;
+
 #[cfg(target_family = "wasm")]
 pub fn time_now() -> SystemTime {
     SystemTime::UNIX_EPOCH + std::time::Duration::from_secs_f64(js_sys::Date::now() * 1e-3)

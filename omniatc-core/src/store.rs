@@ -164,8 +164,12 @@ pub struct Aerodrome {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GroundNetwork {
-    pub taxiways: Vec<Taxiway>,
-    pub aprons:   Vec<Apron>,
+    pub taxiways:    Vec<Taxiway>,
+    pub aprons:      Vec<Apron>,
+    /// Maximum speed on taxiways.
+    pub taxi_speed:  Speed<f32>,
+    /// Maximum speed when entering aprons.
+    pub apron_speed: Speed<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -545,6 +549,20 @@ pub enum RouteNode {
         /// Preset to switch to upon missed approach.
         goaround_preset: Option<String>,
     },
+    Taxi {
+        options: Vec<SegmentRef>,
+    },
+    HoldShort {
+        segment: SegmentRef,
+    },
+}
+
+/// References a runway, taxiway, or apron.
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SegmentRef {
+    Taxiway(String),
+    Apron(String),
+    Runway(RunwayRef),
 }
 
 /// References a position.

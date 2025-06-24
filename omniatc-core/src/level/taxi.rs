@@ -1,33 +1,34 @@
 //! Controls ground object movement.
 
+use std::collections::VecDeque;
+use std::slice;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use super::object::Object;
 use super::{ground, object, SystemSets};
 use crate::math::point_line_closest;
-use crate::units::{
-    Accel, AngularSpeed, Position,
-};
-use crate::try_log;
+use crate::units::{Accel, AngularSpeed, Distance, Position, Speed};
+use crate::{try_log, try_log_return};
+
+const NEGLIGIBLE_SPEED: Speed<f32> = Speed(1. / 3600.0);
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(app::Update, maintain_dir.in_set(SystemSets::Aviate));
+        app.add_systems(app::Update, target_path_system.in_set(SystemSets::Navigate));
     }
-}
-
-#[derive(Component)]
-pub struct Target {
-    pub path: Vec<ground::SegmentLabel>,
 }
 
 #[derive(Component, Clone, Serialize, Deserialize)]
@@ -38,8 +39,27 @@ pub struct Limits {
     /// Always positive.
     pub base_braking: Accel<f32>,
 
+    /// Maximum speed during taxi.
+    pub max_speed: Speed<f32>,
+    /// Fastest pushback/reversal speed.
+    ///
+    /// Should be negative if the object can reverse,
+    /// zero otherwise.
+    pub min_speed: Speed<f32>,
+
     /// Maximum absolute rotation speed during taxi. Always positive.
     pub turn_rate: AngularSpeed<f32>,
+
+    /// Minimum width of segments this object can taxi on.
+    ///
+    /// For planes, this is the wingspan.
+    /// For helicopters, this is the rotor diameter.
+    pub width:       Distance<f32>,
+    /// The distance between two objects on the same segment
+    /// must be at least the sum of their half-lengths.
+    ///
+    /// This value could include extra padding to represent safety distance.
+    pub half_length: Distance<f32>,
 }
 
 fn maintain_dir(
@@ -107,9 +127,10 @@ fn maintain_dir_for_object(
         (true, true) | (false, false) => limits.accel,
         (true, false) | (false, true) => limits.base_braking,
     } * time.delta();
-    let new_speed = current_speed + speed_deviation.clamp(-accel_limit, accel_limit);
+    let new_speed = (current_speed + speed_deviation.clamp(-accel_limit, accel_limit))
+        .clamp(limits.min_speed, limits.max_speed);
 
-    // new_speed is the magnitude of the finaly ground speed.
+    // new_speed is the magnitude of the final ground speed.
     // However we first consider `speed` used by direction calculation,
     // which reverses the speed if the target speed is negative.
 
@@ -166,4 +187,336 @@ fn maintain_dir_for_object(
     let desired_velocity = speed * new_heading;
     object.ground_speed = desired_velocity.horizontally();
     ground.heading = if reversed { new_heading.opposite() } else { new_heading };
+
+    // TODO check for other objects on the segment.
+    // Control speed such that the braking distance is shorter than the separation between objects.
+}
+
+/// The next planned segment for an object.
+///
+/// If this component is absent, the object will hold at the end of the current segment.
+#[derive(Component)]
+pub struct Target {
+    /// The step to execute.
+    pub action:     TargetAction,
+    /// Updated by the taxi plugin during the [`SystemSets::Navigate`][SystemSets::Navigate]
+    /// stage to indicate that this target has been resolved.
+    ///
+    /// `None` means the target is still pending.
+    /// `Some` means the target has been resolved and the next target can be assigned.
+    pub resolution: Option<TargetResolution>,
+}
+
+#[derive(Clone, Copy)]
+pub enum TargetAction {
+    /// Taxi to the `primary` segment if available,
+    /// otherwise to the `secondary` segment.
+    /// If both segments are unavailable, the object will hold at the end of the current segment.
+    Taxi { primary: Entity, secondary: Entity },
+    /// Hold at the end of the current segment.
+    HoldShort,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetResolution {
+    /// The primary target is accepted.
+    PrimaryCompleted,
+    /// The primary target is inoperable, e.g. the object is too fast or wide to enter the primary
+    /// target, but the secondary target is accepted.
+    SecondaryCompleted,
+    /// All targets are inoperable, e.g. the object is too fast or wide to enter the primary target.
+    Inoperable,
+}
+
+#[derive(SystemParam)]
+struct TargetPathParams<'w, 's> {
+    segment_query:  Query<'w, 's, &'static ground::Segment>,
+    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+}
+
+fn target_path_system(
+    object_query: Query<(&Object, &Limits, Option<&mut Target>, &mut object::OnGround)>,
+    params: TargetPathParams<'_, '_>,
+) {
+    for (object, limits, mut target, mut ground) in object_query {
+        params.update_target_path_once(object, limits, &mut ground, target.as_deref_mut());
+    }
+}
+
+impl TargetPathParams<'_, '_> {
+    fn update_target_path_once(
+        &self,
+        object: &Object,
+        limits: &Limits,
+        ground: &mut object::OnGround,
+        target: Option<&mut Target>,
+    ) {
+        let (action, resolution_mut) = match target {
+            Some(Target { action, resolution: resolution @ None }) => (*action, Some(resolution)),
+            None | Some(Target { action: _, resolution: Some(_) }) => {
+                (TargetAction::HoldShort, None)
+            }
+        };
+
+        let resolution = match action {
+            TargetAction::Taxi { primary, secondary } => {
+                self.action_taxi(object, limits, ground, primary, secondary)
+            }
+            TargetAction::HoldShort => self.action_hold_short(object, limits, ground),
+        };
+        if let Some(resolution_mut) = resolution_mut {
+            *resolution_mut = resolution;
+        }
+    }
+
+    fn action_taxi(
+        &self,
+        object: &Object,
+        limits: &Limits,
+        ground: &mut object::OnGround,
+        primary: Entity,
+        secondary: Entity,
+    ) -> Option<TargetResolution> {
+        if ground.segment == primary {
+            return Some(TargetResolution::PrimaryCompleted);
+        }
+        if ground.segment == secondary {
+            return Some(TargetResolution::SecondaryCompleted);
+        }
+
+        let current_segment = try_log!(
+            self.segment_query.get(ground.segment),
+            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
+            or return None
+        );
+
+        let intersection_endpoint = current_segment.by_direction(ground.direction).1;
+        for (target_segment, resolution) in [
+            (primary, TargetResolution::PrimaryCompleted),
+            (secondary, TargetResolution::SecondaryCompleted),
+        ] {
+            #[expect(clippy::match_same_arms)] // different explanations
+            match self.turn_to_segment(
+                object,
+                limits,
+                ground,
+                intersection_endpoint,
+                target_segment,
+            ) {
+                TurnResult::Error => {
+                    // Error has been logged, just return.
+                    return None;
+                }
+                TurnResult::TooFast | TurnResult::TooNarrow => {}
+                TurnResult::Later => {
+                    // We can turn to the target segment later,
+                    // no need to fall through to the next target yet.
+                    return None;
+                }
+                TurnResult::Completed => return Some(resolution),
+            }
+        }
+
+        // Both primary and secondary segments are inoperable, just hold.
+        self.hold_before_endpoint(object, limits, ground, intersection_endpoint, "current segment");
+        if ground.target_speed < NEGLIGIBLE_SPEED {
+            Some(TargetResolution::Inoperable)
+        } else {
+            None
+        }
+    }
+
+    fn action_hold_short(
+        &self,
+        object: &Object,
+        limits: &Limits,
+        ground: &mut object::OnGround,
+    ) -> Option<TargetResolution> {
+        let current_segment = try_log!(
+            self.segment_query.get(ground.segment),
+            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
+            or return None
+        );
+
+        self.hold_before_endpoint(
+            object,
+            limits,
+            ground,
+            current_segment.by_direction(ground.direction).1,
+            "current segment",
+        );
+        if ground.target_speed < NEGLIGIBLE_SPEED {
+            Some(TargetResolution::PrimaryCompleted)
+        } else {
+            None
+        }
+    }
+
+    fn turn_to_segment(
+        &self,
+        object: &Object,
+        limits: &Limits,
+        ground: &mut object::OnGround,
+        intersect_endpoint: Entity,
+        next_segment_id: Entity,
+    ) -> TurnResult {
+        let linear_speed = object.ground_speed.horizontal().magnitude_exact();
+
+        let intersect_pos = try_log!(
+            self.endpoint_query.get(intersect_endpoint),
+            expect "turn target {intersect_endpoint:?} must be a valid endpoint"
+            or return TurnResult::Error
+        )
+        .position;
+
+        let next_segment = try_log!(
+            self.segment_query.get(next_segment_id),
+            expect "turn target {next_segment_id:?} must be a valid segment"
+            or return TurnResult::Error
+        );
+        if next_segment.width < limits.width {
+            return TurnResult::TooNarrow;
+        }
+
+        let next_target_endpoint = try_log!(
+            next_segment.other_endpoint(intersect_endpoint),
+            expect "adjacent segment {next_segment_id:?} must back-reference endpoint {intersect_endpoint:?}"
+            or return TurnResult::Error
+        );
+        let next_target_pos = try_log!(
+            self.endpoint_query.get(next_target_endpoint),
+            expect "adjacent segment {next_segment_id:?} must reference valid endpoint {next_target_endpoint:?}"
+            or return TurnResult::Error
+        ).position;
+        let next_segment_heading = (next_target_pos - intersect_pos).heading();
+        let abs_turn = ground.heading.closest_distance(next_segment_heading).abs();
+
+        let intersection_width = try_log!(
+            self.endpoint_width(intersect_endpoint),
+            expect "endpoint {intersect_endpoint:?} adjacency list must not be empty"
+            or return TurnResult::Error
+        );
+
+        // turn_radius = linear_speed * limits.turn_rate.duration_per_radian()
+        // turn_sagitta = turn_radius * (1.0 - abs_turn.cos())
+        // thus, the max speed for turn_sagitta <= intersection_width is
+        let max_turn_speed =
+            limits.turn_rate.into_radians_per_sec() * intersection_width * (1.0 - abs_turn.cos());
+
+        let object_dist =
+            object.position.horizontal().distance_exact(intersect_pos) - intersection_width;
+
+        // We want to try to reduce below `max_turn_speed` by the time `object_dist` turns zero.
+        // The required distance to reduce speed from `linear_speed` to `max_turn_speed`:
+        if linear_speed > max_turn_speed {
+            // max_turn_speed^2 = linear_speed^2 - 2 * limits.base_braking * decel_distance =>
+            let decel_distance =
+                (linear_speed.squared() - max_turn_speed.squared()) / (limits.base_braking * 2.0);
+            if object_dist > decel_distance {
+                // We can continue at the current speed on the original segment
+                // until decel_distance from the intersection threshold.
+                return TurnResult::Later;
+            }
+
+            // How much extra distance behind the threshold before we are slow enough to turn?
+            let deficit = decel_distance - object_dist;
+            if deficit > intersection_width {
+                // Even if we start braking now, we are already past the intersection
+                // by the time we are slow enough to turn,
+                // so just skip this turn.
+                return TurnResult::TooFast;
+            }
+
+            // We are too fast to turn, so we have to reduce speed.
+            // We still haven't accepted nor rejected this segment yet.
+            ground.target_speed = max_turn_speed;
+            return TurnResult::Later;
+        }
+
+        // We are slow enough to turn, but are we close enough to the intersection point yet?
+
+        // Estimated distance required to turn from ground.heading to next_segment_heading,
+        // measured parallel to ground.heading from the intersection center,
+        // is given by turn_radius * tan(abs_turn / 2).
+        // (Consider the triangle between the intersection point, the turning center and starting
+        // point)
+        let turn_radius = linear_speed * limits.turn_rate.duration_per_radian();
+        let turn_distance = turn_radius * (abs_turn * 0.5).acute_signed_tan();
+
+        if object_dist > turn_distance {
+            // We can continue on the original segment until turn_distance from the intersection
+            // point.
+            return TurnResult::Later;
+        }
+
+        ground.segment = next_segment_id;
+        ground.target_speed = next_segment.max_speed;
+        ground.direction =
+            next_segment.direction_from(intersect_endpoint).expect("checked in other_endpoint");
+        TurnResult::Completed
+    }
+
+    fn hold_before_endpoint(
+        &self,
+        object: &Object,
+        limits: &Limits,
+        ground: &mut object::OnGround,
+        endpoint: Entity,
+        endpoint_referrer: &str,
+    ) {
+        let endpoint = try_log_return!(
+            self.endpoint_query.get(endpoint),
+            expect "{endpoint_referrer} must reference valid endpoint {endpoint:?}"
+        );
+
+        // Use endpoint width as the required distance from the endpoint.
+        let intersection_width = endpoint.adjacency.iter().filter_map(|&segment_id| {
+            let segment = try_log!(self.segment_query.get(segment_id), expect "endpoint adjacency must reference valid segment {segment_id:?}" or return None);
+            Some(segment.width)
+        }).max_by_key(|width| OrderedFloat(width.0));
+        let intersection_width =
+            try_log_return!(intersection_width, expect "adjacency list must not be empty");
+
+        let current_speed_squared = object.ground_speed.horizontal().magnitude_squared();
+        // 0^2 = current_speed^2 - 2 * braking_decel * decel
+        // => decel = current_speed^2 / (2 * braking_decel)
+        let decel_distance = current_speed_squared * 0.5 / limits.base_braking;
+
+        let distance_to_intersection = object.position.horizontal().distance_cmp(endpoint.position);
+
+        if distance_to_intersection > decel_distance + intersection_width {
+            // Intersection is far enough, no need to brake yet.
+            return;
+        }
+
+        ground.target_speed = Speed::ZERO;
+    }
+
+    fn endpoint_width(&self, endpoint: Entity) -> Option<Distance<f32>> {
+        let endpoint = try_log!(
+            self.endpoint_query.get(endpoint),
+            expect "endpoint must reference valid endpoint {endpoint:?}"
+            or return None
+        );
+        let intersection_width = endpoint.adjacency.iter().filter_map(|&segment_id| {
+            let segment = try_log!(self.segment_query.get(segment_id), expect "endpoint adjacency must reference valid segment {segment_id:?}" or return None);
+            Some(segment.width)
+        }).max_by_key(|width| OrderedFloat(width.0));
+        intersection_width
+    }
+}
+
+enum TurnResult {
+    /// A [`try_log`]ed error occurred, just return.
+    Error,
+    /// Unable to turn because the object is too fast
+    /// to complete turning within the endpoint width.
+    TooFast,
+    /// Unable to turn because the next segment is too narrow for the object.
+    TooNarrow,
+    /// The object can turn to the next segment,
+    /// but it is not yet close enough to the intersection point.
+    Later,
+    /// The object has successfully turned to the next segment.
+    Completed,
 }

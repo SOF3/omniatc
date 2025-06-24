@@ -1,6 +1,6 @@
 use std::{cmp, ops};
 
-use super::Unit;
+use super::{Accel, Distance, Speed, Unit};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Squared<U: Unit>(pub U::Value);
@@ -135,6 +135,15 @@ impl<U: Unit<Value = f32>> Squared<U> {
 
     #[must_use]
     pub fn signum(self) -> f32 { self.0.signum() }
+}
+
+impl<T> ops::Div<Accel<T>> for Squared<Speed<T>>
+where
+    T: Copy + ops::Div,
+{
+    type Output = Distance<T::Output>;
+
+    fn div(self, other: Accel<T>) -> Self::Output { Distance(self.0 / other.0) }
 }
 
 /// A wrapper type for squared distance,

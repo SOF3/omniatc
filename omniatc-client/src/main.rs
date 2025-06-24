@@ -22,11 +22,12 @@ use itertools::Itertools;
 use omniatc::level;
 use strum::IntoEnumIterator;
 
+mod util;
+
 mod config;
 mod input;
 mod render;
 mod store;
-mod util;
 
 fn main() {
     let mut app = App::new();

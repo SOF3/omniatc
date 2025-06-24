@@ -59,7 +59,7 @@ pub enum SystemSets {
     /// Direct response to environmental changes such as wind, cloud base and visibility.
     /// Does not directly affect aircraft.
     PrepareEnviron,
-    /// Systems representing communication operations of an aircraft.
+    /// Systems representing communication operations of an object.
     Communicate,
     /// Systems executing a complex flight plan that decides navigation targets.
     Action,

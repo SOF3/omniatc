@@ -19,7 +19,9 @@ mod landing;
 pub use landing::*;
 mod navigation;
 pub use navigation::*;
+mod taxi;
 mod trigger;
+pub use taxi::*;
 
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
@@ -217,7 +219,7 @@ fn run_current_node(world: &mut World, entity: Entity) {
 
             match current_node {
                 None => break,
-                Some(node) => match node.run_as_current_node(world, entity) {
+                Some(node) => match node.clone().run_as_current_node(world, entity) {
                     RunNodeResult::PendingTrigger => break,
                     RunNodeResult::NodeDone => {
                         let mut entity_ref = world.entity_mut(entity);
@@ -267,7 +269,8 @@ fn update_altitude(world: &mut World, entity: Entity) {
             PlanAltitudeResult::Immediate { altitude, expedite } => {
                 world
                     .entity_mut(entity)
-                    .remove::<trigger::DistanceTrigger>()
+                    .remove::<(trigger::DistanceTrigger, nav::TargetGlide, nav::TargetGlideStatus)>(
+                    )
                     .insert(nav::TargetAltitude { altitude, expedite });
             }
             PlanAltitudeResult::DelayedTrigger { distance, eventual_target_altitude } => {
@@ -434,24 +437,24 @@ fn clear_all_triggers(world: &mut World, entity: Entity) {
 }
 
 #[portrait::make]
-trait NodeKind: Copy {
-    fn run_as_current_node(self, world: &mut World, entity: Entity) -> RunNodeResult;
+trait NodeKind: Sized {
+    fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult;
 
     /// Whether the node configures the object heading.
-    fn configures_heading(self, _world: &World) -> Option<HorizontalTarget> { None }
+    fn configures_heading(&self, _world: &World) -> Option<HorizontalTarget> { None }
 
     /// Whether the node expects an altitude to be reached.
-    fn desired_altitude(self, _world: &World) -> DesiredAltitude { DesiredAltitude::Inconclusive }
+    fn desired_altitude(&self, _world: &World) -> DesiredAltitude { DesiredAltitude::Inconclusive }
 
     /// Whether the node configures the object airspeed.
-    fn configures_airspeed(self, _world: &World) -> Option<Speed<f32>> { None }
+    fn configures_airspeed(&self, _world: &World) -> Option<Speed<f32>> { None }
 
     /// Whether the node expects to lead an object to a position.
     ///
     /// This is similar to `configures_heading`, but used for different purposes:
     /// `configures_heading` indicates the directional information to orient the object
     /// while `configures_position` indicates the positional information to locate the object.
-    fn configures_position(self, _world: &World) -> Option<Position<Vec2>> { None }
+    fn configures_position(&self, _world: &World) -> Option<Position<Vec2>> { None }
 }
 
 enum RunNodeResult {
@@ -483,7 +486,7 @@ enum DesiredAltitude {
 }
 
 /// An entry in the flight plan.
-#[derive(Clone, Copy, derive_more::From)]
+#[derive(Clone, derive_more::From)]
 #[portrait::derive(NodeKind with portrait::derive_delegate)]
 pub enum Node {
     Standby(StandbyNode),
@@ -493,6 +496,7 @@ pub enum Node {
     AlignRunway(AlignRunwayNode),
     ShortFinal(ShortFinalNode),
     VisualLanding(VisualLandingNode),
+    Taxi(TaxiNode),
 }
 
 pub fn node_vec(node: impl Into<Node>) -> Vec<Node> { Vec::from([node.into()]) }

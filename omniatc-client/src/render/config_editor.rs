@@ -7,6 +7,7 @@ use bevy::ecs::system::{Res, ResMut};
 use bevy_egui::{egui, EguiContextPass, EguiContexts};
 
 use crate::config::Config;
+use crate::util::new_type_id;
 use crate::{config, EguiSystemSets};
 
 pub struct Plug;
@@ -46,15 +47,12 @@ fn setup_window_system(
             }
 
             ui.horizontal(|ui| {
-                struct Left;
-                struct Right;
-
                 ui.set_min_height(default_size.y);
                 ui.set_min_width(default_size.x);
 
                 let mut doc = String::new();
 
-                egui::ScrollArea::vertical().id_salt(TypeId::of::<Left>()).show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt(new_type_id!()).show(ui, |ui| {
                     ui.vertical(|ui| {
                         for (i, ty) in registry.0.iter().enumerate() {
                             egui::CollapsingHeader::new(ty.name).default_open(i == 0).show(
@@ -67,7 +65,7 @@ fn setup_window_system(
                     });
                 });
 
-                egui::ScrollArea::vertical().id_salt(TypeId::of::<Right>()).show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt(new_type_id!()).show(ui, |ui| {
                     ui.vertical(|ui| {
                         ui.add(egui::Label::new(doc));
                     });

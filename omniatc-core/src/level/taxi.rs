@@ -1,11 +1,10 @@
 //! Controls ground object movement.
 
-use std::collections::VecDeque;
-use std::slice;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::{Event, EventWriter};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
@@ -28,6 +27,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(app::Update, maintain_dir.in_set(SystemSets::Aviate));
         app.add_systems(app::Update, target_path_system.in_set(SystemSets::Navigate));
+        app.add_event::<TargetResolutionEvent>();
     }
 }
 
@@ -207,64 +207,77 @@ pub struct Target {
     pub resolution: Option<TargetResolution>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum TargetAction {
-    /// Taxi to the `primary` segment if available,
-    /// otherwise to the `secondary` segment.
-    /// If both segments are unavailable, the object will hold at the end of the current segment.
-    Taxi { primary: Entity, secondary: Entity },
+    /// Taxi to the first segment if available,
+    /// otherwise to the next available segment.
+    /// If all segments are unavailable, the object will hold at the end of the current segment.
+    Taxi { options: SmallVec<[Entity; 2]> },
     /// Hold at the end of the current segment.
     HoldShort,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetResolution {
-    /// The primary target is accepted.
-    PrimaryCompleted,
-    /// The primary target is inoperable, e.g. the object is too fast or wide to enter the primary
-    /// target, but the secondary target is accepted.
-    SecondaryCompleted,
-    /// All targets are inoperable, e.g. the object is too fast or wide to enter the primary target.
+    /// The nth target is accepted.
+    Completed(usize),
+    /// All targets are inoperable, e.g. the object is too fast or wide to enter all targets.
     Inoperable,
 }
 
 #[derive(SystemParam)]
 struct TargetPathParams<'w, 's> {
-    segment_query:  Query<'w, 's, &'static ground::Segment>,
-    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+    segment_query:        Query<'w, 's, &'static ground::Segment>,
+    endpoint_query:       Query<'w, 's, &'static ground::Endpoint>,
+    resolve_event_writer: EventWriter<'w, TargetResolutionEvent>,
+}
+
+/// An event sent when the target resolution of an object changes.
+#[derive(Event)]
+pub struct TargetResolutionEvent {
+    /// The object whose target resolution has changed.
+    pub object: Entity,
 }
 
 fn target_path_system(
-    object_query: Query<(&Object, &Limits, Option<&mut Target>, &mut object::OnGround)>,
-    params: TargetPathParams<'_, '_>,
+    object_query: Query<(Entity, &Object, &Limits, Option<&mut Target>, &mut object::OnGround)>,
+    mut params: TargetPathParams<'_, '_>,
 ) {
-    for (object, limits, mut target, mut ground) in object_query {
-        params.update_target_path_once(object, limits, &mut ground, target.as_deref_mut());
+    for (object_id, object, limits, mut target, mut ground) in object_query {
+        params.update_target_path_once(
+            object_id,
+            object,
+            limits,
+            &mut ground,
+            target.as_deref_mut(),
+        );
     }
 }
 
 impl TargetPathParams<'_, '_> {
     fn update_target_path_once(
-        &self,
+        &mut self,
+        object_id: Entity,
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
         target: Option<&mut Target>,
     ) {
         let (action, resolution_mut) = match target {
-            Some(Target { action, resolution: resolution @ None }) => (*action, Some(resolution)),
+            Some(Target { action, resolution: resolution @ None }) => (&*action, Some(resolution)),
             None | Some(Target { action: _, resolution: Some(_) }) => {
-                (TargetAction::HoldShort, None)
+                (&TargetAction::HoldShort, None)
             }
         };
 
         let resolution = match action {
-            TargetAction::Taxi { primary, secondary } => {
-                self.action_taxi(object, limits, ground, primary, secondary)
-            }
+            TargetAction::Taxi { options } => self.action_taxi(object, limits, ground, options),
             TargetAction::HoldShort => self.action_hold_short(object, limits, ground),
         };
         if let Some(resolution_mut) = resolution_mut {
+            if resolution.is_some() != resolution_mut.is_some() {
+                self.resolve_event_writer.write(TargetResolutionEvent { object: object_id });
+            }
             *resolution_mut = resolution;
         }
     }
@@ -274,14 +287,10 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
-        primary: Entity,
-        secondary: Entity,
+        options: &[Entity],
     ) -> Option<TargetResolution> {
-        if ground.segment == primary {
-            return Some(TargetResolution::PrimaryCompleted);
-        }
-        if ground.segment == secondary {
-            return Some(TargetResolution::SecondaryCompleted);
+        if let Some(position) = options.iter().position(|&target| target == ground.segment) {
+            return Some(TargetResolution::Completed(position));
         }
 
         let current_segment = try_log!(
@@ -291,10 +300,7 @@ impl TargetPathParams<'_, '_> {
         );
 
         let intersection_endpoint = current_segment.by_direction(ground.direction).1;
-        for (target_segment, resolution) in [
-            (primary, TargetResolution::PrimaryCompleted),
-            (secondary, TargetResolution::SecondaryCompleted),
-        ] {
+        for (option_index, &target_segment) in options.iter().enumerate() {
             #[expect(clippy::match_same_arms)] // different explanations
             match self.turn_to_segment(
                 object,
@@ -313,13 +319,13 @@ impl TargetPathParams<'_, '_> {
                     // no need to fall through to the next target yet.
                     return None;
                 }
-                TurnResult::Completed => return Some(resolution),
+                TurnResult::Completed => return Some(TargetResolution::Completed(option_index)),
             }
         }
 
-        // Both primary and secondary segments are inoperable, just hold.
+        // All options are inoperable, just hold.
         self.hold_before_endpoint(object, limits, ground, intersection_endpoint, "current segment");
-        if ground.target_speed < NEGLIGIBLE_SPEED {
+        if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
             Some(TargetResolution::Inoperable)
         } else {
             None
@@ -345,8 +351,8 @@ impl TargetPathParams<'_, '_> {
             current_segment.by_direction(ground.direction).1,
             "current segment",
         );
-        if ground.target_speed < NEGLIGIBLE_SPEED {
-            Some(TargetResolution::PrimaryCompleted)
+        if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
+            Some(TargetResolution::Completed(0))
         } else {
             None
         }
@@ -369,6 +375,11 @@ impl TargetPathParams<'_, '_> {
         )
         .position;
 
+        let current_segment = try_log!(
+            self.segment_query.get(ground.segment),
+            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
+            or return TurnResult::Error
+        );
         let next_segment = try_log!(
             self.segment_query.get(next_segment_id),
             expect "turn target {next_segment_id:?} must be a valid segment"
@@ -397,11 +408,13 @@ impl TargetPathParams<'_, '_> {
             or return TurnResult::Error
         );
 
-        // turn_radius = linear_speed * limits.turn_rate.duration_per_radian()
+        // linear_speed = turn_radius * limits.turn_rate
         // turn_sagitta = turn_radius * (1.0 - abs_turn.cos())
         // thus, the max speed for turn_sagitta <= intersection_width is
+        // linear_speed / limits.turn_rate * (1.0 - abs_turn.cos()) <= intersection_width
+        // i.e. linear_speed <= intersection_width * limits.turn_rate / (1.0 - abs_turn.cos())
         let max_turn_speed =
-            limits.turn_rate.into_radians_per_sec() * intersection_width * (1.0 - abs_turn.cos());
+            limits.turn_rate.into_radians_per_sec() * intersection_width / (1.0 - abs_turn.cos());
 
         let object_dist =
             object.position.horizontal().distance_exact(intersect_pos) - intersection_width;
@@ -415,6 +428,7 @@ impl TargetPathParams<'_, '_> {
             if object_dist > decel_distance {
                 // We can continue at the current speed on the original segment
                 // until decel_distance from the intersection threshold.
+                ground.target_speed = current_segment.max_speed;
                 return TurnResult::Later;
             }
 
@@ -446,6 +460,7 @@ impl TargetPathParams<'_, '_> {
         if object_dist > turn_distance {
             // We can continue on the original segment until turn_distance from the intersection
             // point.
+            ground.target_speed = current_segment.max_speed;
             return TurnResult::Later;
         }
 
@@ -502,10 +517,11 @@ impl TargetPathParams<'_, '_> {
             let segment = try_log!(self.segment_query.get(segment_id), expect "endpoint adjacency must reference valid segment {segment_id:?}" or return None);
             Some(segment.width)
         }).max_by_key(|width| OrderedFloat(width.0));
-        intersection_width
+        intersection_width.map(|width| width * 0.5)
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TurnResult {
     /// A [`try_log`]ed error occurred, just return.
     Error,

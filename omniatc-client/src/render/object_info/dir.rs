@@ -13,13 +13,14 @@ use crate::util::{heading_to_approx_name, new_type_id};
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
+    entity:           Entity,
     object:           &'static object::Object,
+    airborne:         Option<&'static object::Airborne>,
     plane_control:    Option<&'static plane::Control>,
     nav_vel:          Option<&'static nav::VelocityTarget>,
-    ground:           Option<&'static object::OnGround>,
     target_waypoint:  Option<&'static nav::TargetWaypoint>,
     target_alignment: Option<(&'static nav::TargetAlignment, &'static nav::TargetAlignmentStatus)>,
-    entity:           Entity,
+    ground:           Option<&'static object::OnGround>,
 }
 
 #[derive(SystemParam)]
@@ -43,11 +44,29 @@ impl Writer for ObjectQuery {
             "Ground track: {:.0}\u{b0}",
             this.object.ground_speed.horizontal().heading().degrees()
         ));
-        if let Some(control) = this.plane_control {
-            ui.label(format!("Current yaw: {:.0}\u{b0}", control.heading.degrees()));
-        }
-        if let Some(nav_vel) = this.nav_vel {
-            show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
+        if this.airborne.is_some() {
+            if let Some(control) = this.plane_control {
+                ui.label(format!("Current yaw: {:.0}\u{b0}", control.heading.degrees()));
+            }
+            if let Some(nav_vel) = this.nav_vel {
+                show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
+            }
+            if let Some(target) = this.target_waypoint {
+                let waypoint = try_log_return!(
+                    params.waypoint_query.get(target.waypoint_entity),
+                    expect "TargetWaypoint has invalid waypoint {:?}", target.waypoint_entity,
+                );
+
+                let distance = this.object.position.horizontal_distance_exact(waypoint.position);
+                ui.label(format!(
+                    "Target position: {} ({:.1} nm)",
+                    &waypoint.name,
+                    distance.into_nm()
+                ));
+            }
+            if let Some((target, target_status)) = this.target_alignment {
+                show_target_alignment(this, ui, &params.waypoint_query, target, target_status);
+            }
         }
         if let Some(ground) = this.ground {
             show_ground(
@@ -57,18 +76,6 @@ impl Writer for ObjectQuery {
                 &params.endpoint_query,
                 &params.waypoint_query,
             );
-        }
-        if let Some(target) = this.target_waypoint {
-            let waypoint = try_log_return!(
-                params.waypoint_query.get(target.waypoint_entity),
-                expect "TargetWaypoint has invalid waypoint {:?}", target.waypoint_entity,
-            );
-
-            let distance = this.object.position.horizontal_distance_exact(waypoint.position);
-            ui.label(format!("Target position: {} ({:.1} nm)", &waypoint.name, distance.into_nm()));
-        }
-        if let Some((target, target_status)) = this.target_alignment {
-            show_target_alignment(this, ui, &params.waypoint_query, target, target_status);
         }
     }
 }

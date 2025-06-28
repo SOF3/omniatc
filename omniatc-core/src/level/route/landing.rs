@@ -111,7 +111,7 @@ impl NodeKind for AlignRunwayNode {
             RunNodeResult::NodeDone
         } else {
             let dist_before_short = dist - limits.short_final_dist;
-            object.insert(trigger::DistanceTrigger {
+            object.insert(trigger::ByDistance {
                 last_observed_pos:  position.horizontal(),
                 remaining_distance: dist_before_short,
             });
@@ -194,7 +194,7 @@ impl NodeKind for ShortFinalNode {
         if has_visual {
             RunNodeResult::NodeDone
         } else if has_ils {
-            object.insert(trigger::NavaidChangeTrigger);
+            object.insert(trigger::NavaidChange);
             RunNodeResult::PendingTrigger
         } else {
             RunNodeResult::ReplaceWithPreset(self.goaround_preset)
@@ -239,7 +239,7 @@ impl NodeKind for VisualLandingNode {
                 _ = align_runway(&mut object, self.runway, true);
 
                 let virtual_time_now = object.world().resource::<Time<time::Virtual>>().elapsed();
-                object.insert(trigger::TimeTrigger(virtual_time_now + remaining_time));
+                object.insert(trigger::TimeDelay(virtual_time_now + remaining_time));
 
                 RunNodeResult::PendingTrigger
             }

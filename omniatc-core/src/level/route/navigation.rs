@@ -51,7 +51,7 @@ impl NodeKind for DirectWaypointNode {
 
         match self.proximity {
             WaypointProximity::FlyOver => {
-                world.entity_mut(entity).insert(trigger::FlyOverTrigger { waypoint, distance });
+                world.entity_mut(entity).insert(trigger::FlyOver { waypoint, distance });
                 RunNodeResult::PendingTrigger
             }
             WaypointProximity::FlyBy => {
@@ -63,9 +63,7 @@ impl NodeKind for DirectWaypointNode {
                     None => trigger::FlyByCompletionCondition::Distance(distance),
                     Some(next) => trigger::FlyByCompletionCondition::Heading(next),
                 };
-                world
-                    .entity_mut(entity)
-                    .insert(trigger::FlyByTrigger { waypoint, completion_condition });
+                world.entity_mut(entity).insert(trigger::FlyBy { waypoint, completion_condition });
                 RunNodeResult::PendingTrigger
             }
         }

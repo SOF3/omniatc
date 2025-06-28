@@ -85,6 +85,15 @@ fn route_retry_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
+        store::RouteNode::Taxi {
+            options: [
+                store::SegmentRef::Taxiway("A3".into()),
+                store::SegmentRef::Taxiway("A4".into()),
+            ]
+            .into(),
+        },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
     ]
     .into()
 }
@@ -125,6 +134,15 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
+        store::RouteNode::Taxi {
+            options: [
+                store::SegmentRef::Taxiway("B3".into()),
+                store::SegmentRef::Taxiway("B4".into()),
+            ]
+            .into(),
+        },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("B".into())].into() },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
     ]
     .into()
 }
@@ -165,6 +183,15 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
+        store::RouteNode::Taxi {
+            options: [
+                store::SegmentRef::Taxiway("A3".into()),
+                store::SegmentRef::Taxiway("A4".into()),
+            ]
+            .into(),
+        },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
     ]
     .into()
 }
@@ -199,6 +226,15 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
+        store::RouteNode::Taxi {
+            options: [
+                store::SegmentRef::Taxiway("B3".into()),
+                store::SegmentRef::Taxiway("B4".into()),
+            ]
+            .into(),
+        },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("B".into())].into() },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
     ]
     .into()
 }
@@ -233,6 +269,15 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
+        store::RouteNode::Taxi {
+            options: [
+                store::SegmentRef::Taxiway("A3".into()),
+                store::SegmentRef::Taxiway("A4".into()),
+            ]
+            .into(),
+        },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
+        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
     ]
     .into()
 }
@@ -303,7 +348,7 @@ pub fn file() -> store::File {
                                 Position::from_origin_nm(0., 0.)
                                     + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -500.)),
+                                    + Distance::vec2_from_meters(Vec2::new(200., -600.)),
                             ]
                             .into(),
                             width:     Distance::from_meters(80.),
@@ -314,7 +359,7 @@ pub fn file() -> store::File {
                                 Position::from_origin_nm(0., 0.)
                                     + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -2500.)),
+                                    + Distance::vec2_from_meters(Vec2::new(200., -2400.)),
                             ]
                             .into(),
                             width:     Distance::from_meters(80.),
@@ -357,7 +402,7 @@ pub fn file() -> store::File {
                                 Position::from_origin_nm(1., 0.)
                                     + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -500.)),
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -600.)),
                             ]
                             .into(),
                             width:     Distance::from_meters(80.),
@@ -368,7 +413,7 @@ pub fn file() -> store::File {
                                 Position::from_origin_nm(1., 0.)
                                     + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -2500.)),
+                                    + Distance::vec2_from_meters(Vec2::new(-200., -2400.)),
                             ]
                             .into(),
                             width:     Distance::from_meters(80.),
@@ -380,6 +425,28 @@ pub fn file() -> store::File {
                                     + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
                                 Position::from_origin_nm(1., 0.)
                                     + Distance::vec2_from_meters(Vec2::new(-200., -3000.)),
+                            ]
+                            .into(),
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "J".into(),
+                            endpoints: [
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(350., -1000.)),
+                                Position::from_origin_nm(0., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(350., -2000.)),
+                            ]
+                            .into(),
+                            width:     Distance::from_meters(80.),
+                        },
+                        store::Taxiway {
+                            name:      "K".into(),
+                            endpoints: [
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-350., -1000.)),
+                                Position::from_origin_nm(1., 0.)
+                                    + Distance::vec2_from_meters(Vec2::new(-350., -2000.)),
                             ]
                             .into(),
                             width:     Distance::from_meters(80.),
@@ -440,7 +507,7 @@ pub fn file() -> store::File {
                 },
                 runways:        [
                     store::RunwayPair {
-                        width:          Distance::from_feet(100.),
+                        width:          Distance::from_meters(100.),
                         forward_start:  Position::from_origin_nm(0., 0.),
                         forward:        store::Runway {
                             name:                   "18R".into(),
@@ -478,7 +545,7 @@ pub fn file() -> store::File {
                         },
                     },
                     store::RunwayPair {
-                        width:          Distance::from_feet(100.),
+                        width:          Distance::from_meters(100.),
                         forward_start:  Position::from_origin_nm(1., 0.),
                         forward:        store::Runway {
                             name:                   "18L".into(),

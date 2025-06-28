@@ -116,29 +116,31 @@ fn spawn_aerodromes(
 
             let mut runway_entities = HashMap::new();
             for runway_pair in &aerodrome.runways {
+                let forward = spawn_runway(
+                    world,
+                    aerodrome,
+                    runway_pair.width,
+                    &runway_pair.forward,
+                    runway_pair.forward_start,
+                    runway_pair.backward_start,
+                    aerodrome_entity,
+                );
+                let backward = spawn_runway(
+                    world,
+                    aerodrome,
+                    runway_pair.width,
+                    &runway_pair.backward,
+                    runway_pair.backward_start,
+                    runway_pair.forward_start,
+                    aerodrome_entity,
+                );
                 runway_entities.insert(
                     runway_pair.forward.name.clone(),
-                    spawn_runway(
-                        world,
-                        aerodrome,
-                        runway_pair.width,
-                        &runway_pair.forward,
-                        runway_pair.forward_start,
-                        runway_pair.backward_start,
-                        aerodrome_entity,
-                    ),
+                    PairedSpawnedRunway { runway: forward, paired: backward.runway },
                 );
                 runway_entities.insert(
                     runway_pair.backward.name.clone(),
-                    spawn_runway(
-                        world,
-                        aerodrome,
-                        runway_pair.width,
-                        &runway_pair.backward,
-                        runway_pair.backward_start,
-                        runway_pair.forward_start,
-                        aerodrome_entity,
-                    ),
+                    PairedSpawnedRunway { runway: backward, paired: forward.runway },
                 );
             }
 
@@ -175,12 +177,19 @@ impl AerodromeMap {
 struct SpawnedAerodrome {
     aerodrome_entity: Entity,
     index:            u32,
-    runways:          HashMap<String, SpawnedRunway>,
+    runways:          HashMap<String, PairedSpawnedRunway>,
 }
 
+#[derive(Clone, Copy)]
 struct SpawnedRunway {
     runway:             Entity,
     localizer_waypoint: Entity,
+}
+
+struct PairedSpawnedRunway {
+    runway: SpawnedRunway,
+    /// The other runway in the pair.
+    paired: Entity,
 }
 
 fn spawn_runway(
@@ -291,7 +300,7 @@ const GROUND_EPSILON: Distance<f32> = Distance::from_meters(1.);
 fn collect_non_apron_ground_lines(
     ground_network: &store::GroundNetwork,
     runway_pairs: &[store::RunwayPair],
-    runways: &HashMap<String, SpawnedRunway>,
+    runways: &HashMap<String, PairedSpawnedRunway>,
 ) -> Vec<GroundLine> {
     runway_pairs
         .iter()
@@ -304,8 +313,8 @@ fn collect_non_apron_ground_lines(
                 .expect("all declared runways have been inserted into `runways`");
             GroundLine {
                 label:     ground::SegmentLabel::RunwayPair([
-                    forward_runway.runway,
-                    backward_runway.runway,
+                    forward_runway.runway.runway,
+                    backward_runway.runway.runway,
                 ]),
                 width:     pair.width,
                 max_speed: ground_network.taxi_speed,
@@ -502,7 +511,7 @@ fn spawn_ground_segments(
     world: &mut World,
     ground_network: &store::GroundNetwork,
     runway_pairs: &[store::RunwayPair],
-    runways: &HashMap<String, SpawnedRunway>,
+    runways: &HashMap<String, PairedSpawnedRunway>,
     aerodrome_entity: Entity,
     elevation: Position<f32>,
 ) -> Result<(), Error> {
@@ -848,7 +857,7 @@ fn convert_route<'a>(
                     route::node_vec(route::StartSetAltitudeNode { altitude: goal, error, expedite })
                 }
                 store::RouteNode::RunwayLanding { ref runway, ref goaround_preset } => {
-                    let runway = resolve_runway_ref(aerodromes, runway)?.runway;
+                    let runway = resolve_runway_ref(aerodromes, runway)?.runway.runway;
                     let goaround_preset = if let Some(goaround_preset) = goaround_preset {
                         Some(route_presets.resolve(goaround_preset)?)
                     } else {
@@ -860,12 +869,17 @@ fn convert_route<'a>(
                         route::VisualLandingNode { runway, goaround_preset }.into(),
                     ])
                 }
-                store::RouteNode::Taxi { ref options } => {
-                    todo!()
-                }
-                store::RouteNode::HoldShort { ref segment } => {
-                    todo!()
-                }
+                store::RouteNode::Taxi { ref options } => route::node_vec(route::TaxiNode {
+                    labels:     options
+                        .iter()
+                        .map(|segment| resolve_segment(segment, aerodromes))
+                        .collect::<Result<_, Error>>()?,
+                    hold_short: false,
+                }),
+                store::RouteNode::HoldShort { ref segment } => route::node_vec(route::TaxiNode {
+                    labels:     [resolve_segment(segment, aerodromes)?].into(),
+                    hold_short: true,
+                }),
             })
         })
         .flat_map(|result| match result {
@@ -882,10 +896,24 @@ fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {
     plane_entity.insert((wake::Producer { base_intensity }, wake::Detector::default()));
 }
 
+fn resolve_segment(
+    segment: &store::SegmentRef,
+    aerodromes: &AerodromeMap,
+) -> Result<ground::SegmentLabel, Error> {
+    Ok(match segment {
+        store::SegmentRef::Taxiway(name) => ground::SegmentLabel::Taxiway { name: name.clone() },
+        store::SegmentRef::Apron(name) => ground::SegmentLabel::Apron { name: name.clone() },
+        store::SegmentRef::Runway(runway) => {
+            let runway = resolve_runway_ref(aerodromes, runway)?;
+            ground::SegmentLabel::RunwayPair([runway.runway.runway, runway.paired])
+        }
+    })
+}
+
 fn resolve_runway_ref<'a>(
     aerodromes: &'a AerodromeMap,
     store::RunwayRef { aerodrome_code, runway_name }: &store::RunwayRef,
-) -> Result<&'a SpawnedRunway, Error> {
+) -> Result<&'a PairedSpawnedRunway, Error> {
     let aerodrome = aerodromes.resolve(aerodrome_code)?;
     let Some(runway) = aerodrome.runways.get(runway_name) else {
         return Err(Error::UnresolvedRunway {
@@ -904,10 +932,10 @@ fn resolve_waypoint_ref(
     match waypoint_ref {
         store::WaypointRef::Named(name) => waypoints.resolve(name),
         store::WaypointRef::RunwayThreshold(runway_ref) => {
-            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway)
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway.runway)
         }
         store::WaypointRef::LocalizerStart(runway_ref) => {
-            Ok(resolve_runway_ref(aerodromes, runway_ref)?.localizer_waypoint)
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway.localizer_waypoint)
         }
     }
 }

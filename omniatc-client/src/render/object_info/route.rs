@@ -7,7 +7,7 @@ use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{ground, nav};
+use omniatc::level::{ground, nav, taxi};
 use omniatc::{try_log, try_log_return};
 
 use super::{dir, Writer};
@@ -19,6 +19,7 @@ pub struct ObjectQuery {
     route:           Option<&'static Route>,
     route_id:        Option<&'static route::Id>,
     target_waypoint: Option<&'static nav::TargetWaypoint>,
+    taxi_target:     Option<&'static taxi::Target>,
     entity:          Entity,
 }
 
@@ -29,6 +30,7 @@ pub struct WriteRouteParams<'w, 's> {
     preset_query:           Query<'w, 's, &'static route::Preset>,
     runway_query:           Query<'w, 's, (&'static Runway, &'static Waypoint)>,
     aerodrome_query:        Query<'w, 's, &'static Aerodrome>,
+    segment_query:          Query<'w, 's, &'static ground::SegmentLabel>,
     commands:               Commands<'w, 's>,
     hotkeys:                Res<'w, input::Hotkeys>,
 }
@@ -53,6 +55,10 @@ impl Writer for ObjectQuery {
                     &params.hotkeys,
                 );
             }
+        }
+
+        if let Some(target) = this.taxi_target {
+            write_taxi_target(ui, target, params);
         }
 
         if let Some(route) = this.route {
@@ -153,6 +159,28 @@ fn write_route_options(
     });
 }
 
+fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRouteParams) {
+    match target.action {
+        taxi::TargetAction::HoldShort => {
+            ui.label("Hold short at the next intersection");
+        }
+        taxi::TargetAction::Taxi { ref options } => {
+            let label_strs = options
+                .iter()
+                .filter_map(|&segment| {
+                    let label = try_log!(
+                        params.segment_query.get(segment),
+                        expect "taxi target must reference valid labeled segment {segment:?}"
+                        or return None
+                    );
+                    Some(dir::display_segment_label(label, &params.waypoint_query))
+                })
+                .join(" or ");
+            ui.label(format!("Turn to {label_strs}"));
+        }
+    }
+}
+
 fn write_route_node(
     ui: &mut egui::Ui,
     node: &route::Node,
@@ -218,21 +246,22 @@ fn write_route_node(
                 &waypoint.name, &aerodrome.name
             ));
         }
-        route::Node::Taxi(node) => match node.step {
-            route::TaxiStep::Taxi(ref labels) => {
-                let label_strs = labels
+        route::Node::Taxi(node) => {
+            if node.hold_short {
+                let label_strs = node
+                    .labels
+                    .iter()
+                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
+                    .join(" or ");
+                ui.label(format!("Hold short at {label_strs}"));
+            } else {
+                let label_strs = node
+                    .labels
                     .iter()
                     .map(|label| dir::display_segment_label(label, &params.waypoint_query))
                     .join(" or ");
                 ui.label(format!("Taxi through {label_strs}"));
             }
-            route::TaxiStep::HoldShort(ref labels) => {
-                let label_strs = labels
-                    .iter()
-                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
-                    .join(" or ");
-                ui.label(format!("Hold short at {label_strs}"));
-            }
-        },
+        }
     }
 }

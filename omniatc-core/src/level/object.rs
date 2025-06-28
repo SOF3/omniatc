@@ -12,7 +12,7 @@ use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
 
-use super::{ground, message, nav, taxi, wind, Config, SystemSets};
+use super::{ground, message, nav, wind, Config, SystemSets};
 use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
@@ -41,7 +41,11 @@ impl Plugin for Plug {
             app::Update,
             move_object_system.after(update_airborne_system).in_set(SystemSets::ExecuteEnviron),
         );
-        app.add_systems(app::Update, track_position_system.in_set(SystemSets::ReconcileForRead));
+        app.add_systems(
+            app::Update,
+            (rotate_ground_object_system, track_position_system)
+                .in_set(SystemSets::ReconcileForRead),
+        );
     }
 }
 
@@ -167,11 +171,21 @@ pub struct SetOnGroundCommand {
 
 impl EntityCommand for SetOnGroundCommand {
     fn apply(self, mut entity: EntityWorldMut) {
+        let &ground::Segment { elevation, .. } = try_log_return!(
+            entity.world().get(self.segment),
+            expect "SetOnGroundCommand must reference valid segment {:?}", self.segment,
+        );
+
         let mut object = try_log_return!(entity.get_mut::<Object>(), expect "SetOnGroundCommand must be used on objects");
         // must not descend anymore since we have hit the ground.
         object.ground_speed = object.ground_speed.horizontal().horizontally();
+        // force the altitude to be aerodrome elevation
+        object.position = object.position.horizontal().with_altitude(elevation);
 
-        let &Airborne { true_airspeed, .. } = try_log_return!(entity.get::<Airborne>(), expect "SetOnGroundCommand must be used on airborne objects");
+        let &Airborne { true_airspeed, .. } = try_log_return!(
+            entity.get::<Airborne>(),
+            expect "SetOnGroundCommand must be used on airborne objects"
+        );
         let heading = true_airspeed.horizontal().heading();
 
         entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {
@@ -340,6 +354,12 @@ pub enum RefAltitudeType {
     Start,
     /// The available reference is the ending altitude.
     End,
+}
+
+fn rotate_ground_object_system(mut query: Query<(&mut Rotation, &OnGround)>) {
+    query.iter_mut().for_each(|(mut rot, ground)| {
+        rot.0 = Quat::IDENTITY * ground.heading.into_rotation_quat();
+    });
 }
 
 #[derive(Component)]

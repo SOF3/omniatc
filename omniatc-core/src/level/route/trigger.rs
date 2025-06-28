@@ -9,20 +9,20 @@ use bevy::time::{self, Time};
 use super::{HorizontalTarget, NextNode, RunCurrentNode};
 use crate::level::object::Object;
 use crate::level::waypoint::Waypoint;
-use crate::level::{nav, navaid};
+use crate::level::{nav, navaid, taxi};
 use crate::try_log_return;
 use crate::units::{Distance, Position};
 
 #[derive(Component)]
-pub(super) struct FlyOverTrigger {
+pub(super) struct FlyOver {
     pub(super) waypoint: Entity,
     pub(super) distance: Distance<f32>,
 }
 
-pub(super) fn fly_over_trigger_system(
+pub(super) fn fly_over_system(
     time: Res<Time<time::Virtual>>,
     waypoint_query: Query<&Waypoint>,
-    object_query: Query<(Entity, &Object, &FlyOverTrigger)>,
+    object_query: Query<(Entity, &Object, &FlyOver)>,
     mut commands: Commands,
 ) {
     if time.is_paused() {
@@ -44,7 +44,7 @@ pub(super) fn fly_over_trigger_system(
 }
 
 #[derive(Component)]
-pub(super) struct FlyByTrigger {
+pub(super) struct FlyBy {
     pub(super) waypoint:             Entity,
     pub(super) completion_condition: FlyByCompletionCondition,
 }
@@ -54,10 +54,10 @@ pub(super) enum FlyByCompletionCondition {
     Distance(Distance<f32>),
 }
 
-pub(super) fn fly_by_trigger_system(
+pub(super) fn fly_by_system(
     time: Res<Time<time::Virtual>>,
     waypoint_query: Query<&Waypoint>,
-    object_query: Query<(Entity, &Object, &nav::Limits, &FlyByTrigger)>,
+    object_query: Query<(Entity, &Object, &nav::Limits, &FlyBy)>,
     mut commands: Commands,
 ) {
     if time.is_paused() {
@@ -118,11 +118,11 @@ pub(super) fn fly_by_trigger_system(
 }
 
 #[derive(Component)]
-pub(super) struct TimeTrigger(pub(super) Duration);
+pub(super) struct TimeDelay(pub(super) Duration);
 
-pub(super) fn time_trigger_system(
+pub(super) fn time_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(Entity, &TimeTrigger)>,
+    mut object_query: Query<(Entity, &TimeDelay)>,
     mut commands: Commands,
 ) {
     object_query.iter_mut().for_each(|(object_entity, trigger)| {
@@ -133,14 +133,14 @@ pub(super) fn time_trigger_system(
 }
 
 #[derive(Component)]
-pub(super) struct DistanceTrigger {
+pub(super) struct ByDistance {
     pub(super) remaining_distance: Distance<f32>,
     pub(super) last_observed_pos:  Position<Vec2>,
 }
 
-pub(super) fn distance_trigger_system(
+pub(super) fn distance_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(Entity, &Object, &mut DistanceTrigger)>,
+    mut object_query: Query<(Entity, &Object, &mut ByDistance)>,
     mut commands: Commands,
 ) {
     if time.is_paused() {
@@ -158,10 +158,22 @@ pub(super) fn distance_trigger_system(
 }
 
 #[derive(Component)]
-pub(super) struct NavaidChangeTrigger;
+pub(super) struct NavaidChange;
 
-pub(super) fn navaid_trigger_system(
+pub(super) fn navaid_system(
     mut event_reader: EventReader<navaid::UsageChangeEvent>,
+    mut commands: Commands,
+) {
+    for event in event_reader.read() {
+        commands.entity(event.object).queue(RunCurrentNode);
+    }
+}
+
+#[derive(Component)]
+pub(super) struct TaxiTargetResolution;
+
+pub(super) fn taxi_target_resolution_system(
+    mut event_reader: EventReader<taxi::TargetResolutionEvent>,
     mut commands: Commands,
 ) {
     for event in event_reader.read() {

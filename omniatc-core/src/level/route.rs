@@ -38,11 +38,11 @@ impl Plugin for Plug {
         app.add_systems(
             app::Update,
             (
-                trigger::fly_over_trigger_system,
-                trigger::fly_by_trigger_system,
-                trigger::time_trigger_system,
-                trigger::distance_trigger_system,
-                trigger::navaid_trigger_system,
+                trigger::fly_over_system,
+                trigger::fly_by_system,
+                trigger::time_system,
+                trigger::distance_system,
+                trigger::navaid_system,
             )
                 .in_set(SystemSets::Action),
         );
@@ -251,8 +251,8 @@ fn run_current_node(world: &mut World, entity: Entity) {
     let time_elapsed = world.resource::<Time<time::Virtual>>().elapsed();
     let mut entity_ref = world.entity_mut(entity);
     let mut trigger = entity_ref
-        .insert_if_new(trigger::TimeTrigger(time_elapsed))
-        .get_mut::<trigger::TimeTrigger>()
+        .insert_if_new(trigger::TimeDelay(time_elapsed))
+        .get_mut::<trigger::TimeDelay>()
         .expect("inserted if missing");
     trigger.0 = time_elapsed + REFRESH_INTERVAL;
 }
@@ -264,13 +264,12 @@ fn update_altitude(world: &mut World, entity: Entity) {
     if let Some(route) = entity_ref.get::<Route>() {
         match plan_altitude(world, &entity_ref, route, &mut gs_calc) {
             PlanAltitudeResult::None => {
-                world.entity_mut(entity).remove::<trigger::DistanceTrigger>();
+                world.entity_mut(entity).remove::<trigger::ByDistance>();
             }
             PlanAltitudeResult::Immediate { altitude, expedite } => {
                 world
                     .entity_mut(entity)
-                    .remove::<(trigger::DistanceTrigger, nav::TargetGlide, nav::TargetGlideStatus)>(
-                    )
+                    .remove::<(trigger::ByDistance, nav::TargetGlide, nav::TargetGlideStatus)>()
                     .insert(nav::TargetAltitude { altitude, expedite });
             }
             PlanAltitudeResult::DelayedTrigger { distance, eventual_target_altitude } => {
@@ -299,7 +298,7 @@ fn update_altitude(world: &mut World, entity: Entity) {
                     }
                 }
 
-                world.entity_mut(entity).insert(trigger::DistanceTrigger {
+                world.entity_mut(entity).insert(trigger::ByDistance {
                     remaining_distance: distance,
                     last_observed_pos:  pos.horizontal(),
                 });
@@ -428,11 +427,12 @@ fn plan_altitude(
 
 fn clear_all_triggers(world: &mut World, entity: Entity) {
     world.entity_mut(entity).remove::<(
-        trigger::FlyByTrigger,
-        trigger::FlyOverTrigger,
-        trigger::DistanceTrigger,
-        trigger::TimeTrigger,
-        trigger::NavaidChangeTrigger,
+        trigger::FlyBy,
+        trigger::FlyOver,
+        trigger::ByDistance,
+        trigger::TimeDelay,
+        trigger::NavaidChange,
+        trigger::TaxiTargetResolution,
     )>();
 }
 

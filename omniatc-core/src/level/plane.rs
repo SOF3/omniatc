@@ -7,6 +7,7 @@
 //! but presence of a `VelocityTarget` allows a plane to be controlled by this plugin.
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::query::With;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Quat;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
@@ -278,7 +279,9 @@ fn maintain_vert(
     airborne.airspeed.set_vertical(actual_vert_rate);
 }
 
-fn rotate_object_system(mut query: Query<(&mut object::Rotation, &object::Object, &Control)>) {
+fn rotate_object_system(
+    mut query: Query<(&mut object::Rotation, &object::Object, &Control), With<object::Airborne>>,
+) {
     query.iter_mut().for_each(|(mut rot, &Object { ground_speed, .. }, thrust)| {
         let pitch = ground_speed.vertical().atan2(ground_speed.horizontal().magnitude_exact());
         rot.0 = Quat::from_rotation_x(pitch.0) * thrust.heading.into_rotation_quat();

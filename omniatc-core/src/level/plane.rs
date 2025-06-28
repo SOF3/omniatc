@@ -7,7 +7,7 @@
 //! but presence of a `VelocityTarget` allows a plane to be controlled by this plugin.
 
 use bevy::app::{self, App, Plugin};
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Quat;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
@@ -23,7 +23,12 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEvent>();
         app.add_systems(app::Update, apply_forces_system.in_set(SystemSets::Aviate));
-        app.add_systems(app::Update, rotate_object_system.in_set(SystemSets::ReconcileForRead));
+        app.add_systems(
+            app::Update,
+            rotate_object_system
+                .in_set(SystemSets::ReconcileForRead)
+                .ambiguous_with(object::rotate_ground_object_system),
+        );
     }
 }
 
@@ -280,7 +285,10 @@ fn maintain_vert(
 }
 
 fn rotate_object_system(
-    mut query: Query<(&mut object::Rotation, &object::Object, &Control), With<object::Airborne>>,
+    mut query: Query<
+        (&mut object::Rotation, &object::Object, &Control),
+        (With<object::Airborne>, Without<object::OnGround>),
+    >,
 ) {
     query.iter_mut().for_each(|(mut rot, &Object { ground_speed, .. }, thrust)| {
         let pitch = ground_speed.vertical().atan2(ground_speed.horizontal().magnitude_exact());

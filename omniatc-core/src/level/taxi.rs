@@ -1,6 +1,5 @@
 //! Controls ground object movement.
 
-
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -19,7 +18,24 @@ use crate::math::point_line_closest;
 use crate::units::{Accel, AngularSpeed, Distance, Position, Speed};
 use crate::{try_log, try_log_return};
 
+/// An object is considered stationary when slower than this speed.
+///
+/// This value is intended for comparison.
 const NEGLIGIBLE_SPEED: Speed<f32> = Speed(1. / 3600.0);
+
+/// The default speed when an object must use a nonzero speed to move
+/// but wants to be as slow as possible (especially due to turning).
+const MIN_POSITIVE_SPEED: Speed<f32> = Speed(2. / 3600.0);
+
+/// If an object is within this distance from the centerline,
+/// it is considered to be on the centerline,
+/// and it will head directly towards the target endpoint
+/// instead of pursuing the centerline.
+const NEGLIGIBLE_DEVIATION: Distance<f32> = Distance(0.001);
+
+/// If the object is expected to diverge from the centerline beyond this distance,
+/// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
+const OVERSHOOT_TOLERANCE: Distance<f32> = Distance(0.005);
 
 pub struct Plug;
 
@@ -118,24 +134,20 @@ fn maintain_dir_for_object(
     other_endpoint: Position<Vec2>,
     target_endpoint: Position<Vec2>,
 ) {
-    // First, maintain speed regardless of direction.
-    let desired_eventual_speed = ground.target_speed;
-    let current_speed =
-        object.ground_speed.horizontal().project_onto_dir(ground.heading.into_dir2());
-    let speed_deviation = desired_eventual_speed - current_speed;
-    let accel_limit = match (current_speed.is_positive(), speed_deviation.is_positive()) {
-        (true, true) | (false, false) => limits.accel,
-        (true, false) | (false, true) => limits.base_braking,
-    } * time.delta();
-    let new_speed = (current_speed + speed_deviation.clamp(-accel_limit, accel_limit))
-        .clamp(limits.min_speed, limits.max_speed);
-
-    // new_speed is the magnitude of the final ground speed.
-    // However we first consider `speed` used by direction calculation,
-    // which reverses the speed if the target speed is negative.
+    enum TurnTowards {
+        /// Turn towards the target endpoint.
+        TargetEndpoint,
+        /// Turn towards the segment centerline,
+        /// targetting the pure pursuit position based on time delta.
+        CenterLine,
+    }
 
     let reversed = ground.target_speed.is_negative();
-    let speed = if reversed { -new_speed } else { new_speed };
+
+    let current_speed =
+        object.ground_speed.horizontal().project_onto_dir(ground.heading.into_dir2());
+    let current_corrected_speed = if reversed { -current_speed } else { current_speed };
+
     let current_heading = if reversed { ground.heading.opposite() } else { ground.heading };
 
     // In the following direction calculations, we ignore reversal by treating the backward
@@ -148,43 +160,95 @@ fn maintain_dir_for_object(
         point_line_closest(object.position.horizontal(), other_endpoint, target_endpoint);
     // The vector from the object to the closest point on the line, orthogonal to the line.
     let object_to_line_ortho = closest_point - object.position.horizontal();
-    let object_to_line_ortho_heading = object_to_line_ortho.heading();
 
     let turn_towards_target_dir = current_heading.closest_distance(target_heading);
 
     // Estimated change in orthogonal displacement of the object if we start turning towards
     // the desired eventual heading now, derived from
     // speed * int_0^{heading_deviation / turn_rate} sin(heading_deviation - turn_rate * t) dt.
-    let convergence_dist = current_speed
+    // This value always is positive as long as the ground speed is in the direction of the target
+    // speed.
+    let convergence_dist = current_corrected_speed
         * (1.0 - turn_towards_target_dir.cos())
         * limits.turn_rate.duration_per_radian();
 
+    // Direct heading from object to target endpoint.
     let direct_heading = (target_endpoint - object.position.horizontal()).heading();
 
-    let should_turn_towards_line =
-        if direct_heading.is_between(current_heading, object_to_line_ortho_heading) {
-            // We are facing away from the target and not moving towards the line
-            true
-        } else if object_to_line_ortho.magnitude_cmp() < convergence_dist {
+    let turn_towards = if object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION {
+        TurnTowards::TargetEndpoint
+    } else if direct_heading.is_between(current_heading, object_to_line_ortho.heading()) {
+        // We are facing away from the target and not moving towards the line
+        TurnTowards::CenterLine
+    } else {
+        // The current heading will end up somewhere on the centerline before the target endpoint,
+        // but we might be able to converge towards the centerline earlier.
+
+        if object_to_line_ortho.magnitude_cmp() < convergence_dist {
             // We will cross the line even if we immediately turn towards the target heading,
             // so we have to turn as soon as possible.
-            false
+            //
+            // This condition is always false if the object is not moving in the target speed
+            // direction.
+            TurnTowards::TargetEndpoint
         } else {
-            // Otherwise, turn towards the line to align closer first.
-            true
-        };
+            // Otherwise, turn towards the centerline to align closer first.
+            TurnTowards::CenterLine
+        }
+    };
 
-    let desired_heading = if should_turn_towards_line {
-        // Turn towards the direction orthogonal to the line, facing the segment.
-        object_to_line_ortho_heading
-    } else {
-        // Turn towards the target heading.
-        target_heading
+    let desired_heading = match turn_towards {
+        TurnTowards::TargetEndpoint => target_heading,
+        TurnTowards::CenterLine => {
+            // If we are very close to the centerline,
+            // we only want to turn to a point on the centerline
+            // such that it would not overshoot the centerline
+            // even after time.delta() at the current speed.
+            //
+            // sqrt_or_zero() sends the object to turn as much as possible towards the centerline
+            // if it cannot overshoot it within time.delta().
+            let mut forward_offset = ((current_corrected_speed * time.delta()).squared()
+                - object_to_line_ortho.magnitude_squared())
+            .sqrt_or_zero();
+            if current_corrected_speed.is_negative() {
+                // If the object is moving backwards,
+                // the pure pursuit point should be backwards instead of forward;
+                // otherwise the object would rotate opposite to the target.
+                forward_offset = -forward_offset;
+            }
+            (object_to_line_ortho + forward_offset * target_heading).heading()
+        }
     };
     let max_turn = limits.turn_rate * time.delta();
     let new_heading = current_heading.restricted_turn(desired_heading, max_turn);
 
-    let desired_velocity = speed * new_heading;
+    let mut desired_corrected_speed = ground.target_speed.abs();
+    if current_corrected_speed.is_positive() {
+        // desired is always positive anyway
+        // cross centerline and diverge beyond threshold
+        let crossing_diverge =
+            object_to_line_ortho.magnitude_cmp() < convergence_dist - OVERSHOOT_TOLERANCE;
+        // diverging from centerline and will continue to diverge beyond threshold
+        let continue_diverge =
+            object_to_line_ortho.magnitude_cmp() > OVERSHOOT_TOLERANCE - convergence_dist;
+
+        if crossing_diverge || continue_diverge {
+            // In either case, the object will cross the centerline significantly
+            // before it can turn towards the target heading,
+            // so slow down further.
+            desired_corrected_speed = MIN_POSITIVE_SPEED;
+        }
+    }
+    let desired_speed = if reversed { -desired_corrected_speed } else { desired_corrected_speed };
+    let speed_deviation = desired_speed - current_speed;
+    let accel_limit = match (current_speed.is_positive(), speed_deviation.is_positive()) {
+        (true, true) | (false, false) => limits.accel,
+        (true, false) | (false, true) => limits.base_braking,
+    } * time.delta();
+    let new_speed = (current_speed + speed_deviation.clamp(-accel_limit, accel_limit))
+        .clamp(limits.min_speed, limits.max_speed);
+
+    let desired_velocity = new_speed * new_heading;
     object.ground_speed = desired_velocity.horizontally();
     ground.heading = if reversed { new_heading.opposite() } else { new_heading };
 

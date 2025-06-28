@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::query::Without;
 use bevy::ecs::system::{SystemParam, SystemState};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Quat, Vec2, Vec3};
@@ -356,7 +357,9 @@ pub enum RefAltitudeType {
     End,
 }
 
-fn rotate_ground_object_system(mut query: Query<(&mut Rotation, &OnGround)>) {
+pub(super) fn rotate_ground_object_system(
+    mut query: Query<(&mut Rotation, &OnGround), Without<Airborne>>,
+) {
     query.iter_mut().for_each(|(mut rot, ground)| {
         rot.0 = Quat::IDENTITY * ground.heading.into_rotation_quat();
     });

@@ -152,11 +152,17 @@ where
 pub(super) struct SquaredNorm(pub(super) f32);
 
 impl<U: Unit<Value = f32>> PartialEq<U> for SquaredNorm {
-    fn eq(&self, other: &U) -> bool { self.0 == other.into_raw().powi(2) }
+    fn eq(&self, other: &U) -> bool {
+        other.into_raw() >= 0.0 && self.0 == other.into_raw().powi(2)
+    }
 }
 
 impl<U: Unit<Value = f32>> PartialOrd<U> for SquaredNorm {
     fn partial_cmp(&self, other: &U) -> Option<cmp::Ordering> {
-        self.0.partial_cmp(&other.into_raw().powi(2))
+        if other.into_raw() < 0.0 {
+            Some(cmp::Ordering::Greater)
+        } else {
+            self.0.partial_cmp(&other.into_raw().powi(2))
+        }
     }
 }

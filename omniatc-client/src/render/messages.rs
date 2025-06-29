@@ -1,4 +1,3 @@
-
 use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;

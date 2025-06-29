@@ -49,6 +49,7 @@ pub enum Zorder {
     WakeOverlay,
     ObjectSprite,
     ObjectSeparationRing,
+    ObjectVector,
     ObjectLabel,
     ScaleRuler,
     ScaleRulerLabel,

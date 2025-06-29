@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::color::Color;
@@ -34,6 +36,7 @@ use label::IsLabelOf;
 pub mod preview;
 mod separation_ring;
 mod track;
+mod vector;
 
 pub struct Plug;
 
@@ -52,6 +55,7 @@ impl Plugin for Plug {
                 .after_all::<SetColorThemeSystemSet>(),
         );
         app.add_plugins(separation_ring::Plug);
+        app.add_plugins(vector::Plug);
         app.add_plugins(track::Plug);
         app.add_plugins(preview::Plug);
         app.add_plugins(base_color::Plug);
@@ -72,6 +76,7 @@ fn spawn_plane_system(
     mut params: ParamSet<(
         (Commands, config::Read<Conf>, Res<AssetServer>),
         separation_ring::SpawnSubsystemParam,
+        vector::SpawnSubsystemParam,
     )>,
 ) {
     for &plane::SpawnEvent(plane_entity) in spawn_events.read() {
@@ -80,7 +85,7 @@ fn spawn_plane_system(
         commands.entity(plane_entity).insert((
             Transform::IDENTITY,
             Visibility::Visible,
-            ColorTheme { body: Color::WHITE, ring: Color::WHITE },
+            ColorTheme { body: Color::WHITE, ring: Color::WHITE, vector: Color::WHITE },
         ));
 
         commands.spawn((
@@ -102,14 +107,16 @@ fn spawn_plane_system(
         ));
 
         separation_ring::spawn_subsystem(plane_entity, &mut params.p1());
+        vector::spawn_subsystem(plane_entity, &mut params.p2());
     }
 }
 
 /// Extension component on an object to indicate the colors of its viewable entities.
 #[derive(Component)]
 pub struct ColorTheme {
-    pub body: Color,
-    pub ring: Color,
+    pub body:   Color,
+    pub ring:   Color,
+    pub vector: Color,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
@@ -203,6 +210,12 @@ struct Conf {
     #[config(min = 0., max = 10.)]
     separation_ring_thickness: f32,
 
+    #[config(min = Duration::ZERO, max = Duration::from_secs(300))]
+    vector_lookahead_time: Duration,
+    /// Thickness of the vector line in screen coordinates.
+    #[config(min = 0., max = 10.)]
+    vector_thickness:      f32,
+
     /// Maximum number of track points for unfocused objects.
     #[config(min = 0, max = 100)]
     track_normal_max_points:   u32,
@@ -228,7 +241,11 @@ struct Conf {
     preview_line_color_preset:      Color,
 
     /// Object color will be based on this scheme.
-    color_scheme: base_color::Scheme,
+    base_color_scheme:   base_color::Scheme,
+    /// Object separation ring color will be based on this scheme.
+    ring_color_scheme:   base_color::Scheme,
+    /// Object ground speed vector color will be based on this scheme.
+    vector_color_scheme: base_color::Scheme,
 }
 
 impl Default for Conf {
@@ -241,6 +258,8 @@ impl Default for Conf {
             label_anchor:                   Anchor::BottomLeft,
             separation_ring_radius:         Distance::from_nm(1.5),
             separation_ring_thickness:      0.5,
+            vector_lookahead_time:          Duration::from_secs(60),
+            vector_thickness:               0.5,
             track_normal_max_points:        5,
             track_point_size:               1.0,
             track_point_base_color:         Color::srgb(0.8, 0.4, 0.6),
@@ -251,7 +270,9 @@ impl Default for Conf {
             preview_line_color_set_heading: Color::srgb(0.9, 0.9, 0.6),
             preview_line_color_preset:      Color::srgb(0.5, 0.6, 0.8),
             preview_line_thickness:         1.,
-            color_scheme:                   base_color::Scheme::default(),
+            base_color_scheme:              base_color::Scheme::default(),
+            ring_color_scheme:              base_color::Scheme::default(),
+            vector_color_scheme:            base_color::Scheme::default(),
         }
     }
 }

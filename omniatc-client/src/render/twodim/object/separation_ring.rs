@@ -11,8 +11,10 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::math::primitives::Annulus;
 use bevy::render::mesh::{Mesh, Mesh2d};
+use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
+use omniatc::level::object;
 use omniatc::try_log;
 use omniatc::units::Distance;
 use omniatc::util::EnumScheduleConfig;
@@ -34,6 +36,7 @@ impl Plugin for Plug {
                 .in_set(render::SystemSets::Update)
                 .after_all::<SetColorThemeSystemSet>(),
         );
+        app.add_systems(app::Update, maintain_visible_system.in_set(render::SystemSets::Update));
     }
 }
 
@@ -115,4 +118,19 @@ fn maintain_thickness_system(
     let thickness_scaled = (conf.separation_ring_thickness * camera_scale).min(radius);
 
     *asset = Annulus::new(radius - thickness_scaled, radius).into();
+}
+
+fn maintain_visible_system(
+    object_query: Query<(Option<&object::Airborne>, &HasRing)>,
+    mut ring_query: Query<&mut Visibility, With<IsRingOf>>,
+) {
+    for (airborne, &HasRing(ring_entity)) in object_query {
+        let visible = if airborne.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+
+        let mut ring_visibility = try_log!(
+            ring_query.get_mut(ring_entity),
+            expect "HasRing must reference valid ring viewable" or continue
+        );
+        *ring_visibility = visible;
+    }
 }

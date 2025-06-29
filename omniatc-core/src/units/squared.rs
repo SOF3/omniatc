@@ -1,6 +1,6 @@
 use std::{cmp, ops};
 
-use super::Unit;
+use super::{Accel, Distance, Speed, Unit};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Squared<U: Unit>(pub U::Value);
@@ -137,17 +137,32 @@ impl<U: Unit<Value = f32>> Squared<U> {
     pub fn signum(self) -> f32 { self.0.signum() }
 }
 
+impl<T> ops::Div<Accel<T>> for Squared<Speed<T>>
+where
+    T: Copy + ops::Div,
+{
+    type Output = Distance<T::Output>;
+
+    fn div(self, other: Accel<T>) -> Self::Output { Distance(self.0 / other.0) }
+}
+
 /// A wrapper type for squared distance,
 /// used to compare with other distances without the pow2 boilerplate.
 #[derive(PartialEq, PartialOrd)]
 pub(super) struct SquaredNorm(pub(super) f32);
 
 impl<U: Unit<Value = f32>> PartialEq<U> for SquaredNorm {
-    fn eq(&self, other: &U) -> bool { self.0 == other.into_raw().powi(2) }
+    fn eq(&self, other: &U) -> bool {
+        other.into_raw() >= 0.0 && self.0 == other.into_raw().powi(2)
+    }
 }
 
 impl<U: Unit<Value = f32>> PartialOrd<U> for SquaredNorm {
     fn partial_cmp(&self, other: &U) -> Option<cmp::Ordering> {
-        self.0.partial_cmp(&other.into_raw().powi(2))
+        if other.into_raw() < 0.0 {
+            Some(cmp::Ordering::Greater)
+        } else {
+            self.0.partial_cmp(&other.into_raw().powi(2))
+        }
     }
 }

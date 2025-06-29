@@ -14,6 +14,7 @@ pub struct ObjectQuery {
     object:   &'static object::Object,
     airborne: Option<&'static object::Airborne>,
     nav_vel:  Option<&'static nav::VelocityTarget>,
+    ground:   Option<&'static object::OnGround>,
 }
 
 #[derive(SystemParam)]
@@ -43,31 +44,37 @@ impl Writer for ObjectQuery {
                 "Current indicated airspeed: {:.0} kt",
                 airborne.airspeed.horizontal().magnitude_exact().into_knots()
             ));
-        }
-        if let Some(nav_vel) = this.nav_vel {
-            let target_knots = nav_vel.horiz_speed.into_knots();
-            ui.label(format!("Target IAS: {target_knots:.0} kt"));
 
-            let mut slider_knots = target_knots;
-            let slider_resp =
-                ui.add(egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"));
-            if params.hotkeys.set_speed {
-                slider_resp.request_focus();
-            }
-            if params.hotkeys.inc_speed {
-                slider_knots = (slider_knots / 10.).floor() * 10. + 10.;
-            }
-            if params.hotkeys.dec_speed {
-                slider_knots = (slider_knots / 10.).ceil() * 10. - 10.;
-            }
+            if let Some(nav_vel) = this.nav_vel {
+                let target_knots = nav_vel.horiz_speed.into_knots();
+                ui.label(format!("Target IAS: {target_knots:.0} kt"));
 
-            #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
-            if target_knots != slider_knots {
-                params.commands.send_event(comm::InstructionEvent {
-                    object: this.entity,
-                    body:   comm::SetSpeed { target: Speed::from_knots(slider_knots) }.into(),
-                });
+                let mut slider_knots = target_knots;
+                let slider_resp = ui
+                    .add(egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"));
+                if params.hotkeys.set_speed {
+                    slider_resp.request_focus();
+                }
+                if params.hotkeys.inc_speed {
+                    slider_knots = (slider_knots / 10.).floor() * 10. + 10.;
+                }
+                if params.hotkeys.dec_speed {
+                    slider_knots = (slider_knots / 10.).ceil() * 10. - 10.;
+                }
+
+                #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
+                if target_knots != slider_knots {
+                    params.commands.send_event(comm::InstructionEvent {
+                        object: this.entity,
+                        body:   comm::SetSpeed { target: Speed::from_knots(slider_knots) }.into(),
+                    });
+                }
             }
+        } else if let Some(ground) = this.ground {
+            ui.label(format!(
+                "Target speed: {:.0} kt",
+                ground.target_speed.magnitude_exact().into_knots()
+            ));
         }
     }
 }

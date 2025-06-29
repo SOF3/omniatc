@@ -1,15 +1,15 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::f32::consts;
-use std::io;
+use std::{io, iter};
 
-use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::relationship::{RelatedSpawner, Relationship};
 use bevy::math::bounding::Aabb3d;
 use bevy::math::Vec2;
 use bevy::prelude::{
     Command as BevyCommand, Entity, EntityCommand, EntityWorldMut, Name, With, World,
 };
+use either::Either;
 use itertools::Itertools;
 
 use crate::level::navaid::{self, Navaid};
@@ -20,7 +20,7 @@ use crate::level::{aerodrome, ground, nav, object, plane, runway, wake, wind};
 use crate::math::sweep::LineSweeper;
 use crate::math::{sweep, SEA_ALTITUDE};
 use crate::store;
-use crate::units::{Angle, Distance, Heading, Position};
+use crate::units::{Angle, Distance, Heading, Position, Speed};
 
 #[cfg(test)]
 mod tests;
@@ -66,9 +66,10 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     let aerodromes = spawn_aerodromes(world, &file.level.aerodromes)?;
     let waypoints = spawn_waypoints(world, &file.level.waypoints)?;
 
-    spawn_route_presets(world, &aerodromes, &waypoints, &file.level.route_presets)?;
+    let route_presets =
+        spawn_route_presets(world, &aerodromes, &waypoints, &file.level.route_presets)?;
 
-    spawn_objects(world, &aerodromes, &waypoints, &file.level.objects)?;
+    spawn_objects(world, &aerodromes, &waypoints, &route_presets, &file.level.objects)?;
 
     world.resource_mut::<store::CameraAdvice>().0 = Some(file.ui.camera.clone());
 
@@ -115,29 +116,31 @@ fn spawn_aerodromes(
 
             let mut runway_entities = HashMap::new();
             for runway_pair in &aerodrome.runways {
+                let forward = spawn_runway(
+                    world,
+                    aerodrome,
+                    runway_pair.width,
+                    &runway_pair.forward,
+                    runway_pair.forward_start,
+                    runway_pair.backward_start,
+                    aerodrome_entity,
+                );
+                let backward = spawn_runway(
+                    world,
+                    aerodrome,
+                    runway_pair.width,
+                    &runway_pair.backward,
+                    runway_pair.backward_start,
+                    runway_pair.forward_start,
+                    aerodrome_entity,
+                );
                 runway_entities.insert(
                     runway_pair.forward.name.clone(),
-                    spawn_runway(
-                        world,
-                        aerodrome,
-                        runway_pair.width,
-                        &runway_pair.forward,
-                        runway_pair.forward_start,
-                        runway_pair.backward_start,
-                        aerodrome_entity,
-                    ),
+                    PairedSpawnedRunway { runway: forward, paired: backward.runway },
                 );
                 runway_entities.insert(
                     runway_pair.backward.name.clone(),
-                    spawn_runway(
-                        world,
-                        aerodrome,
-                        runway_pair.width,
-                        &runway_pair.backward,
-                        runway_pair.backward_start,
-                        runway_pair.forward_start,
-                        aerodrome_entity,
-                    ),
+                    PairedSpawnedRunway { runway: backward, paired: forward.runway },
                 );
             }
 
@@ -174,12 +177,19 @@ impl AerodromeMap {
 struct SpawnedAerodrome {
     aerodrome_entity: Entity,
     index:            u32,
-    runways:          HashMap<String, SpawnedRunway>,
+    runways:          HashMap<String, PairedSpawnedRunway>,
 }
 
+#[derive(Clone, Copy)]
 struct SpawnedRunway {
     runway:             Entity,
     localizer_waypoint: Entity,
+}
+
+struct PairedSpawnedRunway {
+    runway: SpawnedRunway,
+    /// The other runway in the pair.
+    paired: Entity,
 }
 
 fn spawn_runway(
@@ -213,10 +223,10 @@ fn spawn_runway(
             landing_length: (end_pos - start_pos).normalize_to_magnitude(
                 start_pos.distance_exact(end_pos) - runway.touchdown_displacement,
             ),
-            glide_angle:    runway.glide_angle,
+            glide_descent:  runway.glide_angle,
             display_start:  start_pos.with_altitude(aerodrome.elevation),
             display_end:    end_pos.with_altitude(aerodrome.elevation),
-            display_width:  runway_width,
+            width:          runway_width,
         },
     }
     .apply(world.entity_mut(runway_entity));
@@ -280,7 +290,7 @@ fn spawn_runway_navaids(
                 max_dist_horizontal: ils.horizontal_range,
                 max_dist_vertical:   ils.vertical_range,
             },
-            navaid::CriticalRegion {},
+            navaid::LandingAid,
         ));
     }
 }
@@ -290,7 +300,7 @@ const GROUND_EPSILON: Distance<f32> = Distance::from_meters(1.);
 fn collect_non_apron_ground_lines(
     ground_network: &store::GroundNetwork,
     runway_pairs: &[store::RunwayPair],
-    runways: &HashMap<String, SpawnedRunway>,
+    runways: &HashMap<String, PairedSpawnedRunway>,
 ) -> Vec<GroundLine> {
     runway_pairs
         .iter()
@@ -302,15 +312,16 @@ fn collect_non_apron_ground_lines(
                 .get(&pair.backward.name)
                 .expect("all declared runways have been inserted into `runways`");
             GroundLine {
-                label: ground::SegmentLabel::RunwayPair([
-                    forward_runway.runway,
-                    backward_runway.runway,
+                label:     ground::SegmentLabel::RunwayPair([
+                    forward_runway.runway.runway,
+                    backward_runway.runway.runway,
                 ]),
-                width: pair.width,
-                alpha: pair.forward_start
+                width:     pair.width,
+                max_speed: ground_network.taxi_speed,
+                alpha:     pair.forward_start
                     + (pair.forward_start - pair.backward_start)
                         .normalize_to_magnitude(pair.backward.stopway),
-                beta:  pair.backward_start
+                beta:      pair.backward_start
                     + (pair.backward_start - pair.forward_start)
                         .normalize_to_magnitude(pair.forward.stopway),
             }
@@ -319,6 +330,7 @@ fn collect_non_apron_ground_lines(
             taxiway.endpoints.iter().tuple_windows().map(|(&alpha, &beta)| GroundLine {
                 label: ground::SegmentLabel::Taxiway { name: taxiway.name.clone() },
                 width: taxiway.width,
+                max_speed: ground_network.taxi_speed,
                 alpha,
                 beta,
             })
@@ -346,10 +358,11 @@ fn generate_apron_lines(
 
     let non_apron_lines_len = lines.len();
     lines.extend(aprons.iter().map(|(_, apron)| GroundLine {
-        label: ground::SegmentLabel::Apron { name: apron.name.clone() },
-        width: apron.width,
-        alpha: apron.position,
-        beta:  apron.position, // we will update this later
+        label:     ground::SegmentLabel::Apron { name: apron.name.clone() },
+        width:     apron.width,
+        max_speed: ground_network.apron_speed,
+        alpha:     apron.position,
+        beta:      apron.position, // we will update this later
     }));
     let (non_apron_lines, apron_lines) = lines.split_at_mut(non_apron_lines_len);
 
@@ -498,7 +511,7 @@ fn spawn_ground_segments(
     world: &mut World,
     ground_network: &store::GroundNetwork,
     runway_pairs: &[store::RunwayPair],
-    runways: &HashMap<String, SpawnedRunway>,
+    runways: &HashMap<String, PairedSpawnedRunway>,
     aerodrome_entity: Entity,
     elevation: Position<f32>,
 ) -> Result<(), Error> {
@@ -510,7 +523,7 @@ fn spawn_ground_segments(
     let endpoints: Vec<_> = intersect_groups
         .iter()
         .map(|group| {
-            let entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
+            let entity = world.spawn_empty().insert(ground::EndpointOf(aerodrome_entity)).id();
             ground::SpawnEndpoint { position: group.position }.apply(world.entity_mut(entity));
             entity
         })
@@ -521,17 +534,25 @@ fn spawn_ground_segments(
             if let Some(index) = endpoint.group {
                 endpoints[index]
             } else {
-                let entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
+                // spawn a non-intersecting endpoint only used in this segment
+                let entity = world.spawn_empty().insert(ground::EndpointOf(aerodrome_entity)).id();
                 ground::SpawnEndpoint { position: endpoint.position }
                     .apply(world.entity_mut(entity));
                 entity
             }
         });
 
-        let segment_entity = world.spawn_empty().insert(ChildOf(aerodrome_entity)).id();
+        let segment_entity = world.spawn_empty().insert(ground::SegmentOf(aerodrome_entity)).id();
+        let &GroundLine { ref label, width, max_speed, .. } = &lines[segment.line.0];
         ground::SpawnSegment {
-            segment: ground::Segment { alpha: alpha_endpoint, beta: beta_endpoint, elevation },
-            label:   lines[segment.line.0].label.clone(),
+            segment: ground::Segment {
+                alpha: alpha_endpoint,
+                beta: beta_endpoint,
+                width,
+                max_speed,
+                elevation,
+            },
+            label:   label.clone(),
         }
         .apply(world.entity_mut(segment_entity));
     }
@@ -540,10 +561,11 @@ fn spawn_ground_segments(
 }
 
 struct GroundLine {
-    label: ground::SegmentLabel,
-    width: Distance<f32>,
-    alpha: Position<Vec2>,
-    beta:  Position<Vec2>,
+    label:     ground::SegmentLabel,
+    width:     Distance<f32>,
+    max_speed: Speed<f32>,
+    alpha:     Position<Vec2>,
+    beta:      Position<Vec2>,
 }
 
 fn spawn_waypoints(world: &mut World, waypoints: &[store::Waypoint]) -> Result<WaypointMap, Error> {
@@ -611,38 +633,64 @@ impl WaypointMap {
     }
 }
 
+struct RoutePresetMap(HashMap<String, Entity>);
+
+impl RoutePresetMap {
+    fn resolve(&self, name: &str) -> Result<Entity, Error> {
+        self.0.get(name).copied().ok_or_else(|| Error::UnresolvedRoutePreset(name.to_string()))
+    }
+}
+
 fn spawn_route_presets(
     world: &mut World,
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
     presets: &[store::RoutePreset],
-) -> Result<(), Error> {
-    for preset in presets {
-        let mut entity = world.spawn((route::Preset {
+) -> Result<RoutePresetMap, Error> {
+    let route_preset_entities: Vec<_> = presets
+        .iter()
+        .map(|preset| {
+            world.spawn((store::LoadedEntity, Name::new(format!("Preset: {}", preset.id)))).id()
+        })
+        .collect();
+    let route_preset_map = RoutePresetMap(
+        presets
+            .iter()
+            .zip(&route_preset_entities)
+            .filter_map(|(preset, &entity)| Some((preset.ref_id.clone()?, entity)))
+            .collect(),
+    );
+
+    for (preset, entity) in presets.iter().zip(route_preset_entities) {
+        let mut entity_ref = world.entity_mut(entity);
+        entity_ref.insert(route::Preset {
             id:    preset.id.clone(),
             title: preset.title.clone(),
-            nodes: convert_route(aerodromes, waypoints, &preset.nodes)
+            nodes: convert_route(aerodromes, waypoints, &route_preset_map, &preset.nodes)
                 .collect::<Result<_, Error>>()?,
-        },));
+        });
         match &preset.trigger {
             store::RoutePresetTrigger::Waypoint(waypoint) => {
                 let waypoint = resolve_waypoint_ref(aerodromes, waypoints, waypoint)?;
-                entity.insert(route::PresetFromWaypoint(waypoint));
+                entity_ref.insert(route::PresetFromWaypoint(waypoint));
             }
         }
     }
-    Ok(())
+    Ok(route_preset_map)
 }
 
 fn spawn_objects(
     world: &mut World,
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
+    route_presets: &RoutePresetMap,
     objects: &[store::Object],
 ) -> Result<(), Error> {
     for object in objects {
         match object {
-            store::Object::Plane(plane) => spawn_plane(world, aerodromes, waypoints, plane)?,
+            store::Object::Plane(plane) => {
+                spawn_plane(world, aerodromes, waypoints, route_presets, plane)?;
+            }
         }
     }
 
@@ -653,6 +701,7 @@ fn spawn_plane(
     world: &mut World,
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
+    route_presets: &RoutePresetMap,
     plane: &store::Plane,
 ) -> Result<(), Error> {
     let plane_entity = world
@@ -686,9 +735,7 @@ fn spawn_plane(
     }
     .apply(world.entity_mut(plane_entity));
 
-    if let store::NavTarget::Airborne(..) = plane.nav_target {
-        object::SetAirborneCommand.apply(world.entity_mut(plane_entity));
-    }
+    world.entity_mut(plane_entity).insert(plane.taxi_limits.clone());
 
     plane::SpawnCommand {
         control: Some(plane::Control {
@@ -696,20 +743,35 @@ fn spawn_plane(
             yaw_speed:   plane.control.yaw_speed,
             horiz_accel: plane.control.horiz_accel,
         }),
-        limits:  plane.limits.clone(),
+        limits:  plane.nav_limits.clone(),
     }
     .apply(world.entity_mut(plane_entity));
 
-    let mut plane_ref = world.entity_mut(plane_entity);
-    plane_ref.insert(plane.limits.clone());
+    if let store::NavTarget::Airborne(..) = plane.nav_target {
+        object::SetAirborneCommand.apply(world.entity_mut(plane_entity));
 
+        let mut plane_ref = world.entity_mut(plane_entity);
+        let airspeed =
+            plane_ref.get::<object::Airborne>().expect("inserted by SetAirborneCommand").airspeed;
+
+        let dt_target = nav::VelocityTarget {
+            yaw:         nav::YawTarget::Heading(airspeed.horizontal().heading()),
+            horiz_speed: airspeed.horizontal().magnitude_exact(),
+            vert_rate:   Speed::ZERO,
+            expedite:    false,
+        };
+
+        plane_ref.insert(dt_target);
+    }
+
+    let mut plane_ref = world.entity_mut(plane_entity);
     if let store::NavTarget::Airborne(target) = &plane.nav_target {
         insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
     }
 
     plane_ref.insert((
         route::Id(plane.route.id.clone()),
-        convert_route(aerodromes, waypoints, &plane.route.nodes)
+        convert_route(aerodromes, waypoints, route_presets, &plane.route.nodes)
             .collect::<Result<Route, Error>>()?,
     ));
     route::RunCurrentNode.apply(world.entity_mut(plane_entity));
@@ -770,32 +832,60 @@ fn insert_airborne_nav_targets(
 fn convert_route<'a>(
     aerodromes: &'a AerodromeMap,
     waypoints: &'a WaypointMap,
+    route_presets: &'a RoutePresetMap,
     route_nodes: &'a [store::RouteNode],
 ) -> impl Iterator<Item = Result<route::Node, Error>> + use<'a> {
-    route_nodes.iter().map(|node| {
-        Ok(match *node {
-            store::RouteNode::DirectWaypoint { ref waypoint, distance, proximity, altitude } => {
-                route::DirectWaypointNode {
+    route_nodes
+        .iter()
+        .map(|node| {
+            Ok(match *node {
+                store::RouteNode::DirectWaypoint {
+                    ref waypoint,
+                    distance,
+                    proximity,
+                    altitude,
+                } => route::node_vec(route::DirectWaypointNode {
                     waypoint: resolve_waypoint_ref(aerodromes, waypoints, waypoint)?,
                     distance,
                     proximity,
                     altitude,
+                }),
+                store::RouteNode::SetAirSpeed { goal, error } => {
+                    route::node_vec(route::SetAirspeedNode { speed: goal, error })
                 }
-                .into()
-            }
-            store::RouteNode::SetAirSpeed { goal, error } => {
-                route::SetAirspeedNode { speed: goal, error }.into()
-            }
-            store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
-                route::StartSetAltitudeNode { altitude: goal, error, expedite }.into()
-            }
-            store::RouteNode::AlignRunway { ref runway, expedite } => route::AlignRunwayNode {
-                runway: resolve_runway_ref(aerodromes, runway)?.runway,
-                expedite,
-            }
-            .into(),
+                store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
+                    route::node_vec(route::StartSetAltitudeNode { altitude: goal, error, expedite })
+                }
+                store::RouteNode::RunwayLanding { ref runway, ref goaround_preset } => {
+                    let runway = resolve_runway_ref(aerodromes, runway)?.runway.runway;
+                    let goaround_preset = if let Some(goaround_preset) = goaround_preset {
+                        Some(route_presets.resolve(goaround_preset)?)
+                    } else {
+                        None
+                    };
+                    Vec::<route::Node>::from([
+                        route::AlignRunwayNode { runway, expedite: true, goaround_preset }.into(),
+                        route::ShortFinalNode { runway, goaround_preset }.into(),
+                        route::VisualLandingNode { runway, goaround_preset }.into(),
+                    ])
+                }
+                store::RouteNode::Taxi { ref options } => route::node_vec(route::TaxiNode {
+                    labels:     options
+                        .iter()
+                        .map(|segment| resolve_segment(segment, aerodromes))
+                        .collect::<Result<_, Error>>()?,
+                    hold_short: false,
+                }),
+                store::RouteNode::HoldShort { ref segment } => route::node_vec(route::TaxiNode {
+                    labels:     [resolve_segment(segment, aerodromes)?].into(),
+                    hold_short: true,
+                }),
+            })
         })
-    })
+        .flat_map(|result| match result {
+            Ok(nodes) => Either::Left(nodes.into_iter().map(Ok)),
+            Err(err) => Either::Right(iter::once(Err(err))),
+        })
 }
 
 fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {
@@ -806,10 +896,24 @@ fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {
     plane_entity.insert((wake::Producer { base_intensity }, wake::Detector::default()));
 }
 
+fn resolve_segment(
+    segment: &store::SegmentRef,
+    aerodromes: &AerodromeMap,
+) -> Result<ground::SegmentLabel, Error> {
+    Ok(match segment {
+        store::SegmentRef::Taxiway(name) => ground::SegmentLabel::Taxiway { name: name.clone() },
+        store::SegmentRef::Apron(name) => ground::SegmentLabel::Apron { name: name.clone() },
+        store::SegmentRef::Runway(runway) => {
+            let runway = resolve_runway_ref(aerodromes, runway)?;
+            ground::SegmentLabel::RunwayPair([runway.runway.runway, runway.paired])
+        }
+    })
+}
+
 fn resolve_runway_ref<'a>(
     aerodromes: &'a AerodromeMap,
     store::RunwayRef { aerodrome_code, runway_name }: &store::RunwayRef,
-) -> Result<&'a SpawnedRunway, Error> {
+) -> Result<&'a PairedSpawnedRunway, Error> {
     let aerodrome = aerodromes.resolve(aerodrome_code)?;
     let Some(runway) = aerodrome.runways.get(runway_name) else {
         return Err(Error::UnresolvedRunway {
@@ -828,10 +932,10 @@ fn resolve_waypoint_ref(
     match waypoint_ref {
         store::WaypointRef::Named(name) => waypoints.resolve(name),
         store::WaypointRef::RunwayThreshold(runway_ref) => {
-            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway)
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway.runway)
         }
         store::WaypointRef::LocalizerStart(runway_ref) => {
-            Ok(resolve_runway_ref(aerodromes, runway_ref)?.localizer_waypoint)
+            Ok(resolve_runway_ref(aerodromes, runway_ref)?.runway.localizer_waypoint)
         }
     }
 }
@@ -848,6 +952,8 @@ pub enum Error {
     UnresolvedRunway { aerodrome: String, runway: String },
     #[error("No waypoint called {0:?}")]
     UnresolvedWaypoint(String),
+    #[error("No route preset called {0:?}")]
+    UnresolvedRoutePreset(String),
     #[error("Non-finite value encountered at {0}")]
     NonFiniteFloat(&'static str),
     #[error(

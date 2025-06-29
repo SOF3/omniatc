@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::query::Without;
 use bevy::ecs::system::{SystemParam, SystemState};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Quat, Vec2, Vec3};
@@ -12,13 +13,13 @@ use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
 
-use super::{wind, Config, SystemSets};
+use super::{ground, message, nav, wind, Config, SystemSets};
 use crate::math::{
     range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
     STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
-use crate::try_log;
-use crate::units::{Distance, Position, Speed};
+use crate::units::{Distance, Heading, Position, Speed};
+use crate::{try_log, try_log_return};
 
 mod dest;
 pub use dest::Destination;
@@ -41,13 +42,13 @@ impl Plugin for Plug {
             app::Update,
             move_object_system.after(update_airborne_system).in_set(SystemSets::ExecuteEnviron),
         );
-        app.add_systems(app::Update, track_position_system.in_set(SystemSets::ReconcileForRead));
+        app.add_systems(
+            app::Update,
+            (rotate_ground_object_system, track_position_system)
+                .in_set(SystemSets::ReconcileForRead),
+        );
     }
 }
-
-/// Marker component for object entities.
-#[derive(Component)]
-pub struct Marker;
 
 /// Display details of an object.
 #[derive(Component)]
@@ -94,10 +95,10 @@ impl EntityCommand for SpawnCommand {
         entity.insert((
             Rotation::default(),
             Object { position: self.position, ground_speed: self.ground_speed },
+            message::Sender { display: self.display.name.clone() },
             self.display,
             self.destination,
             Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
-            Marker,
         ));
 
         let entity_id = entity.id();
@@ -114,6 +115,8 @@ pub struct SetAirborneCommand;
 
 impl EntityCommand for SetAirborneCommand {
     fn apply(self, mut entity: EntityWorldMut) {
+        entity.remove::<OnGround>();
+
         let (position, ground_speed) = {
             let &Object { position, ground_speed } = try_log!(
                 entity.get(),
@@ -132,6 +135,66 @@ impl EntityCommand for SetAirborneCommand {
         let airspeed = ground_speed - wind.horizontally();
         entity.insert(Airborne { airspeed, true_airspeed: airspeed });
         // TODO insert/remove nav::VelocityTarget?
+    }
+}
+
+#[derive(Component)]
+pub struct OnGround {
+    /// Current heading of the object.
+    ///
+    /// This field is assigned by the taxi plugin during the Aviate phase.
+    pub heading:      Heading,
+    /// Current segment the object is on.
+    ///
+    /// This field is updated by the taxi plugin during the Navigate phase.
+    pub segment:      Entity,
+    /// Direction of motion on the segment.
+    ///
+    /// When `target_speed` is negative, this is the direction that the object is reversing *towards*.
+    /// For example, `AlphaToBeta` with a negative target speed means that
+    /// the object is facing alpha and reversing towards beta.
+    pub direction:    ground::SegmentDirection,
+    /// Target speed to move.
+    ///
+    /// A negative value indicates that the object should reverse.
+    ///
+    /// This field is assigned by the taxi plugin during the Navigate phase.
+    /// The Aviate phase updates [`Object::ground_speed`] to attain this target speed subject to
+    /// taxi limits.
+    pub target_speed: Speed<f32>,
+}
+
+/// Sets an entity from airborne to ground.
+pub struct SetOnGroundCommand {
+    pub segment:   Entity,
+    pub direction: ground::SegmentDirection,
+}
+
+impl EntityCommand for SetOnGroundCommand {
+    fn apply(self, mut entity: EntityWorldMut) {
+        let &ground::Segment { elevation, .. } = try_log_return!(
+            entity.world().get(self.segment),
+            expect "SetOnGroundCommand must reference valid segment {:?}", self.segment,
+        );
+
+        let mut object = try_log_return!(entity.get_mut::<Object>(), expect "SetOnGroundCommand must be used on objects");
+        // must not descend anymore since we have hit the ground.
+        object.ground_speed = object.ground_speed.horizontal().horizontally();
+        // force the altitude to be aerodrome elevation
+        object.position = object.position.horizontal().with_altitude(elevation);
+
+        let &Airborne { true_airspeed, .. } = try_log_return!(
+            entity.get::<Airborne>(),
+            expect "SetOnGroundCommand must be used on airborne objects"
+        );
+        let heading = true_airspeed.horizontal().heading();
+
+        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {
+            segment: self.segment,
+            direction: self.direction,
+            heading,
+            target_speed: Speed::ZERO,
+        },));
     }
 }
 
@@ -292,6 +355,14 @@ pub enum RefAltitudeType {
     Start,
     /// The available reference is the ending altitude.
     End,
+}
+
+pub(super) fn rotate_ground_object_system(
+    mut query: Query<(&mut Rotation, &OnGround), Without<Airborne>>,
+) {
+    query.iter_mut().for_each(|(mut rot, ground)| {
+        rot.0 = Quat::IDENTITY * ground.heading.into_rotation_quat();
+    });
 }
 
 #[derive(Component)]

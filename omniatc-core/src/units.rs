@@ -22,6 +22,12 @@ pub trait Unit: Copy {
     fn into_raw(self) -> Self::Value;
 }
 
+pub trait RateOf<T> {}
+
+pub trait HasRate: Unit {
+    type Rate: Unit<Value = Self::Value>;
+}
+
 macro_rules! decl_units {
     ($(
         $(#[$meta:meta])*
@@ -349,6 +355,16 @@ macro_rules! decl_units {
                     self.0.y.midpoint(other.0.y),
                 ))
             }
+
+            #[must_use]
+            pub fn rotate_right_angle_counterclockwise(self) -> Self {
+                Self(Vec2::new(-self.0.y, self.0.x))
+            }
+
+            #[must_use]
+            pub fn rotate_right_angle_clockwise(self) -> Self {
+                Self(Vec2::new(self.0.y, -self.0.x))
+            }
         }
 
         impl $ty<Vec3> {
@@ -424,6 +440,12 @@ macro_rules! decl_units {
                 }
             }
 
+            impl<T> RateOf<$int_dt<T>> for $ty<T> {}
+
+            impl<T: Copy> HasRate for $int_dt<T> {
+                type Rate = $ty<T>;
+            }
+
             impl<T: ops::Mul<f32, Output = T>> ops::Mul<Duration> for $ty<T> {
                 type Output = $int_dt<T>;
 
@@ -437,6 +459,13 @@ macro_rules! decl_units {
 
                 fn div(self, other: $ty<f32>) -> Duration {
                     Duration::from_secs_f32(self.0 / other.0)
+                }
+            }
+
+            impl $int_dt<f32> {
+                #[must_use]
+                pub fn try_div(self, other: $ty<f32>) -> Option<Duration> {
+                    Duration::try_from_secs_f32(self.0 / other.0).ok()
                 }
             }
 
@@ -630,6 +659,16 @@ impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Speed<T> {
     pub fn from_knots(knots: T) -> Self { Self(knots / 3600.) }
 
     #[must_use]
+    pub fn into_kmh(self) -> T { self.0 * (3600. * METERS_PER_NM / 1000.) }
+
+    pub fn from_kmh(kmh: T) -> Self { Self(kmh / (3600. * METERS_PER_NM / 1000.)) }
+
+    #[must_use]
+    pub fn into_meter_per_sec(self) -> T { self.0 * METERS_PER_NM }
+
+    pub fn from_meter_per_sec(mps: T) -> Self { Self(mps / METERS_PER_NM) }
+
+    #[must_use]
     pub fn into_fpm(self) -> T { self.0 * (60. * FEET_PER_NM) }
 
     pub fn from_fpm(fpm: T) -> Self { Self(fpm / (60. * FEET_PER_NM)) }
@@ -696,6 +735,25 @@ impl AngularSpeed<f32> {
 
     #[must_use]
     pub fn from_degrees_per_sec(degrees: f32) -> Self { Self(degrees.to_radians()) }
+
+    /// Reciprocal of this value, converting `rad/s` to `s/rad`.
+    #[must_use]
+    pub fn duration_per_radian(self) -> Duration { Duration::from_secs_f32(self.0.recip()) }
+
+    #[must_use]
+    pub fn into_radians_per_sec(self) -> Frequency { Frequency(self.0) }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+pub struct Frequency(pub f32); // in hertz
+
+impl<T: Unit + HasRate> ops::Mul<T> for Frequency
+where
+    T::Value: ops::Mul<f32, Output = T::Value>,
+{
+    type Output = T::Rate;
+
+    fn mul(self, other: T) -> Self::Output { T::Rate::from_raw(other.into_raw() * self.0) }
 }
 
 impl AngularAccel<f32> {

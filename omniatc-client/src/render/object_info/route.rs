@@ -1,24 +1,25 @@
-use std::any::TypeId;
-
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
+use itertools::Itertools;
 use omniatc::level::aerodrome::Aerodrome;
-use omniatc::level::nav;
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
+use omniatc::level::{ground, nav, taxi};
 use omniatc::{try_log, try_log_return};
 
-use super::Writer;
+use super::{dir, Writer};
 use crate::input;
+use crate::util::new_type_id;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
     route:           Option<&'static Route>,
     route_id:        Option<&'static route::Id>,
     target_waypoint: Option<&'static nav::TargetWaypoint>,
+    taxi_target:     Option<&'static taxi::Target>,
     entity:          Entity,
 }
 
@@ -29,6 +30,7 @@ pub struct WriteRouteParams<'w, 's> {
     preset_query:           Query<'w, 's, &'static route::Preset>,
     runway_query:           Query<'w, 's, (&'static Runway, &'static Waypoint)>,
     aerodrome_query:        Query<'w, 's, &'static Aerodrome>,
+    segment_query:          Query<'w, 's, &'static ground::SegmentLabel>,
     commands:               Commands<'w, 's>,
     hotkeys:                Res<'w, input::Hotkeys>,
 }
@@ -53,6 +55,10 @@ impl Writer for ObjectQuery {
                     &params.hotkeys,
                 );
             }
+        }
+
+        if let Some(target) = this.taxi_target {
+            write_taxi_target(ui, target, params);
         }
 
         if let Some(route) = this.route {
@@ -153,6 +159,28 @@ fn write_route_options(
     });
 }
 
+fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRouteParams) {
+    match target.action {
+        taxi::TargetAction::HoldShort => {
+            ui.label("Hold short at the next intersection");
+        }
+        taxi::TargetAction::Taxi { ref options } => {
+            let label_strs = options
+                .iter()
+                .filter_map(|&segment| {
+                    let label = try_log!(
+                        params.segment_query.get(segment),
+                        expect "taxi target must reference valid labeled segment {segment:?}"
+                        or return None
+                    );
+                    Some(dir::display_segment_label(label, &params.waypoint_query))
+                })
+                .join(" or ");
+            ui.label(format!("Turn to {label_strs}"));
+        }
+    }
+}
+
 fn write_route_node(
     ui: &mut egui::Ui,
     node: &route::Node,
@@ -175,8 +203,7 @@ fn write_route_node(
             };
 
             if let Some(altitude) = node.altitude {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Pass at altitude {:.0} ft", altitude.amsl().into_feet()));
                 });
             }
@@ -184,8 +211,7 @@ fn write_route_node(
         route::Node::SetAirSpeed(node) => {
             ui.label(format!("Set speed to {:.0} kt", node.speed.into_knots()));
             if let Some(error) = node.error {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Maintain until \u{b1}{:.0} kt", error.into_knots()));
                 });
             }
@@ -197,8 +223,7 @@ fn write_route_node(
                 node.altitude.amsl().into_feet()
             ));
             if let Some(error) = node.error {
-                struct Indent;
-                ui.indent(TypeId::of::<Indent>(), |ui| {
+                ui.indent(new_type_id!(), |ui| {
                     ui.label(format!("Maintain until \u{b1}{:.0} ft", error.into_feet()));
                 });
             }
@@ -206,7 +231,37 @@ fn write_route_node(
         route::Node::AlignRunway(node) => {
             let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
             let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
-            ui.label(format!("Align towards runway {} of {}", &waypoint.name, &aerodrome.name));
+            ui.label(format!("Align with ILS {} of {}", &waypoint.name, &aerodrome.name));
+        }
+        route::Node::ShortFinal(node) => {
+            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
+            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            ui.label(format!("Short final to ILS {} of {}", &waypoint.name, &aerodrome.name));
+        }
+        route::Node::VisualLanding(node) => {
+            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
+            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            ui.label(format!(
+                "Visual short final to runway {} of {}",
+                &waypoint.name, &aerodrome.name
+            ));
+        }
+        route::Node::Taxi(node) => {
+            if node.hold_short {
+                let label_strs = node
+                    .labels
+                    .iter()
+                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
+                    .join(" or ");
+                ui.label(format!("Hold short at {label_strs}"));
+            } else {
+                let label_strs = node
+                    .labels
+                    .iter()
+                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
+                    .join(" or ");
+                ui.label(format!("Taxi through {label_strs}"));
+            }
         }
     }
 }

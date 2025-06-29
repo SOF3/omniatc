@@ -11,12 +11,14 @@ use strum::IntoEnumIterator;
 pub mod aerodrome;
 pub mod comm;
 pub mod ground;
+pub mod message;
 pub mod nav;
 pub mod navaid;
 pub mod object;
 pub mod plane;
 pub mod route;
 pub mod runway;
+pub mod taxi;
 pub mod wake;
 pub mod waypoint;
 pub mod wind;
@@ -35,6 +37,7 @@ impl Plugin for Plug {
             app.configure_sets(app::Update, before.before(after));
         }
 
+        app.add_plugins(message::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug);
         app.add_plugins(plane::Plug);
@@ -45,6 +48,7 @@ impl Plugin for Plug {
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);
+        app.add_plugins(taxi::Plug);
         app.add_plugins(wake::Plug);
         app.add_plugins(wind::Plug);
     }
@@ -55,7 +59,7 @@ pub enum SystemSets {
     /// Direct response to environmental changes such as wind, cloud base and visibility.
     /// Does not directly affect aircraft.
     PrepareEnviron,
-    /// Systems representing communication operations of an aircraft.
+    /// Systems representing communication operations of an object.
     Communicate,
     /// Systems executing a complex flight plan that decides navigation targets.
     Action,

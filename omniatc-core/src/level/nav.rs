@@ -1,4 +1,4 @@
-//! Controls machines for navigation.
+//! Controls machines for aerial navigation.
 
 use std::time::Duration;
 
@@ -98,6 +98,12 @@ pub struct Limits {
     // Z axis rotation limits.
     /// Max absolute rate of change of yaw speed.
     pub max_yaw_accel: AngularAccel<f32>,
+
+    /// Distance from runway threshold at which the aircraft
+    /// must start reducing to `short_final_speed`.
+    pub short_final_dist:  Distance<f32>,
+    /// The runway threshold crossing speed.
+    pub short_final_speed: Speed<f32>,
 }
 
 impl Limits {
@@ -523,3 +529,15 @@ fn alignment_control_system(
         },
     );
 }
+
+/// A bundle of all [`VelocityTarget`]-controlling components,
+/// used as the type parameter to `EntityWorldMut::remove`.
+pub type AllTargets = (
+    TargetAltitude,
+    TargetGlide,
+    TargetGlideStatus,
+    TargetGroundDirection,
+    TargetWaypoint,
+    TargetAlignment,
+    TargetAlignmentStatus,
+);

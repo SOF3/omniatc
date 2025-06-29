@@ -109,7 +109,9 @@ struct EguiUsedMargins {
     top:    f32,
     bottom: f32,
 
+    /// Whether pointer is used by some egui component.
     pointer_acquired:  bool,
+    /// Whether keyboard input is used by some egui component.
     keyboard_acquired: bool,
 }
 

@@ -7,7 +7,6 @@ use bevy::ecs::system::{Command, Commands, Query, Res};
 use bevy::ecs::world::World;
 use bevy::time::{self, Time};
 
-
 pub struct Plug;
 
 impl Plugin for Plug {

@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::{iter, slice};
 
 use bevy::ecs::entity::{Entity, EntityHashMap, EntityHashSet};
+use bevy::ecs::system::Command;
 use bevy::ecs::world::{EntityRef, World};
 use bevy::math::Vec2;
 use itertools::Itertools;
@@ -39,11 +40,13 @@ impl NodeKind for TaxiNode {
         let mut object = world.entity_mut(entity);
         if let Some(mut target) = object.get_mut::<taxi::Target>() {
             if let Some(taxi::TargetResolution::Inoperable) = target.resolution {
-                world.send_event(message::SendEvent {
-                    message: "Unable to find path to the taxi target, skipping node.".into(),
-                    class:   message::Class::NeedAck,
-                    source:  entity,
-                });
+                message::SendExpiring {
+                    content:  "Unable to find path to the taxi target, skipping node.".into(),
+                    class:    message::Class::NeedAck,
+                    source:   entity,
+                    duration: Duration::from_secs(5),
+                }
+                .apply(world);
                 return RunNodeResult::NodeDone;
             }
 

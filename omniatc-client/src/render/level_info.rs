@@ -22,6 +22,7 @@ use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 
 use super::{config_editor, object_info};
+use crate::util::new_type_id;
 use crate::{input, EguiSystemSets, EguiUsedMargins};
 
 pub struct Plug;
@@ -43,7 +44,7 @@ fn setup_layout_system(
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
-    let resp = egui::SidePanel::left("level_info")
+    let resp = egui::SidePanel::left(new_type_id!())
         .resizable(true)
         .show(ctx, |ui| {
             ui.menu_button("Tools", |ui| {

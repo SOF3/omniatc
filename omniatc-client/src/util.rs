@@ -8,7 +8,7 @@ pub mod shapes;
 macro_rules! new_type_id {
     () => {{
         struct Anonymous;
-        std::any::TypeId::of::<Anonymous>()
+        bevy_egui::egui::Id::new(std::any::TypeId::of::<Anonymous>())
     }};
 }
 pub(crate) use new_type_id;

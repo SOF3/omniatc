@@ -1,6 +1,7 @@
 use std::f32::consts::FRAC_PI_8;
 use std::time::Duration;
 
+use bevy::ecs::system::Command;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Entity, EntityCommand, EntityRef, World};
@@ -245,41 +246,49 @@ impl NodeKind for VisualLandingNode {
             }
             LandingException::TooFast => {
                 object.world_scope(|world| {
-                    world.send_event(message::SendEvent {
-                        source:  object_id,
-                        message: String::from("Go around, too fast"),
-                        class:   message::Class::AnomalyInfo,
-                    })
+                    message::SendExpiring {
+                        source:   object_id,
+                        content:  String::from("Going around, too fast"),
+                        class:    message::Class::AnomalyInfo,
+                        duration: Duration::from_secs(10),
+                    }
+                    .apply(world);
                 });
                 RunNodeResult::ReplaceWithPreset(self.goaround_preset)
             }
             LandingException::TooHigh => {
                 object.world_scope(|world| {
-                    world.send_event(message::SendEvent {
-                        source:  object_id,
-                        message: String::from("Go around, too high"),
-                        class:   message::Class::AnomalyInfo,
-                    })
+                    message::SendExpiring {
+                        source:   object_id,
+                        content:  String::from("Going around, too high"),
+                        class:    message::Class::AnomalyInfo,
+                        duration: Duration::from_secs(10),
+                    }
+                    .apply(world);
                 });
                 RunNodeResult::ReplaceWithPreset(self.goaround_preset)
             }
             LandingException::NotAligned => {
                 object.world_scope(|world| {
-                    world.send_event(message::SendEvent {
-                        source:  object_id,
-                        message: String::from("Go around, is beyond runway width"),
-                        class:   message::Class::AnomalyInfo,
-                    })
+                    message::SendExpiring {
+                        source:   object_id,
+                        content:  String::from("Going around, beyond runway width"),
+                        class:    message::Class::AnomalyInfo,
+                        duration: Duration::from_secs(10),
+                    }
+                    .apply(world);
                 });
                 RunNodeResult::ReplaceWithPreset(self.goaround_preset)
             }
             LandingException::TrackDeviate => {
                 object.world_scope(|world| {
-                    world.send_event(message::SendEvent {
-                        source:  object_id,
-                        message: String::from("Go around, track not parallel to runway"),
-                        class:   message::Class::AnomalyInfo,
-                    })
+                    message::SendExpiring {
+                        source:   object_id,
+                        content:  String::from("Going around, track not parallel to runway"),
+                        class:    message::Class::AnomalyInfo,
+                        duration: Duration::from_secs(10),
+                    }
+                    .apply(world);
                 });
                 RunNodeResult::ReplaceWithPreset(self.goaround_preset)
             }

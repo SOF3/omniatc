@@ -8,6 +8,7 @@ use bevy_egui::{egui, EguiContextPass, EguiContexts};
 use omniatc::level::object;
 use omniatc::try_log_return;
 
+use crate::util::new_type_id;
 use crate::{config, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
@@ -46,7 +47,7 @@ fn setup_layout_system(
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else { return };
 
-    let resp = egui::SidePanel::right("object_info")
+    let resp = egui::SidePanel::right(new_type_id!())
         .resizable(true)
         .default_width(500.)
         .show(ctx, |ui| {

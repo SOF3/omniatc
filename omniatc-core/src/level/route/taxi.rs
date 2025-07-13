@@ -8,13 +8,13 @@ use bevy::ecs::system::Command;
 use bevy::ecs::world::{EntityRef, World};
 use bevy::math::Vec2;
 use itertools::Itertools;
+use math::{Distance, Position};
 use ordered_float::OrderedFloat;
 use smallvec::SmallVec;
 
 use super::{trigger, Node, NodeKind, Route, RunNodeResult};
 use crate::level::{ground, message, object, taxi};
 use crate::try_log;
-use crate::units::{Distance, Position};
 
 #[derive(Clone)]
 pub struct TaxiNode {

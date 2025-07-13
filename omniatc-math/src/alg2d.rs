@@ -1,26 +1,11 @@
-//! Universal constants related to physics and units.
+//! Simple 2D coordinate geometry and linear algebra algorithms.
 
-// we don't really want to read the mathematical constants in this file.
-#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
+use bevy_math::{Mat2, Vec2};
 
-use std::{cmp, fmt, iter, ops};
+use crate::{Distance, Position, Squared, TurnDirection};
 
-use bevy::math::{Dir2, Mat2, Vec2};
-
-use crate::units::{Distance, Position, Speed, Squared, TurnDirection};
-
-mod consts;
-pub use consts::*;
-pub mod sweep;
 #[cfg(test)]
 mod tests;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Sign {
-    Negative,
-    Zero,
-    Positive,
-}
 
 /// Finds the values `k1`, `k2` such that `0 <= k1 <= k2 <= 1` and,
 /// for each `k` between `k1` and `k2` inclusive,
@@ -52,52 +37,6 @@ pub fn line_circle_intersect(
         let high = ((-b + discrim.sqrt()) / a / 2.).min(1.);
         Some([low, high]).filter(|_| low <= high)
     }
-}
-
-pub trait Between<U>: PartialOrd<U> {
-    fn between_inclusive(&self, min: &U, max: &U) -> bool { self >= min && self <= max }
-}
-
-impl<T: PartialOrd<U>, U> Between<U> for T {}
-
-#[must_use]
-pub fn solve_expected_ground_speed(
-    true_airspeed: Speed<f32>,
-    wind: Speed<Vec2>,
-    ground_dir: Dir2,
-) -> Speed<f32> {
-    let wind_dot_ground = wind.x() * ground_dir.x + wind.y() * ground_dir.y;
-    wind_dot_ground
-        + (true_airspeed.squared() - wind.magnitude_squared() - wind_dot_ground.squared()).sqrt()
-}
-
-/// Returns `start`, `start+interval`, `start+interval+interval`, ... until `end`.
-/// The second last item is between `end - interval` and `end`, and is not equal to `end`.
-///
-/// # Panics
-/// Panics if `interval` is not a finite positive or negative value.
-pub fn range_steps<T, U>(mut start: T, end: T, interval: U) -> impl Iterator<Item = T> + Clone
-where
-    T: Copy + PartialOrd + ops::AddAssign<U>,
-    U: fmt::Debug + Copy + Default + PartialOrd,
-{
-    let more_extreme = match interval.partial_cmp(&U::default()) {
-        Some(cmp::Ordering::Less) => |a: T, b: T| a <= b,
-        Some(cmp::Ordering::Greater) => |a, b| a >= b,
-        _ => panic!("interval {interval:?} must be a finite positive or negative"),
-    };
-
-    let mut fuse = Some(end).filter(|_| more_extreme(end, start));
-
-    iter::from_fn(move || {
-        let output = start;
-        if more_extreme(output, end) {
-            fuse.take()
-        } else {
-            start += interval;
-            Some(output)
-        }
-    })
 }
 
 /// Solve `(t1, t2)` for `s1 + d1 * t1 == s2 + d2 * t2`.

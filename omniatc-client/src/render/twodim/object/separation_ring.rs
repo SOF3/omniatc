@@ -14,9 +14,9 @@ use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
+use math::Distance;
 use omniatc::level::object;
 use omniatc::try_log;
-use omniatc::units::Distance;
 use omniatc::util::EnumScheduleConfig;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};

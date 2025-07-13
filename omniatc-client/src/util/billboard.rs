@@ -5,7 +5,7 @@ use bevy::prelude::{
 };
 use bevy::sprite::Anchor;
 use bevy::text::Text2d;
-use omniatc::units::Distance;
+use math::Distance;
 
 use crate::render;
 

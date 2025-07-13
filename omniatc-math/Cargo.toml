@@ -1,0 +1,24 @@
+[package]
+name = "omniatc-math"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Common unit types and math utils"
+
+[lib]
+name = "math"
+
+[features]
+# For development only
+precommit-checks = []
+rust-analyzer = []
+
+[dependencies]
+bevy_math.workspace = true
+bevy_mod_config = { workspace = true, features = ["serde_json"] }
+ordered-float = "5.0.0"
+paste = "1.0.15"
+serde = { workspace = true, features = ["derive"] }
+thiserror = "2.0.12"

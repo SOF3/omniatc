@@ -7,11 +7,11 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, ParamSet, Query};
 use bevy::render::view::Visibility;
 use bevy::transform::components::Transform;
+use math::{Distance, DistanceUnit};
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::try_log;
-use omniatc::units::{Distance, DistanceUnit};
 use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 

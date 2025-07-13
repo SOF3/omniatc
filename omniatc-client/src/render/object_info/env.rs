@@ -1,8 +1,7 @@
 use bevy::ecs::query::QueryData;
 use bevy_egui::egui;
+use math::{Angle, Sign};
 use omniatc::level::{plane, wake, wind};
-use omniatc::math::Sign;
-use omniatc::units::Angle;
 
 use super::Writer;
 

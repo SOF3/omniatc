@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use omniatc::units::{Angle, Heading};
+use math::{Angle, Heading};
 
 pub mod billboard;
 pub mod shapes;

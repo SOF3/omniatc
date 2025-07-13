@@ -1,11 +1,10 @@
 use std::collections::{BinaryHeap, HashMap};
 use std::{cmp, iter, mem};
 
-use bevy::math::{Dir2, Vec2};
+use bevy_math::{Dir2, Vec2};
 use ordered_float::NotNan;
 
-use crate::math::line_intersect;
-use crate::units::{Distance, Position};
+use crate::{line_intersect, Distance, Position};
 
 #[cfg(test)]
 mod tests;

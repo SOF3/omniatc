@@ -2,7 +2,9 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::time::Duration;
 use std::{fmt, iter, ops};
 
-use bevy::math::{Dir2, Dir3, NormedVectorSpace, Vec2, Vec3, Vec3Swizzles, VectorSpace};
+use bevy_math::{Dir2, Dir3, NormedVectorSpace, Vec2, Vec3, Vec3Swizzles, VectorSpace};
+
+use crate::Sign;
 
 pub mod display;
 mod heading;
@@ -13,7 +15,14 @@ mod squared;
 pub use squared::Squared;
 use squared::SquaredNorm;
 
-use crate::math::{Sign, FEET_PER_NM, METERS_PER_NM, MILES_PER_NM};
+/// Converts nautical miles to feet.
+pub const FEET_PER_NM: f32 = 6076.12;
+/// Converts nautical miles to feet.
+pub const MILES_PER_NM: f32 = 1.15078;
+/// Converts nautical miles to meter.
+pub const METERS_PER_NM: f32 = 1852.;
+/// Converts speed of sound to knots.
+pub const KNOTS_PER_MACH: f32 = 666.739;
 
 pub trait Unit: Copy {
     type Value: Copy;

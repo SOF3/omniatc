@@ -3,11 +3,10 @@ use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy_egui::egui;
+use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object};
-use omniatc::math::TROPOPAUSE_ALTITUDE;
 use omniatc::try_log_return;
-use omniatc::units::Position;
 
 use super::Writer;
 use crate::input;

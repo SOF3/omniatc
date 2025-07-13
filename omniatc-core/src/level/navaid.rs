@@ -9,12 +9,12 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, Event};
+use math::{Distance, Heading, Position, TurnDirection};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::SystemSets;
 use crate::try_log;
-use crate::units::{Distance, Heading, Position, TurnDirection};
 use crate::util::RateLimit;
 
 pub struct Plug;

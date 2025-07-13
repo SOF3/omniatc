@@ -7,15 +7,14 @@ use bevy::ecs::query::QueryData;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
+use math::{
+    line_circle_intersect, line_intersect, Accel, AccelRate, Angle, AngularAccel, AngularSpeed,
+    Distance, Heading, Position, Speed, TurnDirection,
+};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{navaid, object, SystemSets};
-use crate::math::{line_circle_intersect, line_intersect};
-use crate::units::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
-    TurnDirection,
-};
 use crate::{pid, try_log_return};
 
 pub struct Plug;

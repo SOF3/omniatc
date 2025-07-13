@@ -4,13 +4,17 @@ members = [
 	"omniatc-core",
 	"omniatc-macros",
 	"omniatc-maps",
+	"omniatc-math",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 bevy = { version = "0.16.0", default-features = false }
-omniatc-core = { version = "0.0.0", path = "omniatc-core" }
-omniatc-macros = { version = "0.0.0", path = "omniatc-macros" }
+bevy_math = "0.16.0"
+bevy_mod_config = {version = "0.1.1", features = ["bevy_color"]}
+omniatc-core = { version = "*", path = "omniatc-core" }
+omniatc-math = { version = "*", path = "omniatc-math" }
+omniatc-macros = { version = "*", path = "omniatc-macros" }
 serde = "1.0.217"
 
 [workspace.package]

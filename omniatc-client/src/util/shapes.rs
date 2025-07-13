@@ -11,7 +11,7 @@ use bevy::math::primitives::{Circle, Rectangle};
 use bevy::math::Vec2;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::transform::components::{GlobalTransform, Transform};
-use omniatc::units::{Distance, Position};
+use math::{Distance, Position};
 
 use crate::render;
 use crate::render::twodim::Zorder;

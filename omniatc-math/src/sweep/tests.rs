@@ -1,7 +1,7 @@
-use bevy::math::{Dir2, Vec2};
+use bevy_math::{Dir2, Vec2};
 
-use crate::math::sweep::{Line, LineIndex, LineIntersection, LineSweeper};
-use crate::units::{Distance, Position};
+use super::{Line, LineIndex, LineIntersection, LineSweeper};
+use crate::{Distance, Position};
 
 #[test]
 fn sweep_cross_aligned() {

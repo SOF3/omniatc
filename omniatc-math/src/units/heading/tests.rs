@@ -1,4 +1,4 @@
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 
 use super::{Heading, TurnDirection};
 use crate::units::Angle;

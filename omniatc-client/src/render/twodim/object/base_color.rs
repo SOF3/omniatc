@@ -3,9 +3,8 @@ use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
+use math::{Position, Speed, TROPOPAUSE_ALTITUDE};
 use omniatc::level::object::Object;
-use omniatc::math::TROPOPAUSE_ALTITUDE;
-use omniatc::units::{Position, Speed};
 use omniatc_macros::FieldEnum;
 use serde::{Deserialize, Serialize};
 

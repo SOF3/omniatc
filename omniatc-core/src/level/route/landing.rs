@@ -6,13 +6,13 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Entity, EntityCommand, EntityRef, World};
 use bevy::time::{self, Time};
+use math::{Angle, Distance, Heading, Speed};
 
 use super::{trigger, HorizontalTarget, NodeKind, RunNodeResult};
 use crate::level::object::{self, Object};
 use crate::level::runway::{self, Runway};
 use crate::level::waypoint::Waypoint;
 use crate::level::{ground, message, nav, navaid, taxi};
-use crate::units::{Angle, Distance, Heading, Speed};
 use crate::{try_log, try_log_return};
 
 /// [Activation range](nav::TargetAlignment::activation_range) for `AlignRunway` nodes.

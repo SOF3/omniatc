@@ -1,8 +1,8 @@
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 
-use super::line_circle_intersect;
-use crate::math::{find_circle_tangent_towards, range_steps};
-use crate::units::{Distance, Position, Squared, TurnDirection};
+use crate::{
+    find_circle_tangent_towards, line_circle_intersect, Distance, Position, Squared, TurnDirection,
+};
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
     assert_eq!(actual.is_none(), expect.is_none());
@@ -72,26 +72,6 @@ fn line_circle_intersect_outside() {
         ),
         None,
     );
-}
-
-#[test]
-fn range_intervals_exact() {
-    assert_eq!(range_steps(0.0, 2.0, 0.5).collect::<Vec<_>>(), vec![0.0, 0.5, 1.0, 1.5, 2.0]);
-}
-
-#[test]
-fn range_intervals_excess() {
-    assert_eq!(range_steps(0.0, 2.3, 0.5).collect::<Vec<_>>(), vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.3]);
-}
-
-#[test]
-fn range_intervals_singleton() {
-    assert_eq!(range_steps(0.3, 0.3, 0.5).collect::<Vec<_>>(), vec![0.3]);
-}
-
-#[test]
-fn range_intervals_empty() {
-    assert_eq!(range_steps(0.3, 0.2, 0.5).collect::<Vec<_>>(), Vec::<f32>::new());
 }
 
 fn assert_option_pos(actual: Option<Position<Vec2>>, expect: Option<Position<Vec2>>) {

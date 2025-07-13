@@ -1,9 +1,9 @@
 use std::{fmt, ops};
 
-use bevy::math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
+use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 
 use super::{Distance, Squared};
-use crate::math::SEA_ALTITUDE;
+use crate::SEA_ALTITUDE;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
 pub struct Position<T>(pub Distance<T>);

@@ -5,13 +5,13 @@ use bevy::ecs::event::EventReader;
 use bevy::math::Vec2;
 use bevy::prelude::{Commands, Component, Entity, Query, Res};
 use bevy::time::{self, Time};
+use math::{Distance, Position};
 
 use super::{HorizontalTarget, NextNode, RunCurrentNode};
 use crate::level::object::Object;
 use crate::level::waypoint::Waypoint;
 use crate::level::{nav, navaid, taxi};
 use crate::try_log_return;
-use crate::units::{Distance, Position};
 
 #[derive(Component)]
 pub(super) struct FlyOver {

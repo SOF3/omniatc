@@ -9,8 +9,8 @@ use bevy::sprite::MeshMaterial2d;
 use bevy::transform::components::{GlobalTransform, Transform};
 use either::Either;
 use itertools::Itertools;
+use math::{Angle, Distance, Position};
 use omniatc::level::ground;
-use omniatc::units::{Angle, Distance, Position};
 use omniatc::util::manage_entity_vec;
 use omniatc::{try_log, try_log_return};
 

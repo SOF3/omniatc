@@ -12,10 +12,10 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Quat;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
+use math::{Accel, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection};
 
 use super::object::Object;
 use super::{nav, object, SystemSets};
-use crate::units::{Accel, Angle, AngularAccel, AngularSpeed, Heading, Speed, TurnDirection};
 
 pub struct Plug;
 

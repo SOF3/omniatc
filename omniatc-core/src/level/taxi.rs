@@ -8,14 +8,13 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
+use math::{point_line_closest, Accel, AngularSpeed, Distance, Position, Speed};
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use super::object::Object;
 use super::{ground, object, SystemSets};
-use crate::math::point_line_closest;
-use crate::units::{Accel, AngularSpeed, Distance, Position, Speed};
 use crate::{try_log, try_log_return};
 
 /// An object is considered stationary when slower than this speed.

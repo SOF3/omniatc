@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy_egui::egui;
-use omniatc::units::{Angle, Distance, DistanceUnit, Position, Speed};
+use math::{Angle, Distance, DistanceUnit, Position, Speed};
 use serde::Serialize;
 
 use super::{Field, FieldEguiContext, FieldMeta};

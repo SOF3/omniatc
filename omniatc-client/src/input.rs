@@ -12,7 +12,7 @@ use bevy::render::camera::Camera;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::Window;
 use bevy_egui::{EguiContextPass, EguiContexts};
-use omniatc::units::Position;
+use math::Position;
 
 use crate::{EguiSystemSets, EguiUsedMargins};
 

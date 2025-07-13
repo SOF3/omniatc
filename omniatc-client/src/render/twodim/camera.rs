@@ -16,7 +16,7 @@ use bevy::render::camera::{Camera, Viewport};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
 use bevy_egui::EguiContextPass;
-use omniatc::units::{Angle, Distance};
+use math::{Angle, Distance};
 use omniatc::{store, try_log_return};
 use omniatc_macros::{Config, FieldEnum};
 use serde::{Deserialize, Serialize};

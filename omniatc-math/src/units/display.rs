@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::math::{FEET_PER_NM, KNOTS_PER_MACH, METERS_PER_NM, MILES_PER_NM};
+use super::{FEET_PER_NM, KNOTS_PER_MACH, METERS_PER_NM, MILES_PER_NM};
 
 pub struct Quantity {
     pub value:  f32,

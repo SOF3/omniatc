@@ -1,10 +1,10 @@
 use bevy::math::Vec2;
+use math::{
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
+};
 use omniatc::level::route::WaypointProximity;
 use omniatc::level::{nav, taxi};
 use omniatc::store;
-use omniatc::units::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
-};
 
 pub fn default_plane_taxi_limits() -> taxi::Limits {
     taxi::Limits {

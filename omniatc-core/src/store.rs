@@ -5,11 +5,11 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
+use math::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 use serde::{Deserialize, Serialize};
 
 use crate::level::route::WaypointProximity;
 use crate::level::{nav, taxi};
-use crate::units::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
 
 pub mod load;
 

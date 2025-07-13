@@ -2,8 +2,8 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Res, SystemParam};
 use bevy_egui::egui;
+use math::Speed;
 use omniatc::level::{comm, nav, object};
-use omniatc::units::Speed;
 
 use super::Writer;
 use crate::input;

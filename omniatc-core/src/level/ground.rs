@@ -2,9 +2,8 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, Name};
+use math::{Distance, Position, Speed};
 use smallvec::SmallVec;
-
-use crate::units::{Distance, Position, Speed};
 
 pub struct Plug;
 

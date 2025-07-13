@@ -9,9 +9,9 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
+use math::Distance;
 use omniatc::level::object::Object;
 use omniatc::try_log;
-use omniatc::units::Distance;
 use omniatc::util::EnumScheduleConfig;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};

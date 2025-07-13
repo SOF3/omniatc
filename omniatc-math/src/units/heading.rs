@@ -2,7 +2,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use std::hash::Hash;
 use std::{fmt, ops};
 
-use bevy::math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
+use bevy_math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 use ordered_float::{FloatIsNan, NotNan};
 
 use super::{Angle, Distance, Position};

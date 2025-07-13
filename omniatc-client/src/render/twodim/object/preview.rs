@@ -17,13 +17,13 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::{GlobalTransform, Transform};
 use itertools::Itertools;
+use math::{find_circle_tangent_towards, Angle, Distance, Heading, Position, TurnDirection};
 use omniatc::level::object::Object;
 use omniatc::level::route::{self, Route};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{nav, plane};
-use omniatc::units::{Angle, Distance, Heading, Position, TurnDirection};
+use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
-use omniatc::{math, try_log};
 
 use super::{Conf, SetColorThemeSystemSet};
 use crate::render::object_info;
@@ -232,7 +232,7 @@ impl DrawCurrent<'_, '_> {
         let turn_center = curr_pos + turn_radius * curr_pos_to_turn_center;
 
         if let Some(transition_point) =
-            math::find_circle_tangent_towards(waypoint_pos, turn_center, turn_radius, direction)
+            find_circle_tangent_towards(waypoint_pos, turn_center, turn_radius, direction)
         {
             let transition_heading = (transition_point - turn_center).heading();
             self.draw_arc(

@@ -14,11 +14,11 @@ use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
+use math::{Angle, Distance, Position};
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
 use omniatc::try_log_return;
-use omniatc::units::{Angle, Distance, Position};
 use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 

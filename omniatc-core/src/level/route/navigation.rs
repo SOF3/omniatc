@@ -1,6 +1,7 @@
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec2;
 use bevy::prelude::{Entity, World};
+use math::{Between, Distance, Position, Speed};
 
 use super::{
     trigger, DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, WaypointProximity,
@@ -8,8 +9,6 @@ use super::{
 use crate::level::nav;
 use crate::level::object::{self, Object};
 use crate::level::waypoint::Waypoint;
-use crate::math::Between;
-use crate::units::{Distance, Position, Speed};
 
 /// Stay in this node until explicitly completed by user command.
 #[derive(Clone, Copy)]

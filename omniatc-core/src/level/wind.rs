@@ -12,9 +12,9 @@ use bevy::ecs::system::{EntityCommand, Query, Res, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3A};
+use math::{Position, Speed};
 
 use super::{object, SystemSets};
-use crate::units::{Position, Speed};
 use crate::util::RateLimit;
 
 pub struct Plug;

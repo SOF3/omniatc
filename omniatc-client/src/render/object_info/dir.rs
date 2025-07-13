@@ -2,9 +2,9 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
+use math::{Heading, TurnDirection};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, ground, nav, object, plane};
-use omniatc::units::{Heading, TurnDirection};
 use omniatc::{try_log, try_log_return};
 
 use super::Writer;

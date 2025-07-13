@@ -27,11 +27,11 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
 use bevy::math::Vec3;
 use bevy::time::{self, Time};
+use math::{Distance, Position, Speed};
 use smallvec::SmallVec;
 
 use super::{object, wind, SystemSets};
 use crate::try_log;
-use crate::units::{Distance, Position, Speed};
 use crate::util::RateLimit;
 
 const GRID_SIZE: Distance<Vec3> =

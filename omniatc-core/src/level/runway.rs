@@ -2,13 +2,13 @@ use bevy::app::{self, App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without};
+use math::{Angle, Distance, Position};
 use smallvec::SmallVec;
 
 use super::navaid::Navaid;
 use super::waypoint::{self, Waypoint};
 use super::{navaid, SystemSets};
 use crate::try_log_return;
-use crate::units::{Angle, Distance, Position};
 
 pub struct Plug;
 

@@ -1,9 +1,9 @@
 use bevy::app::App;
 use bevy::ecs::system::SystemState;
+use math::{Distance, Position, Speed};
 
 use super::GroundSpeedCalculator;
 use crate::level::object::RefAltitudeType;
-use crate::units::{Distance, Position, Speed};
 
 #[test]
 fn test_estimate_altitude_change() {

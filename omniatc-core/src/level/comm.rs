@@ -3,10 +3,10 @@ use bevy::ecs::event::{Event, EventReader};
 use bevy::ecs::system::EntityCommands;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
+use math::Speed;
 
 use super::{nav, route, SystemSets};
 use crate::try_log_return;
-use crate::units::Speed;
 
 pub struct Plug;
 

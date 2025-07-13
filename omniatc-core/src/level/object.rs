@@ -12,13 +12,13 @@ use bevy::math::{Dir2, Quat, Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time, Timer, TimerMode};
 use itertools::Itertools;
+use math::{
+    range_steps, solve_expected_ground_speed, Distance, Heading, Position, Speed,
+    PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
+    TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
+};
 
 use super::{ground, message, nav, wind, Config, SystemSets};
-use crate::math::{
-    range_steps, solve_expected_ground_speed, PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE,
-    STANDARD_SEA_LEVEL_TEMPERATURE, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
-};
-use crate::units::{Distance, Heading, Position, Speed};
 use crate::{try_log, try_log_return};
 
 mod dest;

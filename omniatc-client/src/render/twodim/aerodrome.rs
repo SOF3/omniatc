@@ -5,7 +5,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Res, ResMut};
 use bevy::sprite::{Anchor, ColorMaterial};
-use omniatc::units::{Angle, Distance, DistanceUnit};
+use math::{Angle, Distance, DistanceUnit};
 use omniatc_macros::Config;
 
 use crate::config::{self, AppExt};

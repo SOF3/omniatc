@@ -1,6 +1,6 @@
 use bevy::math::Vec2;
 use itertools::{Itertools, MinMaxResult};
-use omniatc::units::{Angle, Distance, Position};
+use math::{Angle, Distance, Position};
 
 #[test]
 fn test_compute_curve_parts() {

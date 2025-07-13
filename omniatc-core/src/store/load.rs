@@ -11,16 +11,15 @@ use bevy::prelude::{
 };
 use either::Either;
 use itertools::Itertools;
+use math::sweep::LineSweeper;
+use math::{sweep, Angle, Distance, Heading, Position, Speed, SEA_ALTITUDE};
 
 use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
 use crate::level::{aerodrome, ground, nav, object, plane, runway, wake, wind};
-use crate::math::sweep::LineSweeper;
-use crate::math::{sweep, SEA_ALTITUDE};
 use crate::store;
-use crate::units::{Angle, Distance, Heading, Position, Speed};
 
 #[cfg(test)]
 mod tests;

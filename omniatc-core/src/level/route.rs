@@ -8,12 +8,12 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, World};
 use bevy::time::{self, Time};
+use math::{Distance, Heading, Position, Speed};
 use serde::{Deserialize, Serialize};
 
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
 use crate::level::{nav, SystemSets};
 use crate::try_log;
-use crate::units::{Distance, Heading, Position, Speed};
 
 mod landing;
 pub use landing::*;

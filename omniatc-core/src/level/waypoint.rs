@@ -2,8 +2,7 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, EntityCommand, Event};
-
-use crate::units::Position;
+use math::Position;
 
 pub struct Plug;
 

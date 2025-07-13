@@ -116,7 +116,7 @@ impl Drop for TextStyler<'_, '_> {
 }
 
 impl WriterScope<'_, '_, '_, '_> {
-    fn write(&mut self, text: impl AsRef<str> + Into<String>) -> TextStyler {
+    fn write(&mut self, text: impl AsRef<str> + Into<String>) -> TextStyler<'_, '_> {
         if let Some(&child) = self.children.split_off_first() {
             let mut data =
                 self.span_query.get_mut(child).expect("invalid reference to label child span");

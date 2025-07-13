@@ -15,9 +15,9 @@ use bevy::math::Vec2;
 use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
 use itertools::Itertools;
+use math::Distance;
 use omniatc::level::wake;
 use omniatc::try_log;
-use omniatc::units::Distance;
 use omniatc_macros::Config;
 use smallvec::SmallVec;
 

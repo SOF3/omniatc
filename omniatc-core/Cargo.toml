@@ -19,6 +19,9 @@ precommit-checks = []
 rust-analyzer = []
 
 [dependencies]
+omniatc-math.workspace = true
+
+bevy_mod_config = { workspace = true, features = ["serde_json"] }
 ciborium = "0.2.2"
 derive_more = { version = "2.0.1", features = ["from"] }
 either = "1.15.0"

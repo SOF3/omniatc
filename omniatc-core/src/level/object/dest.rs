@@ -1,6 +1,5 @@
 use bevy::prelude::{Component, Entity};
-
-use crate::units::{Distance, Position};
+use math::{Distance, Position};
 
 /// Objective for the flight.
 #[derive(Component)]

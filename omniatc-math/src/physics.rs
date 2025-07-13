@@ -1,13 +1,9 @@
-use crate::units::Position;
+//! Algorithms and constants related to aviation physics.
 
-/// Converts nautical miles to feet.
-pub const FEET_PER_NM: f32 = 6076.12;
-/// Converts nautical miles to feet.
-pub const MILES_PER_NM: f32 = 1.15078;
-/// Converts nautical miles to meter.
-pub const METERS_PER_NM: f32 = 1852.;
-/// Converts speed of sound to knots.
-pub const KNOTS_PER_MACH: f32 = 666.739;
+use bevy_math::{Dir2, Vec2};
+
+use crate::units::Position;
+use crate::{Speed, FEET_PER_NM};
 
 /// Altitude of mean sea level.
 pub const SEA_ALTITUDE: Position<f32> = Position::new(0.);
@@ -24,3 +20,14 @@ pub const STANDARD_LAPSE_RATE: f32 = 0.0019812 * FEET_PER_NM;
 pub const TAS_DELTA_PER_NM: f32 = 0.02e-3 * FEET_PER_NM;
 /// I don't know what this constant even means... see <http://www.edwilliams.org/avform147.htm>.
 pub const PRESSURE_DENSITY_ALTITUDE_POW: f32 = 0.2349690;
+
+#[must_use]
+pub fn solve_expected_ground_speed(
+    true_airspeed: Speed<f32>,
+    wind: Speed<Vec2>,
+    ground_dir: Dir2,
+) -> Speed<f32> {
+    let wind_dot_ground = wind.x() * ground_dir.x + wind.y() * ground_dir.y;
+    wind_dot_ground
+        + (true_airspeed.squared() - wind.magnitude_squared() - wind_dot_ground.squared()).sqrt()
+}

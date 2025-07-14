@@ -1,4 +1,3 @@
-use std::f32::consts::FRAC_PI_8;
 use std::time::Duration;
 
 use bevy::ecs::system::Command;
@@ -26,7 +25,7 @@ const ALIGN_RUNWAY_ACTIVATION_RANGE: Distance<f32> = Distance::from_nm(0.5);
 /// [Lookahead duration](nav::TargetAlignment::lookahead) for `AlignRunway` nodes.
 const ALIGN_RUNWAY_LOOKAHEAD: Duration = Duration::from_secs(10);
 
-const MAX_TRACK_DEVIATION: Angle<f32> = Angle(FRAC_PI_8);
+const MAX_TRACK_DEVIATION: Angle = Angle::from_degrees(15.0);
 
 fn align_runway(object: &mut EntityWorldMut, runway: Entity, expedite: bool) -> Result<(), ()> {
     let Some((glide_descent, localizer_waypoint)) = object.world_scope(|world| {
@@ -444,6 +443,6 @@ fn get_required_landing_dist(
     ground_speed: Speed<Vec2>,
 ) -> Distance<f32> {
     // v^2 = u^2 + 2as => distance = ground_speed.squared() / 2 / deceleration
-    let decel = limits.base_braking.0 * runway_condition.friction_factor;
-    Distance(ground_speed.magnitude_squared().0 / 2. / decel)
+    let decel = limits.base_braking * runway_condition.friction_factor;
+    ground_speed.magnitude_squared() / 2. / decel
 }

@@ -31,7 +31,7 @@ use crate::render::twodim::Zorder;
 use crate::util::shapes;
 use crate::{config, render};
 
-const ARC_DENSITY: Angle<f32> = Angle(FRAC_PI_8 / 4.);
+const ARC_DENSITY: Angle = Angle::from_degrees(10.0);
 
 pub(super) struct Plug;
 
@@ -153,7 +153,7 @@ impl DrawCurrent<'_, '_> {
 
         let curr_pos = curr_pos.horizontal();
         let speed = speed.horizontal().magnitude_exact();
-        let turn_radius = Distance(speed.0 / max_yaw_speed.0);
+        let turn_radius = speed.arc_to_radius(max_yaw_speed);
 
         let target = target_override.map_or_else(
             || {
@@ -318,6 +318,7 @@ impl DrawCurrent<'_, '_> {
             thickness: f32,
         ) {
             positions.clear();
+            let half_thickness = Distance::new(thickness * 0.5);
 
             let angular_dist = start_heading.distance(end_heading, TurnDirection::Clockwise);
             // angular_dist < TAU, never overflows
@@ -328,8 +329,8 @@ impl DrawCurrent<'_, '_> {
             for step in 0..=steps {
                 #[expect(clippy::cast_precision_loss)] // step <= steps derived from f32
                 let heading = start_heading + ARC_DENSITY * (step as f32);
-                let inner = (radius - Distance(thickness / 2.)) * heading;
-                let outer = (radius + Distance(thickness / 2.)) * heading;
+                let inner = (radius - half_thickness) * heading;
+                let outer = (radius + half_thickness) * heading;
                 positions.push([inner.0.x, inner.0.y, 0.]);
                 positions.push([outer.0.x, outer.0.y, 0.]);
             }

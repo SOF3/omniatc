@@ -8,7 +8,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
-use math::{point_line_closest, Accel, AngularSpeed, Distance, Position, Speed};
+use math::{point_line_closest, Accel, AngularSpeed, CanSqrt, Distance, Position, Speed};
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -20,21 +20,21 @@ use crate::{try_log, try_log_return};
 /// An object is considered stationary when slower than this speed.
 ///
 /// This value is intended for comparison.
-const NEGLIGIBLE_SPEED: Speed<f32> = Speed(1. / 3600.0);
+const NEGLIGIBLE_SPEED: Speed<f32> = Speed::from_knots(1.);
 
 /// The default speed when an object must use a nonzero speed to move
 /// but wants to be as slow as possible (especially due to turning).
-const MIN_POSITIVE_SPEED: Speed<f32> = Speed(2. / 3600.0);
+const MIN_POSITIVE_SPEED: Speed<f32> = Speed::from_knots(2.);
 
 /// If an object is within this distance from the centerline,
 /// it is considered to be on the centerline,
 /// and it will head directly towards the target endpoint
 /// instead of pursuing the centerline.
-const NEGLIGIBLE_DEVIATION: Distance<f32> = Distance(0.001);
+const NEGLIGIBLE_DEVIATION: Distance<f32> = Distance::from_meters(20.0);
 
 /// If the object is expected to diverge from the centerline beyond this distance,
 /// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
-const OVERSHOOT_TOLERANCE: Distance<f32> = Distance(0.005);
+const OVERSHOOT_TOLERANCE: Distance<f32> = Distance::from_meters(10.0);
 
 pub struct Plug;
 
@@ -63,7 +63,7 @@ pub struct Limits {
     pub min_speed: Speed<f32>,
 
     /// Maximum absolute rotation speed during taxi. Always positive.
-    pub turn_rate: AngularSpeed<f32>,
+    pub turn_rate: AngularSpeed,
 
     /// Minimum width of segments this object can taxi on.
     ///
@@ -477,7 +477,7 @@ impl TargetPathParams<'_, '_> {
         // linear_speed / limits.turn_rate * (1.0 - abs_turn.cos()) <= intersection_width
         // i.e. linear_speed <= intersection_width * limits.turn_rate / (1.0 - abs_turn.cos())
         let max_turn_speed =
-            limits.turn_rate.into_radians_per_sec() * intersection_width / (1.0 - abs_turn.cos());
+            intersection_width.radius_to_arc(limits.turn_rate) / (1.0 - abs_turn.cos());
 
         let object_dist =
             object.position.horizontal().distance_exact(intersect_pos) - intersection_width;

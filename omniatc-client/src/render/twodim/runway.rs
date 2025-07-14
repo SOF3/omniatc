@@ -12,10 +12,9 @@ use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::try_log;
-use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 
-use crate::config::AppExt;
+use crate::config::{AppExt, Config};
 use crate::render;
 
 pub struct Plug;

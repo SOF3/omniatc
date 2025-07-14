@@ -2,6 +2,7 @@ use bevy_math::Vec2;
 
 use crate::{
     find_circle_tangent_towards, line_circle_intersect, Distance, Position, Squared, TurnDirection,
+    Unit,
 };
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
@@ -27,7 +28,7 @@ fn line_circle_intersect_middle() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(4.),
+            Unit::new(4.),
             Position::new(Vec2::new(5., 5.)),
             Position::new(Vec2::new(15., -5.)),
         ),
@@ -40,7 +41,7 @@ fn line_circle_intersect_contain_start() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(4.),
+            Unit::new(4.),
             Position::new(Vec2::new(9., 1.)),
             Position::new(Vec2::new(19., 1.)),
         ),
@@ -53,7 +54,7 @@ fn line_circle_intersect_contain_end() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(4.),
+            Unit::new(4.),
             Position::new(Vec2::new(1., 1.)),
             Position::new(Vec2::new(11., 1.)),
         ),
@@ -66,7 +67,7 @@ fn line_circle_intersect_outside() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Squared(4.),
+            Unit::new(4.),
             Position::new(Vec2::new(10., 10.)),
             Position::new(Vec2::new(0., 0.)),
         ),

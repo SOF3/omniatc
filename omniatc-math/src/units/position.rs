@@ -2,8 +2,8 @@ use std::{fmt, ops};
 
 use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 
-use super::{Distance, Squared};
-use crate::SEA_ALTITUDE;
+use super::Distance;
+use crate::{AsSqrt, DtZero, PowOne, Squared, UnitTrait, SEA_ALTITUDE};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
 pub struct Position<T>(pub Distance<T>);
@@ -15,23 +15,23 @@ impl<'de, T: serde::Deserialize<'de> + super::IsFinite> serde::Deserialize<'de> 
 }
 
 impl<T> Position<T> {
-    pub const fn new(value: T) -> Self { Position(Distance(value)) }
+    pub const fn new(value: T) -> Self { Position(Distance::new(value)) }
 
     pub fn get(self) -> T { self.0 .0 }
 }
 
 impl Position<f32> {
-    pub const SEA_LEVEL: Self = Self(Distance(0.));
+    pub const SEA_LEVEL: Self = Self(Distance::new(0.));
 
     #[must_use]
     pub fn from_amsl_feet(z: f32) -> Self { Position(Distance::from_feet(z)) }
 }
 
 impl Position<Vec2> {
-    pub const ORIGIN: Self = Self(Distance(Vec2::new(0., 0.)));
+    pub const ORIGIN: Self = Self(Distance::new(Vec2::new(0., 0.)));
 
     #[must_use]
-    pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance(Vec2 { x, y })) }
+    pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Distance::new(Vec2 { x, y })) }
 
     #[must_use]
     pub fn midpoint(self, other: Self) -> Self {
@@ -93,7 +93,7 @@ impl<T: ops::SubAssign> ops::SubAssign<Distance<T>> for Position<T> {
     fn sub_assign(&mut self, rhs: Distance<T>) { self.0 -= rhs; }
 }
 
-impl<T: ops::SubAssign> ops::Sub for Position<T> {
+impl<T: ops::Sub<Output = T>> ops::Sub for Position<T> {
     type Output = Distance<T>;
 
     fn sub(self, rhs: Self) -> Distance<T> { self.0 - rhs.0 }
@@ -106,16 +106,8 @@ impl<T: VectorSpace> Position<T> {
 
 impl<T: ops::SubAssign + NormedVectorSpace> Position<T> {
     /// Returns a wrapper that can be compared with a linear distance quantity.
-    pub fn distance_cmp(self, other: Self) -> impl PartialOrd + PartialOrd<Distance<f32>> {
+    pub fn distance_cmp(self, other: Self) -> AsSqrt<DtZero, PowOne> {
         (self - other).magnitude_cmp()
-    }
-
-    /// Converts the distance into a fully-ordered type.
-    ///
-    /// # Errors
-    /// Returns error if the squared distance evaluates to NaN.
-    pub fn distance_ord(self, other: Self) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> {
-        (self - other).magnitude_ord()
     }
 
     pub fn distance_squared(self, other: Self) -> Squared<Distance<f32>> {
@@ -169,22 +161,8 @@ impl Position<Vec3> {
     pub fn altitude(self) -> Position<f32> { Position(self.0.vertical()) }
 
     #[must_use]
-    pub fn horizontal_distance_cmp(
-        self,
-        other: Self,
-    ) -> impl PartialOrd + PartialOrd<Distance<f32>> {
+    pub fn horizontal_distance_cmp(self, other: Self) -> AsSqrt<DtZero, PowOne> {
         self.horizontal().distance_cmp(other.horizontal())
-    }
-
-    /// Converts the horizontal distance into a fully-ordered type.
-    ///
-    /// # Errors
-    /// Returns error if the squared distance evaluates to NaN.
-    pub fn horizontal_distance_ord(
-        self,
-        other: Self,
-    ) -> Result<impl Ord + Copy, ordered_float::FloatIsNan> {
-        self.horizontal().distance_ord(other.horizontal())
     }
 
     #[must_use]

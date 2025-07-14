@@ -91,7 +91,7 @@ struct Conf {
     intersection_size:   Distance<f32>,
     /// Density of straight lines to interpolate a curved intersection turn.
     #[config(min = Angle::from_degrees(1.), max = Angle::RIGHT)]
-    arc_interval:        Angle<f32>,
+    arc_interval:        Angle,
 
     /// Color of taxiways.
     taxiway_color: Color,

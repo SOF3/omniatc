@@ -295,9 +295,9 @@ struct Conf {
     /// Zoom speed based on vertical scroll per pixel.
     scroll_step_pixel:     f32,
     /// Rotation speed based on horizontal scroll per line.
-    rotation_step_line:    Angle<f32>,
+    rotation_step_line:    Angle,
     /// Rotation speed based on horizontal scroll per pixel.
-    rotation_step_pixel:   Angle<f32>,
+    rotation_step_pixel:   Angle,
     /// Direction to move camera when dragging with right button.
     camera_drag_direction: CameraDragDirection,
 }

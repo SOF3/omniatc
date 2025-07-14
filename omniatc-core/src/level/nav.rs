@@ -9,7 +9,7 @@ use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{
     line_circle_intersect, line_intersect, Accel, AccelRate, Angle, AngularAccel, AngularSpeed,
-    Distance, Heading, Position, Speed, TurnDirection,
+    CanSqrt, Distance, Frequency, Heading, Position, Speed, TurnDirection,
 };
 
 use super::object::Object;
@@ -60,7 +60,7 @@ pub struct Limits {
     /// Minimum horizontal indicated airspeed.
     pub min_horiz_speed: Speed<f32>,
     /// Max absolute yaw speed.
-    pub max_yaw_speed:   AngularSpeed<f32>,
+    pub max_yaw_speed:   AngularSpeed,
 
     // Pitch/vertical rate limits.
     /// Climb profile during expedited altitude increase.
@@ -96,7 +96,7 @@ pub struct Limits {
 
     // Z axis rotation limits.
     /// Max absolute rate of change of yaw speed.
-    pub max_yaw_accel: AngularAccel<f32>,
+    pub max_yaw_accel: AngularAccel,
 
     /// Distance from runway threshold at which the aircraft
     /// must start reducing to `short_final_speed`.
@@ -201,7 +201,7 @@ fn altitude_control_system(
     mut query: Query<(&TargetAltitude, &Object, &mut VelocityTarget)>,
 ) {
     /// Maximum proportion of the altitude error to compensate per second.
-    const DELTA_RATE_PER_SECOND: f32 = 0.3;
+    const DELTA_RATE_PER_SECOND: Frequency = Frequency::new(0.3);
 
     if time.is_paused() {
         return;
@@ -209,7 +209,7 @@ fn altitude_control_system(
 
     query.par_iter_mut().for_each(|(altitude, &Object { position, .. }, mut target)| {
         let diff = altitude.altitude - position.altitude();
-        let speed = Speed::per_second(diff * DELTA_RATE_PER_SECOND);
+        let speed = diff.per_second(DELTA_RATE_PER_SECOND);
         target.vert_rate = speed;
         target.expedite = altitude.expedite;
     });
@@ -236,11 +236,11 @@ pub struct TargetGlide {
     /// Angle of elevation of the glide path.
     ///
     /// Negative if the glide is a descent.
-    pub glide_angle:     Angle<f32>,
+    pub glide_angle:     Angle,
     /// Most negative pitch to use.
-    pub min_pitch:       Angle<f32>,
+    pub min_pitch:       Angle,
     /// Highest pitch to use.
-    pub max_pitch:       Angle<f32>,
+    pub max_pitch:       Angle,
     /// Lookahead time for pure pursuit.
     pub lookahead:       Duration,
     /// Whether the aircraft should expedit climb/descent to intersect with the glidepath.
@@ -253,7 +253,7 @@ pub struct TargetGlide {
 #[derive(Component, Default)]
 pub struct TargetGlideStatus {
     /// Actual pitch the object currently aims at to move towards the glidepath.
-    pub current_pitch:      Angle<f32>,
+    pub current_pitch:      Angle,
     /// Vertical distance from the glidepath to object altitude.
     /// A positive value means above glidescope.
     pub altitude_deviation: Distance<f32>,
@@ -353,7 +353,11 @@ fn ground_heading_control_system(
         let current_heading = data.current_object.ground_speed.horizontal().heading();
         let error = data.objective.target - current_heading;
 
-        let signal = Angle(pid::control(&mut data.objective.pid_state, error.0, time.delta_secs()));
+        let signal = Angle::from_radians(pid::control(
+            &mut data.objective.pid_state,
+            error.0,
+            time.delta_secs(),
+        ));
         data.signal.yaw =
             YawTarget::Heading(data.current_air.airspeed.horizontal().heading() + signal);
     });
@@ -416,7 +420,7 @@ pub struct TargetAlignmentStatus {
     /// Orthogonal distance between object and the line to align with.
     pub orthogonal_deviation: Distance<f32>,
     /// Current heading towards line end minus target direction.
-    pub angular_deviation:    Angle<f32>,
+    pub angular_deviation:    Angle,
 }
 
 #[derive(Default)]
@@ -481,8 +485,8 @@ fn alignment_control_system(
                 // r >= norm(low - high) * 0.5 under normal circumstances since low and high are
                 // points on the circle, but this value may be negative when they are almost equal,
                 // i.e. when `position` is almost exactly on the target line.
-                let ortho_dist =
-                    (radius_sq - low_pos.distance_squared(high_pos) / 4.).sqrt_or_zero();
+                let ortho_dist_sq = radius_sq - low_pos.distance_squared(high_pos) / 4.;
+                let ortho_dist = ortho_dist_sq.sqrt_or_zero();
 
                 if ortho_dist < target.activation_range
                     || position.distance_squared(high_pos) < radius_sq
@@ -493,8 +497,9 @@ fn alignment_control_system(
                 }
             } else {
                 // Project (end - position) onto (end - start)
-                let projected_dist =
-                    Distance((end - position).0.dot((end - start).0) / start.distance_exact(end).0);
+                let projected_dist = Distance::new(
+                    (end - position).0.dot((end - start).0) / start.distance_exact(end).0,
+                );
                 let projected_point = end - (end - start).normalize_to_magnitude(projected_dist);
 
                 let (_, current_intersect_secs) = line_intersect(

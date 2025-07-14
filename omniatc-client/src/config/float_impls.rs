@@ -296,12 +296,12 @@ impl Field for Speed<f32> {
 
 #[derive(Default)]
 pub struct AngleOpts {
-    pub min:       Option<Angle<f32>>,
-    pub max:       Option<Angle<f32>>,
-    pub precision: Option<Angle<f32>>,
+    pub min:       Option<Angle>,
+    pub max:       Option<Angle>,
+    pub precision: Option<Angle>,
 }
 
-impl Field for Angle<f32> {
+impl Field for Angle {
     type Opts = AngleOpts;
 
     fn show_egui(

@@ -73,7 +73,7 @@ struct MaintainParams<'w, 's, ViewableFilter: Component> {
 
 impl<ViewableFilter: Component> MaintainParams<'_, '_, ViewableFilter> {
     fn system<GetConf: Fn(&Conf) -> Distance<f32>>(&mut self, get_conf: GetConf) {
-        let pixel_width = Distance(self.camera.scale().x);
+        let pixel_width = Distance::new(self.camera.scale().x);
         let zoom = get_conf(&self.conf);
         let vis = if zoom > pixel_width { Visibility::Inherited } else { Visibility::Hidden };
 

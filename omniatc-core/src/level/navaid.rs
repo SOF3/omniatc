@@ -9,7 +9,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, Event};
-use math::{Distance, Heading, Position, TurnDirection};
+use math::{CanSqrt, Distance, Heading, Position, TurnDirection};
 
 use super::object::Object;
 use super::waypoint::Waypoint;

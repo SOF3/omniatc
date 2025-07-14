@@ -39,7 +39,7 @@ pub struct Control {
     /// This is the horizontal direction of the thrust generated.
     pub heading:     Heading,
     /// Rate of yaw change. Considered to be directly proportional to roll.
-    pub yaw_speed:   AngularSpeed<f32>,
+    pub yaw_speed:   AngularSpeed,
     /// Current horizontal acceleration.
     pub horiz_accel: Accel<f32>,
 }
@@ -121,13 +121,13 @@ fn maintain_yaw(
             // Test if the target heading is overshot when yaw speed reduces to 0
             // if we start reducing yaw speed now.
             // By v^2 = u^2 + 2as and v=0, s = -u^2/2a.
-            let brake_angle = Angle(control.yaw_speed.0.powi(2) / limits.max_yaw_accel.0)
-                * control.yaw_speed.signum();
+            let brake_angle =
+                control.yaw_speed.squared() / limits.max_yaw_accel * control.yaw_speed.signum();
             let braked_yaw = current_yaw + brake_angle;
 
             if target_heading.is_between(current_yaw, braked_yaw) {
                 // we are going to overshoot the target heading, start reducing speed now.
-                AngularSpeed(0.)
+                AngularSpeed::ZERO
             } else {
                 match dir {
                     TurnDirection::CounterClockwise => -limits.max_yaw_speed,
@@ -157,9 +157,8 @@ fn maintain_yaw(
     };
 
     let delta = desired_yaw_speed - control.yaw_speed;
-    control.yaw_speed += AngularAccel::per_second(delta)
-        .clamp(-limits.max_yaw_accel, limits.max_yaw_accel)
-        * time.delta();
+    control.yaw_speed +=
+        delta.clamp(-limits.max_yaw_accel * time.delta(), limits.max_yaw_accel * time.delta());
 
     {
         let new_heading = control.heading + control.yaw_speed * time.delta();
@@ -191,9 +190,9 @@ fn maintain_accel(
     let current_speed = airborne.airspeed.horizontal().magnitude_exact();
 
     let max_accel = limits.accel(airborne.airspeed.vertical())
-        - Accel(limits.drag_coef * current_speed.0.powi(2));
+        - Accel::new(limits.drag_coef * current_speed.0.powi(2));
     let max_decel = limits.decel(airborne.airspeed.vertical())
-        - Accel(limits.drag_coef * current_speed.0.powi(2));
+        - Accel::new(limits.drag_coef * current_speed.0.powi(2));
 
     #[expect(clippy::collapsible_else_if)]
     let desired_action = if target.horiz_speed >= current_speed {
@@ -209,8 +208,8 @@ fn maintain_accel(
             // If we perform maximum throttle pull back now, when the acceleration decreases to 0,
             // accel(t_stop) = 0 => t_stop = accel(0) / accel_change_rate
             // => speed(t_stop) = speed(0) - 0.5 * accel(0) / accel_change_rate
-            let speed_stop = current_speed
-                - Speed(0.5 * control.horiz_accel.0.powi(2) / (-limits.accel_change_rate.0));
+            let speed_stop =
+                current_speed - (control.horiz_accel.squared() / (-limits.accel_change_rate) * 0.5);
 
             // As we continue to accelerate, speed(0) increases over time,
             // so speed(t_stop) also increases over time.
@@ -231,8 +230,8 @@ fn maintain_accel(
             ThrottleAction::Decrease
         } else {
             // With a similar approach as above, except accel_change_rate is positive this time.
-            let speed_stop = current_speed
-                - Speed(0.5 * control.horiz_accel.0.powi(2) / limits.accel_change_rate.0);
+            let speed_stop =
+                current_speed - control.horiz_accel.squared() / limits.accel_change_rate * 0.5;
 
             // As we continue to decelerate, speed(0) decreases over time,
             // so speed(t_stop) also decreases over time.

@@ -3,7 +3,7 @@
 use bevy_math::{Dir2, Vec2};
 
 use crate::units::Position;
-use crate::{Speed, FEET_PER_NM};
+use crate::{CanSqrt, Speed, FEET_PER_NM};
 
 /// Altitude of mean sea level.
 pub const SEA_ALTITUDE: Position<f32> = Position::new(0.);

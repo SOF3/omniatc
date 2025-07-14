@@ -96,9 +96,10 @@ pub(super) fn fly_by_system(
                     };
 
                     let current_heading = (current_target - current_pos.horizontal()).heading();
-                    let turn_radius = Distance(
-                        speed.horizontal().magnitude_exact().0 / nav_limits.max_yaw_speed.0,
-                    ); // (L/T) / (1/T) = L
+                    let turn_radius = speed
+                        .horizontal()
+                        .magnitude_exact()
+                        .arc_to_radius(nav_limits.max_yaw_speed);
                     let turn_distance = turn_radius
                         * (current_heading.closest_distance(next_heading).abs() / 2.)
                             .acute_signed_tan();

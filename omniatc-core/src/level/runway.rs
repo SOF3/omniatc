@@ -56,7 +56,7 @@ pub struct Runway {
     /// Standard angle of depression for the glide path.
     ///
     /// Always positive.
-    pub glide_descent: Angle<f32>,
+    pub glide_descent: Angle,
 }
 
 /// Runway conditions due to environmental factors.

@@ -322,7 +322,7 @@ where
 
             if let Some(Vec2 { x: intersect_dot, y: intersect_ortho }) = intersect {
                 let intersect_position = Position::ORIGIN
-                    + Distance(
+                    + Distance::new(
                         *self.sweeper.sweep_dir * intersect_dot
                             + *self.sweeper.ortho_dir * intersect_ortho,
                     );

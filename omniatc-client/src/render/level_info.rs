@@ -343,10 +343,7 @@ impl ObjectTableColumn {
                 ConditionalReverse(desc, OrderedFloat(data.object.position.altitude().get()))
             }),
             Self::GroundSpeed => objects.sort_by_key(|data| {
-                ConditionalReverse(
-                    desc,
-                    data.object.ground_speed.horizontal().magnitude_ord().unwrap_or_default(),
-                )
+                ConditionalReverse(desc, data.object.ground_speed.horizontal().magnitude_cmp())
             }),
             Self::VerticalRate => objects.sort_by_key(|data| {
                 ConditionalReverse(desc, OrderedFloat(data.object.ground_speed.vertical().0))

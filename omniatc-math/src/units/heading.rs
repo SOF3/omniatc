@@ -13,22 +13,22 @@ mod tests;
 /// An absolute directional bearing.
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Heading(
-    Angle<f32>, // always -PI < heading <= PI
+    Angle, // always -PI < heading <= PI
 );
 
 impl Heading {
     /// Heading north.
-    pub const NORTH: Self = Self(Angle(0.));
+    pub const NORTH: Self = Self(Angle::new(0.));
     /// Heading east.
-    pub const EAST: Self = Self(Angle(FRAC_PI_2));
+    pub const EAST: Self = Self(Angle::new(FRAC_PI_2));
     /// Heading south.
-    pub const SOUTH: Self = Self(Angle(PI));
+    pub const SOUTH: Self = Self(Angle::new(PI));
     /// Heading west.
-    pub const WEST: Self = Self(Angle(FRAC_PI_2 * 3.));
+    pub const WEST: Self = Self(Angle::new(FRAC_PI_2 * 3.));
 
     /// Returns the heading of the vector.
     #[must_use]
-    pub fn from_vec2(vec: Vec2) -> Self { Self(Angle(vec.x.atan2(vec.y))) }
+    pub fn from_vec2(vec: Vec2) -> Self { Self(Angle::new(vec.x.atan2(vec.y))) }
 
     /// Converts the heading into a direction vector.
     #[must_use]
@@ -65,7 +65,7 @@ impl Heading {
 
     /// Creates a heading from an absolute bearing in radians.
     #[must_use]
-    pub fn from_radians(mut radians: Angle<f32>) -> Self {
+    pub fn from_radians(mut radians: Angle) -> Self {
         if radians > Angle::STRAIGHT {
             radians -= Angle::FULL;
         }
@@ -74,7 +74,7 @@ impl Heading {
 
     /// Returns the heading in radians in the range `-STRAIGHT < value <= STRAIGHT`.
     #[must_use]
-    pub fn radians(self) -> Angle<f32> { self.0 }
+    pub fn radians(self) -> Angle { self.0 }
 
     /// Returns the heading as an ordered value.
     ///
@@ -87,7 +87,7 @@ impl Heading {
 
     /// Returns the heading in radians in the range `0 <= value < FULL`.
     #[must_use]
-    pub fn radians_nonnegative(self) -> Angle<f32> {
+    pub fn radians_nonnegative(self) -> Angle {
         if self.0.is_negative() {
             self.0 + Angle::FULL
         } else {
@@ -102,7 +102,7 @@ impl Heading {
     /// The output is always in the range [0, FULL) for `Clockwise`,
     /// or (-FULL, 0] for `CounterClockwise`.
     #[must_use]
-    pub fn distance(self, other: Heading, dir: TurnDirection) -> Angle<f32> {
+    pub fn distance(self, other: Heading, dir: TurnDirection) -> Angle {
         let mut output = (other.0 - self.0) % Angle::FULL;
         match dir {
             TurnDirection::Clockwise => {
@@ -124,7 +124,7 @@ impl Heading {
     /// The output is always in the range (0, FULL] for `Clockwise`,
     /// or [-FULL, 0) for `CounterClockwise`.
     #[must_use]
-    pub fn nonzero_distance(self, other: Heading, dir: TurnDirection) -> Angle<f32> {
+    pub fn nonzero_distance(self, other: Heading, dir: TurnDirection) -> Angle {
         if self.0 == other.0 {
             return match dir {
                 TurnDirection::Clockwise => Angle::FULL,
@@ -152,7 +152,7 @@ impl Heading {
     /// Returns the signed angle closest to zero such that
     /// adding it to `self` approximately returns `other`.
     #[must_use]
-    pub fn closest_distance(self, other: Heading) -> Angle<f32> {
+    pub fn closest_distance(self, other: Heading) -> Angle {
         self.distance(other, self.closer_direction_to(other))
     }
 
@@ -171,7 +171,7 @@ impl Heading {
 
     /// Rotate by `delta` radians in the direction of `dir`.
     #[must_use]
-    pub fn add_direction(self, dir: TurnDirection, delta: Angle<f32>) -> Self {
+    pub fn add_direction(self, dir: TurnDirection, delta: Angle) -> Self {
         match dir {
             TurnDirection::CounterClockwise => self - delta,
             TurnDirection::Clockwise => self + delta,
@@ -198,7 +198,7 @@ impl Heading {
     ///
     /// `max_turn` must be non-negative.
     #[must_use]
-    pub fn restricted_turn(self, desired: Heading, max_turn: Angle<f32>) -> Self {
+    pub fn restricted_turn(self, desired: Heading, max_turn: Angle) -> Self {
         self + self.closest_distance(desired).clamp(-max_turn, max_turn)
     }
 }
@@ -215,8 +215,8 @@ impl fmt::Debug for Heading {
 /// Returns the shortest bearing change such that
 /// adding the return value to `other` approximately yields `self`.
 impl ops::Sub for Heading {
-    type Output = Angle<f32>;
-    fn sub(self, other: Self) -> Angle<f32> {
+    type Output = Angle;
+    fn sub(self, other: Self) -> Angle {
         if (self.0 - other.0).abs() <= Angle::STRAIGHT {
             self.0 - other.0
         } else if self.0 > other.0 {
@@ -227,10 +227,10 @@ impl ops::Sub for Heading {
     }
 }
 
-impl ops::Add<Angle<f32>> for Heading {
+impl ops::Add<Angle> for Heading {
     type Output = Self;
     /// Offsets `self` by `angle` clockwise.
-    fn add(mut self, angle: Angle<f32>) -> Self {
+    fn add(mut self, angle: Angle) -> Self {
         self.0 += angle;
         self.0 %= Angle::FULL;
         if self.0 > Angle::STRAIGHT {
@@ -242,20 +242,20 @@ impl ops::Add<Angle<f32>> for Heading {
     }
 }
 
-impl ops::AddAssign<Angle<f32>> for Heading {
+impl ops::AddAssign<Angle> for Heading {
     /// Offsets `self` by `angle` clockwise.
-    fn add_assign(&mut self, angle: Angle<f32>) { *self = *self + angle; }
+    fn add_assign(&mut self, angle: Angle) { *self = *self + angle; }
 }
 
-impl ops::Sub<Angle<f32>> for Heading {
+impl ops::Sub<Angle> for Heading {
     type Output = Self;
     /// Offsets `self` by `angle` counter-clockwise.
-    fn sub(self, angle: Angle<f32>) -> Self { self + (-angle) }
+    fn sub(self, angle: Angle) -> Self { self + (-angle) }
 }
 
-impl ops::SubAssign<Angle<f32>> for Heading {
+impl ops::SubAssign<Angle> for Heading {
     /// Offsets `self` by `angle` clockwise.
-    fn sub_assign(&mut self, angle: Angle<f32>) { *self = *self - angle; }
+    fn sub_assign(&mut self, angle: Angle) { *self = *self - angle; }
 }
 
 /// The direction for yaw change.
@@ -318,6 +318,6 @@ macro_rules! impl_angle_mul_dir {
     };
 }
 
-impl_angle_mul_dir!(Angle<f32>);
-impl_angle_mul_dir!(super::AngularSpeed<f32>);
-impl_angle_mul_dir!(super::AngularAccel<f32>);
+impl_angle_mul_dir!(Angle);
+impl_angle_mul_dir!(super::AngularSpeed);
+impl_angle_mul_dir!(super::AngularAccel);

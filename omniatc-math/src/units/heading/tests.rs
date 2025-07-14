@@ -11,7 +11,7 @@ fn assert_almost_eq(left: Heading, right: Heading, message: &str) {
     );
 }
 
-fn assert_delta(left: Angle<f32>, right: Angle<f32>, message: &str) {
+fn assert_delta(left: Angle, right: Angle, message: &str) {
     assert!((left - right).abs().0 < 1e-4, "{} != {}: {message}", left.0, right.0);
 }
 

@@ -120,10 +120,10 @@ fn compute_curve_points(
     intersect: Position<Vec2>,
     other_positions: [Position<Vec2>; 2],
     intersection_size: Distance<f32>,
-    arc_interval: Angle<f32>,
+    arc_interval: Angle,
 ) -> impl Iterator<Item = Position<Vec2>> {
     /// Base distance used for radials from the intersect center point
-    const DISTANCE_UNIT: Distance<f32> = Distance(1.);
+    const DISTANCE_UNIT: Distance<f32> = Distance::new(1.);
 
     let [radial1, radial2] =
         other_positions.map(|pos| (pos - intersect).normalize_to_magnitude(DISTANCE_UNIT));

@@ -57,7 +57,7 @@ pub struct Conf {
     /// Thickness of the preview line when setting heading, in window coordinates.
     set_heading_preview_thickness: f32,
     /// Angle of line segments to render the arc for the preview line.
-    set_heading_preview_density:   Angle<f32>,
+    set_heading_preview_density:   Angle,
 }
 
 impl Default for Conf {
@@ -150,7 +150,8 @@ impl SelectObjectParams<'_, '_> {
         self.current_hovered_object.0 = None;
         // TODO we need to reconcile this value with 3D systems when supported
 
-        let click_tolerance = Distance(camera_tf.scale().x) * self.conf.object_select_tolerance;
+        let click_tolerance =
+            Distance::new(camera_tf.scale().x) * self.conf.object_select_tolerance;
 
         let closest_object = self
             .object_query
@@ -191,7 +192,8 @@ pub(super) struct SetHeadingParams<'w, 's> {
 
 impl SetHeadingParams<'_, '_> {
     fn run(&mut self, cursor_world_pos: Position<Vec2>, camera_tf: GlobalTransform, commit: bool) {
-        let click_tolerance = Distance(camera_tf.scale().x) * self.conf.waypoint_select_tolerance;
+        let click_tolerance =
+            Distance::new(camera_tf.scale().x) * self.conf.waypoint_select_tolerance;
 
         let closest_waypoint = self
             .waypoint_query

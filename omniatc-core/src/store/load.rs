@@ -271,7 +271,7 @@ fn spawn_runway_navaids(
             min_dist_vertical:   Distance::ZERO,
             // TODO overwrite these two fields with visibility
             max_dist_horizontal: runway.max_visual_distance,
-            max_dist_vertical:   Distance(100.),
+            max_dist_vertical:   Distance::from_km(10.),
         },
         navaid::Visual { max_range: runway.max_visual_distance },
     ));
@@ -418,7 +418,7 @@ fn find_ground_intersects(lines: &[GroundLine]) -> Result<Vec<IntersectGroup>, E
         },
         lines.len(),
         Distance::from_meters(0.1),
-        Heading::from_radians(Angle(consts::E)).into_dir2(), // an arbitrary direction to avoid duplicates
+        Heading::from_radians(Angle::new(consts::E)).into_dir2(), // an arbitrary direction to avoid duplicates
     )
     .map_err(Error::GroundSweep)?
     .intersections_merged()
@@ -460,14 +460,11 @@ struct GroundSegmentEndpoint {
 fn ground_lines_to_segments(
     lines: &[GroundLine],
     all_intersect_groups: &[IntersectGroup],
-) -> Result<Vec<GroundSegment>, Error> {
+) -> Vec<GroundSegment> {
     let mut line_to_intersects_map = HashMap::<_, Vec<_>>::new();
     for group in all_intersect_groups {
         for line in &group.lines {
-            let alpha_dist = group
-                .position
-                .distance_ord(lines[line.0].alpha)
-                .map_err(|_| Error::NonFiniteFloat("evaluated intersection point"))?;
+            let alpha_dist = group.position.distance_cmp(lines[line.0].alpha);
             line_to_intersects_map.entry(line).or_default().push((alpha_dist, group));
         }
     }
@@ -503,7 +500,7 @@ fn ground_lines_to_segments(
         );
     }
 
-    Ok(segments)
+    segments
 }
 
 fn spawn_ground_segments(
@@ -517,7 +514,7 @@ fn spawn_ground_segments(
     let mut lines = collect_non_apron_ground_lines(ground_network, runway_pairs, runways);
     generate_apron_lines(ground_network, &mut lines)?;
     let intersect_groups = find_ground_intersects(&lines)?;
-    let segments = ground_lines_to_segments(&lines, &intersect_groups)?;
+    let segments = ground_lines_to_segments(&lines, &intersect_groups);
 
     let endpoints: Vec<_> = intersect_groups
         .iter()

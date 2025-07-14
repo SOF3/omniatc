@@ -234,7 +234,7 @@ pub fn get_tas_ratio(altitude: Position<f32>, sea_level_temperature: f32) -> f32
     let actual_temperature = sea_level_temperature
         - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE).get();
     let density_altitude = pressure_altitude
-        + Distance(
+        + Distance::new(
             STANDARD_SEA_LEVEL_TEMPERATURE / STANDARD_LAPSE_RATE
                 * (1.
                     - (STANDARD_SEA_LEVEL_TEMPERATURE / actual_temperature)

@@ -20,7 +20,7 @@ fn sweep_cross_aligned() {
             _ => unreachable!(),
         },
         2,
-        Distance(0.0001),
+        Distance::new(0.0001),
         Dir2::EAST,
     )
     .unwrap()
@@ -122,8 +122,13 @@ fn quad_complete_graph_sweeper(sweep_dir: Dir2) -> LineSweeper<impl Fn(LineIndex
         .collect();
 
     let lines_len = lines.len();
-    LineSweeper::new(move |LineIndex(index)| lines[index], lines_len, Distance(0.0001), sweep_dir)
-        .unwrap()
+    LineSweeper::new(
+        move |LineIndex(index)| lines[index],
+        lines_len,
+        Distance::new(0.0001),
+        sweep_dir,
+    )
+    .unwrap()
 }
 
 fn sweep_quad_complete_graph(sweep_dir: Dir2, expect_dot: Option<fn(TestPoint) -> f32>) {

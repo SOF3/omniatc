@@ -1,6 +1,6 @@
 use bevy::math::Vec2;
 use math::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed,
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed, Unit,
 };
 use omniatc::level::route::WaypointProximity;
 use omniatc::level::{nav, taxi};
@@ -483,14 +483,14 @@ pub fn file() -> store::File {
                     ]
                     .into_iter()
                     .enumerate()
-                    .flat_map(|(row, (prefix, heading, Distance(y)))| {
+                    .flat_map(|(row, (prefix, heading, y))| {
                         (-2..=2)
                             .map(move |x_offset: i16| {
-                                let Distance(x) = Distance::from_meters(200.) * f32::from(x_offset);
+                                let x = Distance::from_meters(200.) * f32::from(x_offset);
                                 (
                                     prefix,
                                     heading,
-                                    Position::from_origin_nm(0.5, 0.) + Distance(Vec2 { x, y }),
+                                    Position::from_origin_nm(0.5, 0.) + Distance::from((x, y)),
                                 )
                             })
                             .enumerate()

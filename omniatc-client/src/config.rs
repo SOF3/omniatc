@@ -17,6 +17,8 @@ mod enum_impls;
 pub use enum_impls::EnumField;
 mod float_impls;
 
+pub use omniatc_macros::Config;
+
 use crate::render;
 
 pub trait AppExt {

@@ -224,7 +224,7 @@ pub struct Runway {
     pub stopway:                Distance<f32>,
 
     /// Glide angle for the approach path.
-    pub glide_angle:         Angle<f32>,
+    pub glide_angle:         Angle,
     /// Maximum distance from which the runway is visible during CAVOK conditions,
     /// allowing the aircraft to commence visual approach.
     pub max_visual_distance: Distance<f32>,
@@ -236,13 +236,13 @@ pub struct Runway {
 pub struct Localizer {
     /// An aircraft is unable to establish on ILS when
     /// the horizontal deviation from the approach path is greater than this value.
-    pub half_width:       Angle<f32>,
+    pub half_width:       Angle,
     /// An aircraft is unable to establish on ILS when
     /// the angle of elevation above the touchdown position is less than this value.
-    pub min_pitch:        Angle<f32>,
+    pub min_pitch:        Angle,
     /// An aircraft is unable to establish on ILS when
     /// the angle of elevation above the touchdown position is greater than this value.
-    pub max_pitch:        Angle<f32>,
+    pub max_pitch:        Angle,
     /// An aircraft is unable to establish on ILS when
     /// the horizontal distance from the touchdown position is greater than this value.
     pub horizontal_range: Distance<f32>,
@@ -289,7 +289,7 @@ pub struct Navaid {
     pub heading_end:   Heading,
 
     /// Minimum angle of elevation from the navaid to the receiver.
-    pub min_pitch: Angle<f32>,
+    pub min_pitch: Angle,
 
     /// Maximum horizontal distance of the receiver from the navaid.
     pub max_dist_horizontal: Distance<f32>,
@@ -362,7 +362,7 @@ pub enum Destination {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlaneControl {
     pub heading:     Heading,
-    pub yaw_speed:   AngularSpeed<f32>,
+    pub yaw_speed:   AngularSpeed,
     pub horiz_accel: Accel<f32>,
 }
 
@@ -408,11 +408,11 @@ pub struct TargetGlide {
     /// Target waypoint to aim at.
     pub target_waypoint: WaypointRef,
     /// Angle of depression of the glide path. Typically negative.
-    pub glide_angle:     Angle<f32>,
+    pub glide_angle:     Angle,
     /// Most negative pitch to use.
-    pub min_pitch:       Angle<f32>,
+    pub min_pitch:       Angle,
     /// Highest pitch to use.
-    pub max_pitch:       Angle<f32>,
+    pub max_pitch:       Angle,
     /// Lookahead time for pure pursuit.
     pub lookahead:       Duration,
     /// Whether the aircraft should expedit climb/descent to intersect with the glidepath.
@@ -632,7 +632,7 @@ pub enum Shape2d {
         /// Length of the minor axis.
         minor_radius: Distance<f32>,
         /// Direction of the major axis.
-        major_dir:    Angle<f32>,
+        major_dir:    Angle,
     },
     Polygon {
         points: Vec<Position<Vec2>>,

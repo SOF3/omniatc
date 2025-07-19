@@ -9,7 +9,7 @@ use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{
     line_circle_intersect, line_intersect, Accel, AccelRate, Angle, AngularAccel, AngularSpeed,
-    CanSqrt, Distance, Frequency, Heading, Position, Speed, TurnDirection,
+    CanSqrt, Frequency, Heading, Length, Position, Speed, TurnDirection,
 };
 
 use super::object::Object;
@@ -100,7 +100,7 @@ pub struct Limits {
 
     /// Distance from runway threshold at which the aircraft
     /// must start reducing to `short_final_speed`.
-    pub short_final_dist:  Distance<f32>,
+    pub short_final_dist:  Length<f32>,
     /// The runway threshold crossing speed.
     pub short_final_speed: Speed<f32>,
 }
@@ -256,12 +256,12 @@ pub struct TargetGlideStatus {
     pub current_pitch:      Angle,
     /// Vertical distance from the glidepath to object altitude.
     /// A positive value means above glidescope.
-    pub altitude_deviation: Distance<f32>,
+    pub altitude_deviation: Length<f32>,
     /// Horizontal distance from the object to its intersection point with the glidepath.
     /// Positive if the intersection point is between the object and the target waypoint
     /// (i.e. in front of the object),
     /// negative if it is behind.
-    pub glidepath_distance: Distance<f32>,
+    pub glidepath_distance: Length<f32>,
 }
 
 fn glide_control_system(
@@ -410,7 +410,7 @@ pub struct TargetAlignment {
     /// Maximum orthogonal distance between the line and the object
     /// within which direction control is activated for alignment.
     /// This is used to avoid prematurely turning directly towards the localizer.
-    pub activation_range: Distance<f32>,
+    pub activation_range: Length<f32>,
 }
 
 #[derive(Component, Default)]
@@ -418,7 +418,7 @@ pub struct TargetAlignmentStatus {
     /// Whether the object is within the activation range.
     pub activation:           TargetAlignmentActivationStatus,
     /// Orthogonal distance between object and the line to align with.
-    pub orthogonal_deviation: Distance<f32>,
+    pub orthogonal_deviation: Length<f32>,
     /// Current heading towards line end minus target direction.
     pub angular_deviation:    Angle,
 }
@@ -439,7 +439,7 @@ pub enum TargetAlignmentActivationStatus {
         /// `None` indicates that the current track diverges from the target line.
         intersect_time: Option<Duration>,
         /// Distance from object to line end, projected onto the target line.
-        projected_dist: Distance<f32>,
+        projected_dist: Length<f32>,
     },
 }
 
@@ -497,7 +497,7 @@ fn alignment_control_system(
                 }
             } else {
                 // Project (end - position) onto (end - start)
-                let projected_dist = Distance::new(
+                let projected_dist = Length::new(
                     (end - position).0.dot((end - start).0) / start.distance_exact(end).0,
                 );
                 let projected_point = end - (end - start).normalize_to_magnitude(projected_dist);

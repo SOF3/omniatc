@@ -2,7 +2,7 @@
 
 use bevy_math::{Mat2, Vec2};
 
-use crate::{CanSqrt, Distance, Position, Squared, TurnDirection};
+use crate::{CanSqrt, Length, Position, Squared, TurnDirection};
 
 #[cfg(test)]
 mod tests;
@@ -16,7 +16,7 @@ mod tests;
 #[must_use]
 pub fn line_circle_intersect(
     circle_center: Position<Vec2>,
-    radius_sq: Squared<Distance<f32>>,
+    radius_sq: Squared<Length<f32>>,
     line_start: Position<Vec2>,
     line_end: Position<Vec2>,
 ) -> Option<[f32; 2]> {
@@ -90,11 +90,11 @@ pub fn find_circle_tangents_intersecting(outside: Vec2, radius: f32) -> Option<[
 pub fn find_circle_tangent_towards(
     outside: Position<Vec2>,
     center: Position<Vec2>,
-    radius: Distance<f32>,
+    radius: Length<f32>,
     direction: TurnDirection,
 ) -> Option<Position<Vec2>> {
     let direct = outside - center;
-    let radials = find_circle_tangents_intersecting(direct.0, radius.0)?.map(Distance::new);
+    let radials = find_circle_tangents_intersecting(direct.0, radius.0)?.map(Length::new);
     if TurnDirection::from_triangle_23(radials[0], direct) == Some(direction) {
         Some(center + radials[0])
     } else {

@@ -14,23 +14,23 @@ use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single, SystemParam
 use bevy::math::Vec2;
 use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
+use bevy_mod_config::{self, AppExt, Config, ReadConfig};
 use itertools::Itertools;
-use math::Distance;
+use math::Length;
 use omniatc::level::wake;
 use omniatc::try_log;
-use omniatc_macros::Config;
 use smallvec::SmallVec;
 
 use super::Zorder;
-use crate::config::{self, AppExt};
-use crate::render;
+use crate::render::twodim::camera;
 use crate::util::shapes;
+use crate::{render, ConfigManager};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:wake");
 
         app.add_systems(app::Update, spawn_system.in_set(render::SystemSets::Spawn));
         app.add_systems(app::Update, update_system.in_set(render::SystemSets::Update));
@@ -47,12 +47,14 @@ struct HasSprite(SmallVec<[Entity; 4]>);
 
 fn spawn_system(
     mut events: EventReader<wake::SpawnEvent>,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     mut last_display: Local<bool>,
     mut params: SpawnVortexParams,
     sprite_query: Query<Entity, With<IsSpriteOf>>,
     vortex_query: Query<(Entity, &'static wake::Vortex), Without<HasSprite>>,
 ) {
+    let conf = conf.read();
+
     match (mem::replace(&mut *last_display, conf.display), conf.display) {
         (false, true) => {
             for (vortex_entity, vortex) in vortex_query {
@@ -78,30 +80,32 @@ fn spawn_system(
 struct SpawnVortexParams<'w, 's> {
     commands:  Commands<'w, 's>,
     meshes:    Res<'w, shapes::Meshes>,
-    conf:      config::Read<'w, 's, Conf>,
+    conf:      ReadConfig<'w, 's, Conf>,
     materials: ResMut<'w, Assets<ColorMaterial>>,
-    camera:    Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    camera:    Single<'w, &'static GlobalTransform, With<camera::Layout>>,
 }
 
 fn spawn_vortex(vortex_entity: Entity, vortex: &wake::Vortex, params: &mut SpawnVortexParams) {
+    let conf = params.conf.read();
+
     let side_iter = [(-1., -1.), (-1., 1.), (1., 1.), (1., -1.)]
         .into_iter()
         .map(|(dx, dy)| {
-            vortex.position.horizontal() + Distance::from_nm(0.375) * Vec2 { x: dx, y: dy }
+            vortex.position.horizontal() + Length::from_nm(0.375) * Vec2 { x: dx, y: dy }
         })
         .circular_tuple_windows();
     for (from, to) in side_iter {
         params.commands.spawn((
             IsSpriteOf(vortex_entity),
             params.meshes.line_from_to(
-                params.conf.square_thickness,
+                conf.square_thickness,
                 Zorder::WakeOverlay,
                 from,
                 to,
                 &params.camera,
             ),
             MeshMaterial2d(params.materials.add(ColorMaterial {
-                color: params.conf.color_for_intensity(vortex.intensity),
+                color: conf.color_for_intensity(vortex.intensity),
                 alpha_mode: AlphaMode2d::Blend,
                 ..Default::default()
             })),
@@ -110,11 +114,13 @@ fn spawn_vortex(vortex_entity: Entity, vortex: &wake::Vortex, params: &mut Spawn
 }
 
 fn update_system(
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     vortex_query: Query<&wake::Vortex>,
     sprite_query: Query<(&IsSpriteOf, &MeshMaterial2d<ColorMaterial>)>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let conf = conf.read();
+
     for (&IsSpriteOf(vortex_entity), MeshMaterial2d(handle)) in sprite_query {
         let vortex = try_log!(vortex_query.get(vortex_entity), expect "parent vortex of sprite must exist" or continue);
         let material = try_log!(materials.get_mut(handle), expect "material referenced by strong handle must exist" or continue);
@@ -122,31 +128,23 @@ fn update_system(
     }
 }
 
-#[derive(Config, Resource)]
-#[config(id = "wake", name = "Wake")]
+#[derive(Config)]
+#[config(expose(read))]
 struct Conf {
     /// Display wake configuration overlay.
     display:                 bool,
     /// Thickness of vortex overlay squares.
+    #[config(default = 0.5)]
     square_thickness:        f32,
     /// Color of vortex overlay squares at full opacity.
+    #[config(default = Color::srgb(0.3, 0.2, 0.9))]
     square_color:            Color,
     /// Intensity of vortex overlay squares to reach full opacity.
+    #[config(default = 300e3)]
     square_opaque_intensity: f32,
 }
 
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            display:                 false,
-            square_thickness:        0.5,
-            square_color:            Color::srgba(0.3, 0.2, 0.9, 1.0),
-            square_opaque_intensity: 300e3,
-        }
-    }
-}
-
-impl Conf {
+impl ConfRead<'_> {
     fn color_for_intensity(&self, intensity: wake::Intensity) -> Color {
         #[expect(clippy::cast_precision_loss)] // acceptable precision loss
         let opacity = (intensity.0 as f32) / self.square_opaque_intensity;

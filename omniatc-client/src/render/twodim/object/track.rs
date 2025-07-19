@@ -10,15 +10,16 @@ use bevy::math::Vec3;
 use bevy::render::mesh::Mesh2d;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
+use bevy_mod_config::ReadConfig;
 use omniatc::level::object;
 use omniatc::try_log;
 use omniatc::util::{manage_entity_vec, EnumScheduleConfig};
 
 use super::{Conf, SetColorThemeSystemSet};
+use crate::render;
 use crate::render::object_info;
 use crate::render::twodim::Zorder;
 use crate::util::{billboard, shapes};
-use crate::{config, render};
 
 pub(super) struct Plug;
 
@@ -45,9 +46,11 @@ fn respawn_system(
     shapes: Res<shapes::Meshes>,
     mut material_assets: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     current_object: Res<object_info::CurrentObject>,
 ) {
+    let conf = conf.read();
+
     for (object_entity, track, point_list) in object_query {
         let point_data = track
             .log
@@ -56,14 +59,14 @@ fn respawn_system(
             .take(if current_object.0 == Some(object_entity) {
                 track.log.len()
             } else {
-                conf.track_normal_max_points as usize
+                conf.track.normal_max_points as usize
             })
             .map(|&pos| {
-                let color = conf.track_point_base_color.mix(
-                    &conf.track_point_top_color,
+                let color = conf.track.point_base_color.mix(
+                    &conf.track.point_top_color,
                     pos.altitude().ratio_between(
-                        conf.track_point_base_altitude,
-                        conf.track_point_top_altitude,
+                        conf.track.point_base_altitude,
+                        conf.track.point_top_altitude,
                     ),
                 );
 
@@ -79,7 +82,7 @@ fn respawn_system(
 
                 Some((
                     Transform { translation, scale: Vec3::ZERO, ..Default::default() },
-                    billboard::MaintainScale { size: conf.track_point_size },
+                    billboard::MaintainScale { size: conf.track.point_size },
                     Mesh2d(shapes.circle().clone()),
                     MeshMaterial2d(material_assets.add(color)),
                 ))

@@ -5,7 +5,7 @@ use bevy::ecs::event::EventReader;
 use bevy::math::Vec2;
 use bevy::prelude::{Commands, Component, Entity, Query, Res};
 use bevy::time::{self, Time};
-use math::{Distance, Position};
+use math::{Length, Position};
 
 use super::{HorizontalTarget, NextNode, RunCurrentNode};
 use crate::level::object::Object;
@@ -16,7 +16,7 @@ use crate::try_log_return;
 #[derive(Component)]
 pub(super) struct FlyOver {
     pub(super) waypoint: Entity,
-    pub(super) distance: Distance<f32>,
+    pub(super) distance: Length<f32>,
 }
 
 pub(super) fn fly_over_system(
@@ -51,7 +51,7 @@ pub(super) struct FlyBy {
 
 pub(super) enum FlyByCompletionCondition {
     Heading(HorizontalTarget),
-    Distance(Distance<f32>),
+    Distance(Length<f32>),
 }
 
 pub(super) fn fly_by_system(
@@ -135,7 +135,7 @@ pub(super) fn time_system(
 
 #[derive(Component)]
 pub(super) struct ByDistance {
-    pub(super) remaining_distance: Distance<f32>,
+    pub(super) remaining_distance: Length<f32>,
     pub(super) last_observed_pos:  Position<Vec2>,
 }
 

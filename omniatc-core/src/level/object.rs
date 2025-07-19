@@ -2,6 +2,7 @@
 //! in particular, a ground vehicle or an aircraft.
 
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
@@ -11,14 +12,15 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Quat, Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time, Timer, TimerMode};
+use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
 use math::{
-    range_steps, solve_expected_ground_speed, Distance, Heading, Position, Speed,
+    range_steps, solve_expected_ground_speed, Heading, Length, Position, Speed,
     PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
     TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
 };
 
-use super::{ground, message, nav, wind, Config, SystemSets};
+use super::{ground, message, nav, wind, SystemSets};
 use crate::{try_log, try_log_return};
 
 mod dest;
@@ -27,10 +29,18 @@ pub use dest::Destination;
 #[cfg(test)]
 mod tests;
 
-pub struct Plug;
+pub struct Plug<M>(PhantomData<M>);
 
-impl Plugin for Plug {
+impl<M> Default for Plug<M> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<M: Manager + Default> Plugin for Plug<M>
+where
+    Conf: ConfigFieldFor<M>,
+{
     fn build(&self, app: &mut App) {
+        app.init_config::<M, Conf>("core:object");
         app.add_event::<SpawnEvent>();
         app.add_systems(
             app::Update,
@@ -234,7 +244,7 @@ pub fn get_tas_ratio(altitude: Position<f32>, sea_level_temperature: f32) -> f32
     let actual_temperature = sea_level_temperature
         - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE).get();
     let density_altitude = pressure_altitude
-        + Distance::new(
+        + Length::new(
             STANDARD_SEA_LEVEL_TEMPERATURE / STANDARD_LAPSE_RATE
                 * (1.
                     - (STANDARD_SEA_LEVEL_TEMPERATURE / actual_temperature)
@@ -309,7 +319,7 @@ impl GroundSpeedCalculator<'_, '_> {
         ias: Speed<f32>,
         ref_altitude: Position<f32>,
         ref_altitude_type: RefAltitudeType,
-        sample_density: Distance<f32>,
+        sample_density: Length<f32>,
     ) -> Position<f32> {
         let distance = start.distance_exact(end);
         let Ok(ground_dir) = Dir2::new((end - start).0) else {
@@ -317,8 +327,8 @@ impl GroundSpeedCalculator<'_, '_> {
         };
 
         let range_step_iter = match ref_altitude_type {
-            RefAltitudeType::Start => range_steps(Distance::ZERO, distance, sample_density),
-            RefAltitudeType::End => range_steps(distance, Distance::ZERO, -sample_density),
+            RefAltitudeType::Start => range_steps(Length::ZERO, distance, sample_density),
+            RefAltitudeType::End => range_steps(distance, Length::ZERO, -sample_density),
         };
         let mut altitude = ref_altitude;
 
@@ -373,20 +383,34 @@ pub struct Track {
 
 fn track_position_system(
     time: Res<Time<time::Virtual>>,
-    config: Res<Config>,
+    conf: ReadConfig<Conf>,
     mut query: Query<(&mut Track, &Object)>,
 ) {
+    let conf = conf.read();
+
     query.iter_mut().for_each(|(mut track, &Object { position, .. })| {
         track.timer.tick(time.delta());
         if track.timer.finished() {
-            track.timer.set_duration(config.track_density);
+            track.timer.set_duration(conf.track_density);
             track.timer.reset();
 
-            if track.log.len() >= config.max_track_log {
+            if track.log.len() >= conf.max_track_log {
                 track.log.pop_front();
             }
 
             track.log.push_back(position);
         }
     });
+}
+
+#[derive(Config)]
+pub struct Conf {
+    /// Number of positions tracked per object.
+    ///
+    /// The oldest positions are removed when the log exceeds the limit.
+    #[config(default = 1024)]
+    pub max_track_log: usize,
+    /// Duration between two points in an object track log.
+    #[config(default = Duration::from_secs(1))]
+    pub track_density: Duration,
 }

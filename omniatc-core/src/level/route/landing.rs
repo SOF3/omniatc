@@ -5,7 +5,7 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Entity, EntityCommand, EntityRef, World};
 use bevy::time::{self, Time};
-use math::{Angle, Distance, Heading, Speed};
+use math::{Angle, Heading, Length, Speed};
 
 use super::{trigger, HorizontalTarget, NodeKind, RunNodeResult};
 use crate::level::object::{self, Object};
@@ -20,7 +20,7 @@ use crate::{try_log, try_log_return};
 /// compared to the default one triggered by explicit user command,
 /// because the object is expected to immediately start aligning
 /// by the time the `AlignRunway` node becomes active.
-const ALIGN_RUNWAY_ACTIVATION_RANGE: Distance<f32> = Distance::from_nm(0.5);
+const ALIGN_RUNWAY_ACTIVATION_RANGE: Length<f32> = Length::from_nm(0.5);
 
 /// [Lookahead duration](nav::TargetAlignment::lookahead) for `AlignRunway` nodes.
 const ALIGN_RUNWAY_LOOKAHEAD: Duration = Duration::from_secs(10);
@@ -441,7 +441,7 @@ fn get_required_landing_dist(
     limits: &taxi::Limits,
     runway_condition: &runway::Condition,
     ground_speed: Speed<Vec2>,
-) -> Distance<f32> {
+) -> Length<f32> {
     // v^2 = u^2 + 2as => distance = ground_speed.squared() / 2 / deceleration
     let decel = limits.base_braking * runway_condition.friction_factor;
     ground_speed.magnitude_squared() / 2. / decel

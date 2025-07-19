@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use bevy::sprite::Anchor;
 use math::{Angle, Heading};
 
 pub mod billboard;
@@ -40,3 +41,6 @@ pub fn heading_to_approx_name(heading: Heading) -> &'static str {
 
     unreachable!("Heading must be within 22.5\u{b0} of one of the 8 directions")
 }
+
+mod anchor;
+pub use anchor::AnchorConf;

@@ -5,7 +5,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::time::{self, Time};
 use bevy_egui::egui::text::LayoutJob;
-use bevy_egui::{egui, EguiContextPass, EguiContexts};
+use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use omniatc::level::message::{self, Message};
 
 use crate::util::new_type_id;
@@ -15,7 +15,10 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(EguiContextPass, setup_messages_system.in_set(EguiSystemSets::Messages));
+        app.add_systems(
+            EguiPrimaryContextPass,
+            setup_messages_system.in_set(EguiSystemSets::Messages),
+        );
     }
 }
 
@@ -27,7 +30,7 @@ fn setup_messages_system(
     time: Res<Time<time::Virtual>>,
     mut commands: Commands,
 ) {
-    let Some(ctx) = contexts.try_ctx_mut() else { return };
+    let Ok(ctx) = contexts.ctx_mut() else { return };
 
     let height = egui::TopBottomPanel::bottom(new_type_id!())
         .resizable(true)

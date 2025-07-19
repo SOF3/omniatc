@@ -5,7 +5,7 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
-use math::{Accel, Angle, AngularSpeed, Distance, Heading, Position, Speed};
+use math::{Accel, Angle, AngularSpeed, Heading, Length, Position, Speed};
 use serde::{Deserialize, Serialize};
 
 use crate::level::route::WaypointProximity;
@@ -67,7 +67,7 @@ pub struct Environment {
     ///
     /// An object at position `P` can see an object at position `Q`
     /// if and only if both `P` and `Q` have visibility not less than `dist(P, Q)`.
-    pub visibility: HeatMap2<Distance<f32>>,
+    pub visibility: HeatMap2<Length<f32>>,
 
     pub winds: Vec<Wind>,
 }
@@ -182,7 +182,7 @@ pub struct Taxiway {
     /// if it is curved.
     pub endpoints: Vec<Position<Vec2>>,
     /// Width of the taxiway.
-    pub width:     Distance<f32>,
+    pub width:     Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -193,13 +193,13 @@ pub struct Apron {
     /// Heading of aircraft when parked at the apron.
     pub forward_heading: Heading,
     /// Width of the apron.
-    pub width:           Distance<f32>,
+    pub width:           Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RunwayPair {
     /// Width of the runway. Only affects display.
-    pub width:          Distance<f32>,
+    pub width:          Length<f32>,
     /// Longest takeoff starting position for the forward runway.
     pub forward_start:  Position<Vec2>,
     /// Other details of the forward runway.
@@ -219,15 +219,15 @@ pub struct Runway {
     /// Should not include the aerodrome name.
     pub name:                   String,
     /// Distance of the displaced threshold from runway start.
-    pub touchdown_displacement: Distance<f32>,
+    pub touchdown_displacement: Length<f32>,
     /// Length of stopway behind the runway end (i.e. start of the opposite runway).
-    pub stopway:                Distance<f32>,
+    pub stopway:                Length<f32>,
 
     /// Glide angle for the approach path.
     pub glide_angle:         Angle,
     /// Maximum distance from which the runway is visible during CAVOK conditions,
     /// allowing the aircraft to commence visual approach.
-    pub max_visual_distance: Distance<f32>,
+    pub max_visual_distance: Length<f32>,
     /// ILS information, if any.
     pub ils:                 Option<Localizer>,
 }
@@ -245,16 +245,16 @@ pub struct Localizer {
     pub max_pitch:        Angle,
     /// An aircraft is unable to establish on ILS when
     /// the horizontal distance from the touchdown position is greater than this value.
-    pub horizontal_range: Distance<f32>,
+    pub horizontal_range: Length<f32>,
     /// An aircraft is unable to establish on ILS when
     /// the vertical distance from the touchdown position is greater than this value.
-    pub vertical_range:   Distance<f32>,
+    pub vertical_range:   Length<f32>,
     /// The Runway Visual Range;
     /// an aircraft must go around if visibility is lower than this value.
-    pub visual_range:     Distance<f32>,
+    pub visual_range:     Length<f32>,
     /// An aircraft must go around if it cannot establish visual contact with the runway
     /// before descending past this altitude.
-    pub decision_height:  Distance<f32>,
+    pub decision_height:  Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -292,9 +292,9 @@ pub struct Navaid {
     pub min_pitch: Angle,
 
     /// Maximum horizontal distance of the receiver from the navaid.
-    pub max_dist_horizontal: Distance<f32>,
+    pub max_dist_horizontal: Length<f32>,
     /// Maximum vertical distance of the receiver from the navaid.
-    pub max_dist_vertical:   Distance<f32>,
+    pub max_dist_vertical:   Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -308,7 +308,7 @@ pub enum NavaidType {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct VisualWaypoint {
     /// Maximum 3D distance from which pilots can see the waypoint.
-    pub max_distance: Distance<f32>,
+    pub max_distance: Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -338,7 +338,7 @@ pub struct BaseAircraft {
     pub ground_dir:   Heading,
     pub vert_rate:    Speed<f32>,
     pub weight:       f32,
-    pub wingspan:     Distance<f32>,
+    pub wingspan:     Length<f32>,
 }
 
 /// Condition for the completion of control of an object.
@@ -355,7 +355,7 @@ pub enum Destination {
     /// The control of the object is completed when both are `None`.
     ReachWaypoint {
         min_altitude:       Option<Position<f32>>,
-        waypoint_proximity: Option<(WaypointRef, Distance<f32>)>,
+        waypoint_proximity: Option<(WaypointRef, Length<f32>)>,
     },
 }
 
@@ -439,7 +439,7 @@ pub struct TargetAlignment {
     /// Maximum orthogonal distance between the line and the object
     /// within which direction control is activated for alignment.
     /// This is used to avoid prematurely turning directly towards the localizer.
-    pub activation_range: Distance<f32>,
+    pub activation_range: Length<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -522,7 +522,7 @@ pub enum RouteNode {
         waypoint:  WaypointRef,
         /// The node is considered complete when
         /// the horizontal distance between the object and the waypoint is less than this value.
-        distance:  Distance<f32>,
+        distance:  Length<f32>,
         /// Whether the object is allowed to complete this node early when in proximity.
         proximity: WaypointProximity,
         /// Start pitching at standard rate *during or before* this node,
@@ -539,7 +539,7 @@ pub enum RouteNode {
     StartPitchToAltitude {
         goal:     Position<f32>,
         /// If `Some`, this node blocks until the altitude is within `goal` &pm; `error`.
-        error:    Option<Distance<f32>>,
+        error:    Option<Length<f32>>,
         expedite: bool,
         // TODO pressure altitude?
     },
@@ -611,7 +611,7 @@ pub struct Camera2d {
     /// Whether the camera scale is based on X (width) or Y (height) axis.
     pub scale_axis:   AxisDirection,
     /// Number of nautical miles to display in the scale axis.
-    pub scale_length: Distance<f32>,
+    pub scale_length: Length<f32>,
 }
 
 /// A horizontal map axis.
@@ -628,9 +628,9 @@ pub enum Shape2d {
         /// Center of the ellipse.
         center:       Position<Vec2>,
         /// Length of the major axis.
-        major_radius: Distance<f32>,
+        major_radius: Length<f32>,
         /// Length of the minor axis.
-        minor_radius: Distance<f32>,
+        minor_radius: Length<f32>,
         /// Direction of the major axis.
         major_dir:    Angle,
     },

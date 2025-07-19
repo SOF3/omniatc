@@ -5,9 +5,9 @@ use bevy::prelude::{
 };
 use bevy::sprite::Anchor;
 use bevy::text::Text2d;
-use math::Distance;
+use math::Length;
 
-use crate::render;
+use crate::render::{self, twodim};
 
 pub struct Plug;
 
@@ -38,14 +38,14 @@ pub struct MaintainRotation;
 #[require(Text2d)]
 pub struct Label {
     /// Further offsets the label from the parent in real-world coordinates.
-    pub offset:   Distance<Vec2>,
+    pub offset:   Length<Vec2>,
     /// Distance to displace the label from the offset position in the anchor direction,
     /// in screen coordinates.
     pub distance: f32,
 }
 
 fn translate_label_system(
-    camera: Single<&GlobalTransform, With<Camera2d>>,
+    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
     mut query: Query<(&Label, &Anchor, &mut Transform)>,
 ) {
     let camera = *camera;
@@ -57,7 +57,7 @@ fn translate_label_system(
 }
 
 fn maintain_scale_system(
-    camera: Single<&GlobalTransform, With<Camera2d>>,
+    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
     mut query: Query<(&MaintainScale, &mut Transform)>,
 ) {
     let camera = *camera;
@@ -68,7 +68,7 @@ fn maintain_scale_system(
 }
 
 fn maintain_rot_system(
-    camera: Single<&GlobalTransform, With<Camera2d>>,
+    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
     mut query: Query<(&MaintainRotation, &mut Transform)>,
 ) {
     let camera = *camera;

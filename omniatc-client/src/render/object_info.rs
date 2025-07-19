@@ -4,12 +4,13 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
-use bevy_egui::{egui, EguiContextPass, EguiContexts};
+use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_mod_config::ReadConfig;
 use omniatc::level::object;
 use omniatc::try_log_return;
 
 use crate::util::new_type_id;
-use crate::{config, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
 
@@ -17,7 +18,10 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<CurrentHoveredObject>();
         app.init_resource::<CurrentObject>();
-        app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::ObjectInfo));
+        app.add_systems(
+            EguiPrimaryContextPass,
+            setup_layout_system.in_set(EguiSystemSets::ObjectInfo),
+        );
 
         app.add_systems(
             app::Update,
@@ -45,7 +49,7 @@ fn setup_layout_system(
     mut margins: ResMut<EguiUsedMargins>,
     mut write_params: WriteParams,
 ) {
-    let Some(ctx) = contexts.try_ctx_mut() else { return };
+    let Ok(ctx) = contexts.ctx_mut() else { return };
 
     let resp = egui::SidePanel::right(new_type_id!())
         .resizable(true)
@@ -135,11 +139,13 @@ mod signal;
 mod speed;
 
 fn highlight_selected_system(
-    conf: config::Read<super::twodim::pick::Conf>,
+    conf: ReadConfig<super::twodim::pick::Conf>,
     current_hovered_object: Res<CurrentHoveredObject>,
     current_object: Res<CurrentObject>,
     mut color_theme_query: Query<&mut super::twodim::object::ColorTheme>,
 ) {
+    let conf = conf.read();
+
     if let Some(entity) = current_hovered_object.0 {
         let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
         theme.body = conf.hovered_color;

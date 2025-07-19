@@ -1,7 +1,5 @@
 use bevy::math::Vec2;
-use math::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Distance, Heading, Position, Speed, Unit,
-};
+use math::{Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Length, Position, Speed};
 use omniatc::level::route::WaypointProximity;
 use omniatc::level::{nav, taxi};
 use omniatc::store;
@@ -13,8 +11,8 @@ pub fn default_plane_taxi_limits() -> taxi::Limits {
         max_speed:    Speed::from_knots(100.0),
         min_speed:    Speed::from_knots(-4.0),
         turn_rate:    AngularSpeed::from_degrees_per_sec(8.0),
-        width:        Distance::from_meters(60.0),
-        half_length:  Distance::from_meters(70.0),
+        width:        Length::from_meters(60.0),
+        half_length:  Length::from_meters(70.0),
     }
 }
 
@@ -51,7 +49,7 @@ pub fn default_plane_nav_limits() -> nav::Limits {
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
         drag_coef:         3. / 500. / 500.,
         max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
-        short_final_dist:  Distance::from_nm(4.),
+        short_final_dist:  Length::from_nm(4.),
         short_final_speed: Speed::from_knots(150.),
     }
 }
@@ -61,20 +59,20 @@ fn route_retry_18r() -> Vec<store::RouteNode> {
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("RETRY".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  Some(Position::from_amsl_feet(4000.)),
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("REMRG".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("APPNW".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
@@ -102,27 +100,27 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
     [
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("DWIND".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("LONG".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  Some(Position::from_amsl_feet(4000.)),
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("SHORT".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("APPNE".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
@@ -151,27 +149,27 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
     [
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("DWIND".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("LONG".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  Some(Position::from_amsl_feet(4000.)),
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("SHORT".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("APPNW".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
@@ -200,21 +198,21 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
     [
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("POLAR".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("SHORT".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  Some(Position::from_amsl_feet(4000.)),
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("APPNE".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
@@ -243,21 +241,21 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
     [
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("POLAR".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("SHORT".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  Some(Position::from_amsl_feet(4000.)),
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(200.), error: None },
         store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("APPNW".into()),
-            distance:  Distance::from_nm(1.),
+            distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
             altitude:  None,
         },
@@ -302,7 +300,7 @@ pub fn file() -> store::File {
                     sparse:  store::SparseHeatMap2 { functions: [].into() },
                 },
                 visibility: store::HeatMap2 {
-                    aligned: store::AlignedHeatMap2::constant(Distance::from_nm(1000.)),
+                    aligned: store::AlignedHeatMap2::constant(Length::from_nm(1000.)),
                     sparse:  store::SparseHeatMap2 { functions: [].into() },
                 },
                 winds:      [store::Wind {
@@ -325,172 +323,172 @@ pub fn file() -> store::File {
                             name:      "A".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., 0.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., 0.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -3000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "A1".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., 0.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., 0.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "A2".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -1000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -600.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -600.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "A3".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -2000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -2400.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -2400.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "A4".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -3000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -3000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "B".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., 0.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., 0.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -3000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "B1".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., 0.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., 0.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "B2".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -1000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -600.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -600.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "B3".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -2000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -2400.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -2400.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "B4".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(0., -3000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -3000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -3000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "J".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(350., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(350., -1000.)),
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(350., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(350., -2000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "K".into(),
                             endpoints: [
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-350., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-350., -1000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-350., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-350., -2000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "T".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -1000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -1000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -1000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                         store::Taxiway {
                             name:      "U".into(),
                             endpoints: [
                                 Position::from_origin_nm(0., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(200., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(200., -2000.)),
                                 Position::from_origin_nm(1., 0.)
-                                    + Distance::vec2_from_meters(Vec2::new(-200., -2000.)),
+                                    + Length::vec2_from_meters(Vec2::new(-200., -2000.)),
                             ]
                             .into(),
-                            width:     Distance::from_meters(80.),
+                            width:     Length::from_meters(80.),
                         },
                     ]
                     .into(),
                     aprons:      [
-                        ('N', Heading::NORTH, Distance::from_meters(-800.)),
-                        ('S', Heading::SOUTH, Distance::from_meters(-1200.)),
-                        ('N', Heading::NORTH, Distance::from_meters(-1800.)),
-                        ('S', Heading::SOUTH, Distance::from_meters(-2200.)),
+                        ('N', Heading::NORTH, Length::from_meters(-800.)),
+                        ('S', Heading::SOUTH, Length::from_meters(-1200.)),
+                        ('N', Heading::NORTH, Length::from_meters(-1800.)),
+                        ('S', Heading::SOUTH, Length::from_meters(-2200.)),
                     ]
                     .into_iter()
                     .enumerate()
                     .flat_map(|(row, (prefix, heading, y))| {
                         (-2..=2)
                             .map(move |x_offset: i16| {
-                                let x = Distance::from_meters(200.) * f32::from(x_offset);
+                                let x = Length::from_meters(200.) * f32::from(x_offset);
                                 (
                                     prefix,
                                     heading,
-                                    Position::from_origin_nm(0.5, 0.) + Distance::from((x, y)),
+                                    Position::from_origin_nm(0.5, 0.) + Length::from((x, y)),
                                 )
                             })
                             .enumerate()
@@ -498,7 +496,7 @@ pub fn file() -> store::File {
                                 name: format!("{prefix}{:02}", row * 5 + index + 1),
                                 position,
                                 forward_heading: heading,
-                                width: Distance::from_meters(80.),
+                                width: Length::from_meters(80.),
                             })
                     })
                     .collect(),
@@ -507,78 +505,78 @@ pub fn file() -> store::File {
                 },
                 runways:        [
                     store::RunwayPair {
-                        width:          Distance::from_meters(100.),
+                        width:          Length::from_meters(100.),
                         forward_start:  Position::from_origin_nm(0., 0.),
                         forward:        store::Runway {
                             name:                   "18R".into(),
-                            touchdown_displacement: Distance::from_meters(160.),
-                            stopway:                Distance::ZERO,
+                            touchdown_displacement: Length::from_meters(160.),
+                            stopway:                Length::ZERO,
                             glide_angle:            Angle::from_degrees(3.),
-                            max_visual_distance:    Distance::from_nm(3.),
+                            max_visual_distance:    Length::from_nm(3.),
                             ils:                    Some(store::Localizer {
                                 half_width:       Angle::from_degrees(3.),
                                 min_pitch:        Angle::ZERO,
                                 max_pitch:        Angle::RIGHT,
-                                horizontal_range: Distance::from_nm(20.),
-                                vertical_range:   Distance::from_feet(6000.),
-                                visual_range:     Distance::from_meters(200.),
-                                decision_height:  Distance::from_feet(100.),
+                                horizontal_range: Length::from_nm(20.),
+                                vertical_range:   Length::from_feet(6000.),
+                                visual_range:     Length::from_meters(200.),
+                                decision_height:  Length::from_feet(100.),
                             }),
                         },
                         backward_start: Position::from_origin_nm(0., 0.)
-                            + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                            + Length::vec2_from_meters(Vec2::new(0., -3000.)),
                         backward:       store::Runway {
                             name:                   "36L".into(),
-                            touchdown_displacement: Distance::from_meters(160.),
-                            stopway:                Distance::ZERO,
+                            touchdown_displacement: Length::from_meters(160.),
+                            stopway:                Length::ZERO,
                             glide_angle:            Angle::from_degrees(3.),
-                            max_visual_distance:    Distance::from_nm(3.),
+                            max_visual_distance:    Length::from_nm(3.),
                             ils:                    Some(store::Localizer {
                                 half_width:       Angle::from_degrees(3.),
                                 min_pitch:        Angle::ZERO,
                                 max_pitch:        Angle::RIGHT,
-                                horizontal_range: Distance::from_nm(20.),
-                                vertical_range:   Distance::from_feet(6000.),
-                                visual_range:     Distance::from_meters(200.),
-                                decision_height:  Distance::from_feet(100.),
+                                horizontal_range: Length::from_nm(20.),
+                                vertical_range:   Length::from_feet(6000.),
+                                visual_range:     Length::from_meters(200.),
+                                decision_height:  Length::from_feet(100.),
                             }),
                         },
                     },
                     store::RunwayPair {
-                        width:          Distance::from_meters(100.),
+                        width:          Length::from_meters(100.),
                         forward_start:  Position::from_origin_nm(1., 0.),
                         forward:        store::Runway {
                             name:                   "18L".into(),
-                            touchdown_displacement: Distance::from_meters(160.),
-                            stopway:                Distance::ZERO,
+                            touchdown_displacement: Length::from_meters(160.),
+                            stopway:                Length::ZERO,
                             glide_angle:            Angle::from_degrees(3.),
-                            max_visual_distance:    Distance::from_nm(3.),
+                            max_visual_distance:    Length::from_nm(3.),
                             ils:                    Some(store::Localizer {
                                 half_width:       Angle::from_degrees(3.),
                                 min_pitch:        Angle::ZERO,
                                 max_pitch:        Angle::RIGHT,
-                                horizontal_range: Distance::from_nm(20.),
-                                vertical_range:   Distance::from_feet(6000.),
-                                visual_range:     Distance::from_meters(200.),
-                                decision_height:  Distance::from_feet(100.),
+                                horizontal_range: Length::from_nm(20.),
+                                vertical_range:   Length::from_feet(6000.),
+                                visual_range:     Length::from_meters(200.),
+                                decision_height:  Length::from_feet(100.),
                             }),
                         },
                         backward_start: Position::from_origin_nm(1., 0.)
-                            + Distance::vec2_from_meters(Vec2::new(0., -3000.)),
+                            + Length::vec2_from_meters(Vec2::new(0., -3000.)),
                         backward:       store::Runway {
                             name:                   "36R".into(),
-                            touchdown_displacement: Distance::from_meters(160.),
-                            stopway:                Distance::ZERO,
+                            touchdown_displacement: Length::from_meters(160.),
+                            stopway:                Length::ZERO,
                             glide_angle:            Angle::from_degrees(3.),
-                            max_visual_distance:    Distance::from_nm(3.),
+                            max_visual_distance:    Length::from_nm(3.),
                             ils:                    Some(store::Localizer {
                                 half_width:       Angle::from_degrees(3.),
                                 min_pitch:        Angle::ZERO,
                                 max_pitch:        Angle::RIGHT,
-                                horizontal_range: Distance::from_nm(20.),
-                                vertical_range:   Distance::from_feet(6000.),
-                                visual_range:     Distance::from_meters(200.),
-                                decision_height:  Distance::from_feet(100.),
+                                horizontal_range: Length::from_nm(20.),
+                                vertical_range:   Length::from_feet(6000.),
+                                visual_range:     Length::from_meters(200.),
+                                decision_height:  Length::from_feet(100.),
                             }),
                         },
                     },
@@ -598,16 +596,16 @@ pub fn file() -> store::File {
                             heading_start:       Heading::NORTH,
                             heading_end:         Heading::NORTH,
                             min_pitch:           Angle::ZERO,
-                            max_dist_horizontal: Distance::from_nm(199.),
-                            max_dist_vertical:   Distance::from_feet(40000.),
+                            max_dist_horizontal: Length::from_nm(199.),
+                            max_dist_vertical:   Length::from_feet(40000.),
                         },
                         store::Navaid {
                             ty:                  store::NavaidType::Dme,
                             heading_start:       Heading::NORTH,
                             heading_end:         Heading::NORTH,
                             min_pitch:           Angle::ZERO,
-                            max_dist_horizontal: Distance::from_nm(199.),
-                            max_dist_vertical:   Distance::from_feet(40000.),
+                            max_dist_horizontal: Length::from_nm(199.),
+                            max_dist_vertical:   Length::from_feet(40000.),
                         },
                     ]
                     .into(),
@@ -700,7 +698,7 @@ pub fn file() -> store::File {
                         ground_dir:   Heading::from_degrees(250.),
                         vert_rate:    Speed::ZERO,
                         weight:       1e5,
-                        wingspan:     Distance::from_meters(50.),
+                        wingspan:     Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
@@ -734,7 +732,7 @@ pub fn file() -> store::File {
                         ground_dir:   Heading::from_degrees(250.),
                         vert_rate:    Speed::ZERO,
                         weight:       1e5,
-                        wingspan:     Distance::from_meters(50.),
+                        wingspan:     Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
@@ -768,7 +766,7 @@ pub fn file() -> store::File {
                         ground_dir:   Heading::from_degrees(250.),
                         vert_rate:    Speed::ZERO,
                         weight:       1e5,
-                        wingspan:     Distance::from_meters(50.),
+                        wingspan:     Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(200.),
@@ -796,12 +794,12 @@ pub fn file() -> store::File {
                     aircraft:    store::BaseAircraft {
                         name:         "ADE127".into(),
                         weight:       1e5,
-                        wingspan:     Distance::from_meters(50.),
+                        wingspan:     Length::from_meters(50.),
                         dest:         store::Destination::ReachWaypoint {
                             min_altitude:       Some(Position::from_amsl_feet(18000.)),
                             waypoint_proximity: Some((
                                 store::WaypointRef::Named("EXITS".into()),
-                                Distance::from_nm(1.),
+                                Length::from_nm(1.),
                             )),
                         },
                         position:     Position::from_origin_nm(10., -1.),
@@ -842,7 +840,7 @@ pub fn file() -> store::File {
                 center:       Position::from_origin_nm(0., 0.),
                 up:           Heading::NORTH,
                 scale_axis:   store::AxisDirection::X,
-                scale_length: Distance::from_nm(100.),
+                scale_length: Length::from_nm(100.),
             }),
         },
     }

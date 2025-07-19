@@ -12,7 +12,7 @@ use bevy::prelude::{
 use either::Either;
 use itertools::Itertools;
 use math::sweep::LineSweeper;
-use math::{sweep, Angle, Distance, Heading, Position, Speed, SEA_ALTITUDE};
+use math::{sweep, Angle, Heading, Length, Position, Speed, SEA_ALTITUDE};
 
 use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};
@@ -194,7 +194,7 @@ struct PairedSpawnedRunway {
 fn spawn_runway(
     world: &mut World,
     aerodrome: &store::Aerodrome,
-    runway_width: Distance<f32>,
+    runway_width: Length<f32>,
     runway: &store::Runway,
     start_pos: Position<Vec2>,
     end_pos: Position<Vec2>,
@@ -267,11 +267,11 @@ fn spawn_runway_navaids(
             kind:                navaid::Kind::Visual,
             heading_range:       Heading::NORTH..Heading::NORTH,
             pitch_range_tan:     Angle::ZERO.acute_signed_tan()..Angle::RIGHT.acute_signed_tan(),
-            min_dist_horizontal: Distance::ZERO,
-            min_dist_vertical:   Distance::ZERO,
+            min_dist_horizontal: Length::ZERO,
+            min_dist_vertical:   Length::ZERO,
             // TODO overwrite these two fields with visibility
             max_dist_horizontal: runway.max_visual_distance,
-            max_dist_vertical:   Distance::from_km(10.),
+            max_dist_vertical:   Length::from_km(10.),
         },
         navaid::Visual { max_range: runway.max_visual_distance },
     ));
@@ -294,7 +294,7 @@ fn spawn_runway_navaids(
     }
 }
 
-const GROUND_EPSILON: Distance<f32> = Distance::from_meters(1.);
+const GROUND_EPSILON: Length<f32> = Length::from_meters(1.);
 
 fn collect_non_apron_ground_lines(
     ground_network: &store::GroundNetwork,
@@ -370,8 +370,7 @@ fn generate_apron_lines(
             |index| match index.0.checked_sub(1) {
                 None => sweep::Line {
                     alpha:          apron.position,
-                    beta:           apron.position
-                        - Distance::from_nm(100.) * apron.forward_heading,
+                    beta:           apron.position - Length::from_nm(100.) * apron.forward_heading,
                     need_intersect: true,
                 },
                 Some(non_apron_index) => {
@@ -417,7 +416,7 @@ fn find_ground_intersects(lines: &[GroundLine]) -> Result<Vec<IntersectGroup>, E
             }
         },
         lines.len(),
-        Distance::from_meters(0.1),
+        Length::from_meters(0.1),
         Heading::from_radians(Angle::new(consts::E)).into_dir2(), // an arbitrary direction to avoid duplicates
     )
     .map_err(Error::GroundSweep)?
@@ -558,7 +557,7 @@ fn spawn_ground_segments(
 
 struct GroundLine {
     label:     ground::SegmentLabel,
-    width:     Distance<f32>,
+    width:     Length<f32>,
     max_speed: Speed<f32>,
     alpha:     Position<Vec2>,
     beta:      Position<Vec2>,
@@ -614,8 +613,8 @@ fn spawn_waypoint_navaid(b: &mut RelatedSpawner<'_, impl Relationship>, navaid: 
         },
         heading_range:       navaid.heading_start..navaid.heading_end,
         pitch_range_tan:     navaid.min_pitch.acute_signed_tan()..Angle::RIGHT.acute_signed_tan(),
-        min_dist_horizontal: Distance::ZERO,
-        min_dist_vertical:   Distance::ZERO,
+        min_dist_horizontal: Length::ZERO,
+        min_dist_vertical:   Length::ZERO,
         max_dist_horizontal: navaid.max_dist_horizontal,
         max_dist_vertical:   navaid.max_dist_vertical,
     },));

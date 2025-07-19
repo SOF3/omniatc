@@ -2,10 +2,10 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::math::{Vec2, Vec3};
 use bevy::transform::components::Transform;
-use math::{Distance, Position};
+use math::{Length, Position};
 
 mod aerodrome;
-mod camera;
+pub mod camera;
 pub mod object;
 pub mod pick;
 mod runway;
@@ -75,11 +75,11 @@ impl Zorder {
         self.pos2_to_translation(position.horizontal())
     }
 
-    pub fn dist2_to_translation(self, distance: Distance<Vec2>) -> Vec3 {
+    pub fn dist2_to_translation(self, distance: Length<Vec2>) -> Vec3 {
         (distance.0, self.into_z()).into()
     }
 
-    pub fn dist3_to_translation(self, distance: Distance<Vec3>) -> Vec3 {
+    pub fn dist3_to_translation(self, distance: Length<Vec3>) -> Vec3 {
         self.dist2_to_translation(distance.horizontal())
     }
 

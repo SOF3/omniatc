@@ -3,7 +3,6 @@ use std::mem;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -16,8 +15,9 @@ use bevy::render::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues}
 use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::{GlobalTransform, Transform};
+use bevy_mod_config::ReadConfig;
 use itertools::Itertools;
-use math::{find_circle_tangent_towards, Angle, Distance, Heading, Position, TurnDirection};
+use math::{find_circle_tangent_towards, Angle, Heading, Length, Position, TurnDirection};
 use omniatc::level::object::Object;
 use omniatc::level::route::{self, Route};
 use omniatc::level::waypoint::Waypoint;
@@ -26,10 +26,10 @@ use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
 
 use super::{Conf, SetColorThemeSystemSet};
+use crate::render;
 use crate::render::object_info;
-use crate::render::twodim::Zorder;
+use crate::render::twodim::{camera, Zorder};
 use crate::util::shapes;
-use crate::{config, render};
 
 const ARC_DENSITY: Angle = Angle::from_degrees(10.0);
 
@@ -55,15 +55,16 @@ fn update_system(
     let materials = &mut *materials;
     let (object, current_material, route_material, preset_material) = {
         let mut init = stages.p0();
+        let conf = init.conf.read();
 
         for mut vis in init.vis_query {
             *vis = if init.object.0.is_some() { Visibility::Visible } else { Visibility::Hidden };
         }
 
         let [normal_material, set_heading_material, preset_material] = [
-            (&mut materials.normal, init.conf.preview_line_color_normal),
-            (&mut materials.set_heading, init.conf.preview_line_color_set_heading),
-            (&mut materials.preset, init.conf.preview_line_color_preset),
+            (&mut materials.normal, conf.preview_line.color_normal),
+            (&mut materials.set_heading, conf.preview_line.color_set_heading),
+            (&mut materials.preset, conf.preview_line.color_preset),
         ]
         .map(|(local, color)| &*match local {
             None => local.insert(init.materials.add(color)),
@@ -103,7 +104,7 @@ struct Init<'w, 's> {
     object:         Res<'w, object_info::CurrentObject>,
     override_query: Query<'w, 's, &'static TargetOverride>,
     materials:      ResMut<'w, Assets<ColorMaterial>>,
-    conf:           config::Read<'w, 's, super::Conf>,
+    conf:           ReadConfig<'w, 's, super::Conf>,
 }
 
 #[derive(Default)]
@@ -115,7 +116,7 @@ struct Materials {
 
 #[derive(SystemParam)]
 struct DrawCurrent<'w, 's> {
-    conf:           config::Read<'w, 's, super::Conf>,
+    conf:           ReadConfig<'w, 's, super::Conf>,
     object_query:   Query<'w, 's, DrawCurrentObject>,
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     turn_query: Option<Single<'w, (&'static Mesh2d, &'static mut Transform), With<TurnViewable>>>,
@@ -124,7 +125,7 @@ struct DrawCurrent<'w, 's> {
     commands:       Commands<'w, 's>,
     meshes:         ResMut<'w, Assets<Mesh>>,
     shapes:         Res<'w, shapes::Meshes>,
-    camera:         Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
 }
 
 #[derive(QueryData)]
@@ -209,7 +210,7 @@ impl DrawCurrent<'_, '_> {
                     let target_heading = yaw_target.heading();
                     self.draw_direct(
                         curr_pos,
-                        curr_pos + Distance::from_nm(10000.) * target_heading,
+                        curr_pos + Length::from_nm(10000.) * target_heading,
                         material,
                     );
                 }
@@ -222,7 +223,7 @@ impl DrawCurrent<'_, '_> {
     fn draw_turn_to_waypoint(
         &mut self,
         curr_pos: Position<Vec2>,
-        turn_radius: Distance<f32>,
+        turn_radius: Length<f32>,
         curr_heading: Heading,
         waypoint_pos: Position<Vec2>,
         direction: TurnDirection,
@@ -260,7 +261,7 @@ impl DrawCurrent<'_, '_> {
         &mut self,
         yaw_target: nav::YawTarget,
         curr_pos: Position<Vec2>,
-        turn_radius: Distance<f32>,
+        turn_radius: Length<f32>,
         curr_heading: Heading,
         material: &Handle<ColorMaterial>,
     ) {
@@ -289,13 +290,13 @@ impl DrawCurrent<'_, '_> {
             let transition_point = turn_center + turn_radius * turn_center_to_transition;
             self.draw_direct(
                 transition_point,
-                transition_point + Distance::from_nm(10000.) * target_heading,
+                transition_point + Length::from_nm(10000.) * target_heading,
                 material,
             );
         } else {
             self.draw_direct(
                 curr_pos,
-                curr_pos + Distance::from_nm(10000.) * target_heading,
+                curr_pos + Length::from_nm(10000.) * target_heading,
                 material,
             );
         }
@@ -304,7 +305,7 @@ impl DrawCurrent<'_, '_> {
     fn draw_arc(
         &mut self,
         center: Position<Vec2>,
-        radius: Distance<f32>,
+        radius: Length<f32>,
         mut start_heading: Heading,
         mut end_heading: Heading,
         direction: TurnDirection,
@@ -312,13 +313,13 @@ impl DrawCurrent<'_, '_> {
     ) {
         fn draw_arc_to(
             positions: &mut Vec<[f32; 3]>,
-            radius: Distance<f32>,
+            radius: Length<f32>,
             start_heading: Heading,
             end_heading: Heading,
             thickness: f32,
         ) {
             positions.clear();
-            let half_thickness = Distance::new(thickness * 0.5);
+            let half_thickness = Length::new(thickness * 0.5);
 
             let angular_dist = start_heading.distance(end_heading, TurnDirection::Clockwise);
             // angular_dist < TAU, never overflows
@@ -340,7 +341,7 @@ impl DrawCurrent<'_, '_> {
             mem::swap(&mut start_heading, &mut end_heading);
         }
 
-        let window_thickness = self.conf.preview_line_thickness * self.camera.scale().y;
+        let window_thickness = self.conf.read().preview_line.thickness * self.camera.scale().y;
         if let Some(&mut (mesh, ref mut tf)) = self.turn_query.as_deref_mut() {
             let mesh = self.meshes.get_mut(&mesh.0).expect("strong reference must be valid");
             let Some(VertexAttributeValues::Float32x3(positions)) =
@@ -382,7 +383,7 @@ impl DrawCurrent<'_, '_> {
         } else {
             self.commands.spawn((
                 self.shapes.line_from_to(
-                    self.conf.preview_line_thickness,
+                    self.conf.read().preview_line.thickness,
                     Zorder::ObjectTrackPreview,
                     start,
                     end,
@@ -457,9 +458,9 @@ impl DrawPresets<'_, '_> {
 struct DrawOnce<'w, 's> {
     commands:       Commands<'w, 's>,
     shapes:         Res<'w, shapes::Meshes>,
-    conf:           config::Read<'w, 's, Conf>,
+    conf:           ReadConfig<'w, 's, Conf>,
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    camera:         Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
 }
 
 impl DrawOnce<'_, '_> {
@@ -493,13 +494,14 @@ impl DrawOnce<'_, '_> {
             }
         }
 
+        let conf = self.conf.read();
         for (&start, &end) in positions.iter().tuple_windows() {
             if let Some(mut tf) = viewables.next() {
                 shapes::set_square_line_transform(&mut tf, start, end);
             } else {
                 self.commands.spawn((
                     self.shapes.line_from_to(
-                        self.conf.preview_line_thickness,
+                        conf.preview_line.thickness,
                         zorder,
                         start,
                         end,

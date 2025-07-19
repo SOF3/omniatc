@@ -1,5 +1,6 @@
 //! A wind entity applies a velocity component to objects in its effective region.
 
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
@@ -12,16 +13,24 @@ use bevy::ecs::system::{EntityCommand, Query, Res, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::bounding::Aabb3d;
 use bevy::math::{Vec2, Vec3A};
+use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use math::{Position, Speed};
 
 use super::{object, SystemSets};
 use crate::util::RateLimit;
 
-pub struct Plug;
+pub struct Plug<M>(PhantomData<M>);
 
-impl Plugin for Plug {
+impl<M> Default for Plug<M> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<M: Manager + Default> Plugin for Plug<M>
+where
+    Conf: ConfigFieldFor<M>,
+{
     fn build(&self, app: &mut App) {
-        app.init_resource::<Conf>();
+        app.init_config::<M, Conf>("core:wind");
         app.add_systems(
             app::Update,
             detect_system.in_set(SystemSets::ExecuteEnviron).before(DetectorReaderSystemSet),
@@ -29,13 +38,10 @@ impl Plugin for Plug {
     }
 }
 
-#[derive(Resource)]
+#[derive(Config)]
 pub struct Conf {
+    #[config(default = Duration::from_secs(1))]
     detect_period: Duration,
-}
-
-impl Default for Conf {
-    fn default() -> Self { Self { detect_period: Duration::from_secs(1) } }
 }
 
 /// The direction and strength of wind.
@@ -104,10 +110,12 @@ pub struct Detector {
 
 fn detect_system(
     mut rl: RateLimit,
-    conf: Res<Conf>,
+    conf: ReadConfig<Conf>,
     locator: Locator,
     mut object_query: Query<(&mut Detector, &object::Object)>,
 ) {
+    let conf = conf.read();
+
     if rl.should_run(conf.detect_period).is_none() {
         return;
     }

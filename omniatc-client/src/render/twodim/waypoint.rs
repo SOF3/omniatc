@@ -12,20 +12,19 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
-use math::Distance;
+use bevy_mod_config::{AppExt, Config, ReadConfig};
+use math::Length;
 use omniatc::level::waypoint::{self, Waypoint};
-use omniatc_macros::Config;
 
 use super::Zorder;
-use crate::config::AppExt;
-use crate::util::billboard;
-use crate::{config, render};
+use crate::util::{billboard, AnchorConf};
+use crate::{render, ConfigManager};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:waypoint");
         app.add_systems(app::Update, spawn_system.in_set(render::SystemSets::Spawn));
         app.add_systems(app::Update, move_system.in_set(render::SystemSets::Update));
     }
@@ -50,10 +49,12 @@ struct HasLabel(Entity);
 fn spawn_system(
     mut commands: Commands,
     mut events: EventReader<waypoint::SpawnEvent>,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     asset_server: Res<AssetServer>,
     waypoint_query: Query<&Waypoint>,
 ) {
+    let conf = conf.read();
+
     for &waypoint::SpawnEvent(waypoint_entity) in events.read() {
         let waypoint = waypoint_query.get(waypoint_entity).expect("waypoint was just spawned");
 
@@ -77,7 +78,7 @@ fn spawn_system(
                 Zorder::WaypointLabel.local_translation(),
                 billboard::MaintainScale { size: conf.label_size },
                 billboard::MaintainRotation,
-                billboard::Label { offset: Distance::ZERO, distance: conf.label_distance },
+                billboard::Label { offset: Length::ZERO, distance: conf.label_distance },
                 Text2d::new(waypoint.name.as_str()),
                 conf.label_anchor,
             ));
@@ -92,28 +93,17 @@ fn move_system(mut waypoint_query: Query<(&Waypoint, &mut Transform)>) {
     });
 }
 
-#[derive(Resource, Config)]
-#[config(id = "waypoint", name = "Waypoints")]
+#[derive(Config)]
 struct Conf {
     /// Size of waypoint sprites.
-    #[config(min = 0., max = 5.)]
+    #[config(default = 0.7, min = 0.0, max = 5.0)]
     sprite_size:    f32,
-    #[config(min = 0., max = 3.)]
+    #[config(default = 0.6, min = 0.0, max = 3.0)]
     label_size:     f32,
-    #[config(min = 0., max = 100.)]
+    #[config(default = 30.0, min = 0.0, max = 100.0)]
     label_distance: f32,
-    label_anchor:   Anchor,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            sprite_size:    0.7,
-            label_size:     0.6,
-            label_distance: 30.,
-            label_anchor:   Anchor::BottomCenter,
-        }
-    }
+    #[config(default = Anchor::BottomCenter)]
+    label_anchor:   AnchorConf,
 }
 
 impl Conf {

@@ -1,7 +1,7 @@
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec2;
 use bevy::prelude::{Entity, World};
-use math::{Between, Distance, Position, Speed};
+use math::{Between, Length, Position, Speed};
 
 use super::{
     trigger, DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, WaypointProximity,
@@ -31,7 +31,7 @@ pub struct DirectWaypointNode {
     pub waypoint:  Entity,
     /// The node is considered complete when
     /// the horizontal distance between the object and the waypoint is less than this value.
-    pub distance:  Distance<f32>,
+    pub distance:  Length<f32>,
     /// Whether the object is allowed to complete this node early when in proximity.
     pub proximity: WaypointProximity,
     /// Start pitching at standard rate *during or before* this node,
@@ -143,7 +143,7 @@ pub struct StartSetAltitudeNode {
     /// The node completes immediately if `error` is `None`,
     /// or when the difference between `speed` and the real altitude of the object
     /// is less than `error` if it is `Some`.
-    pub error:    Option<Distance<f32>>,
+    pub error:    Option<Length<f32>>,
     pub expedite: bool,
     // TODO control pressure altitude instead?
 }

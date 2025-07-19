@@ -15,6 +15,7 @@
 
 use std::collections::{hash_map, HashMap};
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::mem;
 use std::time::Duration;
 
@@ -27,21 +28,29 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
 use bevy::math::Vec3;
 use bevy::time::{self, Time};
-use math::{Distance, Position, Speed};
+use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
+use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
 use super::{object, wind, SystemSets};
 use crate::try_log;
 use crate::util::RateLimit;
 
-const GRID_SIZE: Distance<Vec3> =
-    Distance::from_nm(0.25).splat2().with_vertical(Distance::from_feet(500.));
+const GRID_SIZE: Length<Vec3> =
+    Length::from_nm(0.25).splat2().with_vertical(Length::from_feet(500.));
 
-pub struct Plug;
+pub struct Plug<M>(PhantomData<M>);
 
-impl Plugin for Plug {
+impl<M> Default for Plug<M> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<M: Manager + Default> Plugin for Plug<M>
+where
+    Conf: ConfigFieldFor<M>,
+{
     fn build(&self, app: &mut App) {
-        app.init_resource::<Conf>();
+        app.init_config::<M, Conf>("core:wake");
         app.init_resource::<VortexIndex>();
         app.add_event::<SpawnEvent>();
         app.add_systems(app::Update, dissipate_vortex_system.in_set(SystemSets::PrepareEnviron));
@@ -62,24 +71,17 @@ impl Plugin for Plug {
     }
 }
 
-#[derive(Resource)]
+#[derive(Config)]
 pub struct Conf {
     /// The period at which vortex entities are spawned.
+    #[config(default = Duration::from_secs(5))]
     pub spawn_period:  Duration,
     /// The period at which vortex entities are spawned.
+    #[config(default = Duration::from_secs(1))]
     pub detect_period: Duration,
     /// Vertical rate (negative sink rate) for vortex entities.
+    #[config(default = Speed::from_fpm(400.0))]
     pub vert_rate:     Speed<f32>,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            spawn_period:  Duration::from_secs(5),
-            detect_period: Duration::from_secs(1),
-            vert_rate:     Speed::from_fpm(400.),
-        }
-    }
 }
 
 #[derive(Component)]
@@ -101,11 +103,13 @@ impl Intensity {
 fn wind_move_vortex_system(
     time: Res<Time<time::Virtual>>,
     vortex_query: Query<(Entity, &mut Vortex)>,
-    conf: Res<Conf>,
+    conf: ReadConfig<Conf>,
     wind_locator: wind::Locator,
     mut last_run: Local<Duration>,
     mut vortex_index: ResMut<VortexIndex>,
 ) {
+    let conf = conf.read();
+
     let delta_time = time.elapsed() - mem::replace(&mut *last_run, time.elapsed());
 
     for (entity, mut vortex) in vortex_query {
@@ -200,7 +204,7 @@ impl VortexIndex {
     }
 }
 
-fn vortex_position_index(position: Position<Vec3>, grid_size: Distance<Vec3>) -> [i32; 3] {
+fn vortex_position_index(position: Position<Vec3>, grid_size: Length<Vec3>) -> [i32; 3] {
     let Vec3 { x, y, z } = (position.get() / grid_size.0).floor();
     #[expect(clippy::cast_possible_truncation)] // intended truncation
     [x, y, z].map(|f| f as i32)
@@ -252,11 +256,13 @@ pub struct Producer {
 fn spawn_vortex_system(
     mut rl: RateLimit,
     mut commands: Commands,
-    conf: Res<Conf>,
+    conf: ReadConfig<Conf>,
     mut index: ResMut<VortexIndex>,
     aircraft_query: Query<(Entity, &object::Object, &object::Airborne, &Producer)>,
     mut spawn_event_writer: EventWriter<SpawnEvent>,
 ) {
+    let conf = conf.read();
+
     if rl.should_run(conf.spawn_period).is_none() {
         return;
     }
@@ -291,11 +297,13 @@ pub struct Detector {
 
 fn detect_vortex_system(
     mut rl: RateLimit,
-    conf: Res<Conf>,
+    conf: ReadConfig<Conf>,
     index: Res<VortexIndex>,
     mut object_query: Query<(Entity, &object::Object, &mut Detector)>,
     vortex_query: Query<&Vortex>,
 ) {
+    let conf = conf.read();
+
     if rl.should_run(conf.detect_period).is_none() {
         return;
     }

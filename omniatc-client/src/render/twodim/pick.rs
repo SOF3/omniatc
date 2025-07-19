@@ -14,24 +14,23 @@ use bevy::input::mouse::MouseButton;
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
-use math::{Angle, Distance, Position};
+use bevy_mod_config::{AppExt, Config, ReadConfig};
+use math::{Angle, Length, Position};
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
 use omniatc::try_log_return;
-use omniatc_macros::Config;
 use ordered_float::OrderedFloat;
 
 use super::object::preview;
-use crate::config::AppExt;
 use crate::render::object_info;
-use crate::{config, input, EguiUsedMargins, UpdateSystemSets};
+use crate::{input, ConfigManager, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:picking");
         app.add_systems(
             app::Update,
             input_system
@@ -41,37 +40,29 @@ impl Plugin for Plug {
     }
 }
 
-#[derive(Config, Resource)]
-#[config(id = "2d/pick", name = "Picking (2D)")]
+#[derive(Config)]
 pub struct Conf {
     /// Tolerated distance when clicking on an object in window coordinates.
+    #[config(default = 50.0)]
     object_select_tolerance:       f32,
     /// Tolerated distance when clicking on a waypoint in window coordinates.
+    #[config(default = 30.0)]
     waypoint_select_tolerance:     f32,
     /// Hovered objects are highlighted with this color.
+    #[config(default = Color::srgb(0.5, 1.0, 0.7))]
     pub hovered_color:             Color,
     /// Selected objects are highlighted with this color.
+    #[config(default = Color::srgb(0.5, 0.7, 1.0))]
     pub selected_color:            Color, // TODO reorganize these two fields to a better category
     /// Color of the preview line when setting heading.
+    #[config(default = Color::srgb(0.9, 0.7, 0.8))]
     set_heading_preview_color:     Color,
     /// Thickness of the preview line when setting heading, in window coordinates.
+    #[config(default = 1.5)]
     set_heading_preview_thickness: f32,
     /// Angle of line segments to render the arc for the preview line.
+    #[config(default = Angle::from_degrees(15.0))]
     set_heading_preview_density:   Angle,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            object_select_tolerance:       50.,
-            waypoint_select_tolerance:     30.,
-            hovered_color:                 Color::srgb(0.5, 1., 0.7),
-            selected_color:                Color::srgb(0.5, 0.7, 1.),
-            set_heading_preview_color:     Color::srgb(0.9, 0.7, 0.8),
-            set_heading_preview_thickness: 1.5,
-            set_heading_preview_density:   Angle::from_degrees(15.),
-        }
-    }
 }
 
 pub(super) fn input_system(
@@ -142,16 +133,17 @@ pub(super) struct SelectObjectParams<'w, 's> {
     current_hovered_object: ResMut<'w, object_info::CurrentHoveredObject>,
     current_object:         ResMut<'w, object_info::CurrentObject>,
     object_query:           Query<'w, 's, (Entity, &'static object::Object)>,
-    conf:                   config::Read<'w, 's, Conf>,
+    conf:                   ReadConfig<'w, 's, Conf>,
 }
 
 impl SelectObjectParams<'_, '_> {
     fn run(&mut self, cursor_world_pos: Position<Vec2>, camera_tf: GlobalTransform) {
+        let conf = self.conf.read();
+
         self.current_hovered_object.0 = None;
         // TODO we need to reconcile this value with 3D systems when supported
 
-        let click_tolerance =
-            Distance::new(camera_tf.scale().x) * self.conf.object_select_tolerance;
+        let click_tolerance = Length::new(camera_tf.scale().x) * conf.object_select_tolerance;
 
         let closest_object = self
             .object_query
@@ -182,7 +174,7 @@ struct SetHeadingObjectQuery {
 pub(super) struct SetHeadingParams<'w, 's> {
     waypoint_query: Query<'w, 's, (Entity, &'static Waypoint)>,
     object_query:   Query<'w, 's, SetHeadingObjectQuery>,
-    conf:           config::Read<'w, 's, Conf>,
+    conf:           ReadConfig<'w, 's, Conf>,
     instr_writer:   EventWriter<'w, comm::InstructionEvent>,
     current_object: Res<'w, object_info::CurrentObject>,
     buttons:        Res<'w, ButtonInput<KeyCode>>,
@@ -192,8 +184,9 @@ pub(super) struct SetHeadingParams<'w, 's> {
 
 impl SetHeadingParams<'_, '_> {
     fn run(&mut self, cursor_world_pos: Position<Vec2>, camera_tf: GlobalTransform, commit: bool) {
-        let click_tolerance =
-            Distance::new(camera_tf.scale().x) * self.conf.waypoint_select_tolerance;
+        let conf = self.conf.read();
+
+        let click_tolerance = Length::new(camera_tf.scale().x) * conf.waypoint_select_tolerance;
 
         let closest_waypoint = self
             .waypoint_query

@@ -8,7 +8,7 @@ use bevy::ecs::system::Command;
 use bevy::ecs::world::{EntityRef, World};
 use bevy::math::Vec2;
 use itertools::Itertools;
-use math::{Distance, Position};
+use math::{Length, Position};
 use ordered_float::OrderedFloat;
 use smallvec::SmallVec;
 
@@ -348,7 +348,7 @@ fn pathfind_min_distance_segments(
 #[derive(Clone)]
 struct PathCost {
     alts:     Alts,
-    distance: Distance<f32>,
+    distance: Length<f32>,
 }
 
 impl PartialEq for PathCost {

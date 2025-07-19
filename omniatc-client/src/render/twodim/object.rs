@@ -15,17 +15,16 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
-use math::{Distance, Position, TROPOPAUSE_ALTITUDE};
+use bevy_mod_config::{self, AppExt as _, Config, ReadConfig, ReadConfigChange};
+use math::{Length, Position, TROPOPAUSE_ALTITUDE};
 use omniatc::level::object::{self, Object};
 use omniatc::level::plane;
 use omniatc::util::EnumScheduleConfig;
-use omniatc_macros::Config;
 use serde::{Deserialize, Serialize};
 
 use super::Zorder;
-use crate::config::{self, AppExt as _};
-use crate::render;
-use crate::util::billboard;
+use crate::util::{billboard, AnchorConf};
+use crate::{render, ConfigManager};
 
 mod base_color;
 
@@ -41,7 +40,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:object");
         app.add_systems(
             app::Update,
             handle_config_change_system.in_set(render::SystemSets::Reload),
@@ -73,13 +72,14 @@ struct HasSprite(Entity);
 fn spawn_plane_system(
     mut spawn_events: EventReader<plane::SpawnEvent>,
     mut params: ParamSet<(
-        (Commands, config::Read<Conf>, Res<AssetServer>),
+        (Commands, ReadConfig<Conf>, Res<AssetServer>),
         separation_ring::SpawnSubsystemParam,
         vector::SpawnSubsystemParam,
     )>,
 ) {
     for &plane::SpawnEvent(plane_entity) in spawn_events.read() {
         let (mut commands, conf, asset_server) = params.p0();
+        let conf = conf.read();
 
         commands.entity(plane_entity).insert((
             Transform::IDENTITY,
@@ -91,18 +91,18 @@ fn spawn_plane_system(
             IsSpriteOf(plane_entity),
             ChildOf(plane_entity),
             Zorder::ObjectSprite.local_translation(),
-            Sprite::from_image(asset_server.load(conf.plane_sprite.path())),
-            billboard::MaintainScale { size: conf.plane_sprite_size },
+            Sprite::from_image(asset_server.load(conf.plane.sprite.path())),
+            billboard::MaintainScale { size: conf.plane.sprite_size },
         ));
         commands.spawn((
             IsLabelOf(plane_entity),
             ChildOf(plane_entity),
             Zorder::ObjectLabel.local_translation(),
-            billboard::MaintainScale { size: conf.label_size },
+            billboard::MaintainScale { size: conf.plane.label_size },
             billboard::MaintainRotation,
-            billboard::Label { offset: Distance::ZERO, distance: conf.label_distance },
+            billboard::Label { offset: Length::ZERO, distance: conf.plane.label_distance },
             Text2d::new(""),
-            conf.label_anchor,
+            conf.plane.label_anchor,
         ));
 
         separation_ring::spawn_subsystem(plane_entity, &mut params.p1());
@@ -126,7 +126,7 @@ pub enum SetColorThemeSystemSet {
 }
 
 fn maintain_plane_system(
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     mut object_query: Query<(
         &HasSprite,
         &Object,
@@ -141,6 +141,8 @@ fn maintain_plane_system(
     >,
     mut label_writer: label::Writer,
 ) {
+    let conf = conf.read();
+
     object_query.iter_mut().for_each(
         |(
             &HasSprite(sprite_entity),
@@ -157,135 +159,148 @@ fn maintain_plane_system(
                 sprite_tf.rotation = object_rot.0;
             }
 
-            label_data.write_label(&conf, &mut label_writer);
+            label_data.write_label(&conf.plane, &mut label_writer);
         },
     );
 }
 
 fn handle_config_change_system(
-    mut conf: config::Read<Conf>,
+    mut conf: ReadConfigChange<Conf>,
     mut queries: ParamSet<(
         Query<(&mut Sprite, &mut billboard::MaintainScale), With<IsSpriteOf>>,
         Query<(&mut billboard::MaintainScale, &mut billboard::Label, &mut Anchor), With<IsLabelOf>>,
     )>,
     asset_server: Res<AssetServer>,
 ) {
-    let Some(conf) = conf.consume_change() else {
+    if !conf.consume_change() {
         return;
-    };
+    }
+    let conf = conf.read();
 
     for (mut sprite, mut scale) in queries.p0() {
-        *sprite = Sprite::from_image(asset_server.load(conf.plane_sprite.path()));
-        scale.size = conf.plane_sprite_size;
+        *sprite = Sprite::from_image(asset_server.load(conf.plane.sprite.path()));
+        scale.size = conf.plane.sprite_size;
     }
 
     for (mut scale, mut label, mut anchor) in queries.p1() {
-        scale.size = conf.label_size;
-        label.distance = conf.label_distance;
-        *anchor = conf.label_anchor;
+        scale.size = conf.plane.label_size;
+        label.distance = conf.plane.label_distance;
+        *anchor = conf.plane.label_anchor;
     }
 }
 
-#[derive(Resource, Config)]
-#[config(id = "2d/object", name = "Objects (2D)")]
+#[derive(Config)]
+#[config(expose(read))]
 struct Conf {
+    plane:           PlaneConf,
+    separation_ring: SeparationRingConf,
+    vector:          VectorLineConf,
+    track:           TrackConf,
+    preview_line:    PreviewLineConf,
+}
+
+#[derive(Config)]
+#[config(expose(read))]
+struct PlaneConf {
     /// Sprite for planes.
-    plane_sprite:              SpriteType,
+    sprite:         SpriteType,
     /// Size of plane sprites.
-    #[config(min = 0., max = 5.)]
-    plane_sprite_size:         f32,
+    #[config(default = 1.0, min = 0.0, max = 5.0)]
+    sprite_size:    f32,
     /// Size of object labels.
-    #[config(min = 0., max = 3.)]
-    label_size:                f32,
+    #[config(default = 0.5, min = 0.0, max = 3.0)]
+    label_size:     f32,
     /// Distance of object labels from the object center, in screen coordinates.
-    #[config(min = 0., max = 300.)]
-    label_distance:            f32,
+    #[config(default = 50.0, min = 0., max = 300.)]
+    label_distance: f32,
     /// Direction of the object relative to the label.
-    label_anchor:              Anchor,
-    /// World radius of the separation ring.
-    #[config(min = Distance::ZERO, max = Distance::from_nm(10.), precision = Distance::from_nm(0.5))]
-    separation_ring_radius:    Distance<f32>,
-    /// Thickness of the separation ring in screen coordinates.
-    #[config(min = 0., max = 10.)]
-    separation_ring_thickness: f32,
-
-    #[config(min = Duration::ZERO, max = Duration::from_secs(300))]
-    vector_lookahead_time: Duration,
-    /// Thickness of the vector line in screen coordinates.
-    #[config(min = 0., max = 10.)]
-    vector_thickness:      f32,
-
-    /// Maximum number of track points for unfocused objects.
-    #[config(min = 0, max = 100)]
-    track_normal_max_points:   u32,
-    /// Size of track points.
-    #[config(min = 0., max = 3.)]
-    track_point_size:          f32,
-    /// Color of track points at base altitude.
-    track_point_base_color:    Color,
-    /// Base altitude for track point coloring.
-    track_point_base_altitude: Position<f32>,
-    /// Color of track points at top altitude.
-    track_point_top_color:     Color,
-    /// Top altitude for track point coloring.
-    track_point_top_altitude:  Position<f32>,
-
-    /// Thickness of planned track preview line.
-    preview_line_thickness:         f32,
-    /// Color of planned track preview line.
-    preview_line_color_normal:      Color,
-    /// Color of planned track preview line when setting heading.
-    preview_line_color_set_heading: Color,
-    /// Color of available route presets from the current target waypoint.
-    preview_line_color_preset:      Color,
-
+    #[config(default = Anchor::BottomLeft)]
+    label_anchor:   AnchorConf,
     /// Object color will be based on this scheme.
-    base_color_scheme:   base_color::Scheme,
+    color_scheme:   base_color::Scheme,
+}
+
+#[derive(Config)]
+#[config(expose(read))]
+struct SeparationRingConf {
+    /// World radius of the separation ring.
+    #[config(
+        default = Length::from_nm(1.5),
+        min = Length::ZERO,
+        max = Length::from_nm(10.0),
+        precision = Some(Length::from_nm(0.5)),
+    )]
+    radius:       Length<f32>,
+    /// Thickness of the separation ring in screen coordinates.
+    #[config(default = 0.5, min = 0.0, max = 10.0)]
+    thickness:    f32,
     /// Object separation ring color will be based on this scheme.
-    ring_color_scheme:   base_color::Scheme,
+    color_scheme: base_color::Scheme,
+}
+
+#[derive(Config)]
+#[config(expose(read))]
+struct VectorLineConf {
+    #[config(default = Duration::from_secs(60), min = Duration::ZERO, max = Duration::from_secs(300))]
+    lookahead_time: Duration,
+    /// Thickness of the vector line in screen coordinates.
+    #[config(default = 0.5, min = 0., max = 10.)]
+    thickness:      f32,
     /// Object ground speed vector color will be based on this scheme.
-    vector_color_scheme: base_color::Scheme,
+    color_scheme:   base_color::Scheme,
 }
 
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            plane_sprite:                   SpriteType::Plane,
-            plane_sprite_size:              1.0,
-            label_size:                     0.5,
-            label_distance:                 50.,
-            label_anchor:                   Anchor::BottomLeft,
-            separation_ring_radius:         Distance::from_nm(1.5),
-            separation_ring_thickness:      0.5,
-            vector_lookahead_time:          Duration::from_secs(60),
-            vector_thickness:               0.5,
-            track_normal_max_points:        5,
-            track_point_size:               1.0,
-            track_point_base_color:         Color::srgb(0.8, 0.4, 0.6),
-            track_point_base_altitude:      Position::SEA_LEVEL,
-            track_point_top_color:          Color::srgb(0.4, 0.8, 0.6),
-            track_point_top_altitude:       TROPOPAUSE_ALTITUDE,
-            preview_line_color_normal:      Color::srgb(0.9, 0.7, 0.8),
-            preview_line_color_set_heading: Color::srgb(0.9, 0.9, 0.6),
-            preview_line_color_preset:      Color::srgb(0.5, 0.6, 0.8),
-            preview_line_thickness:         1.,
-            base_color_scheme:              base_color::Scheme::default(),
-            ring_color_scheme:              base_color::Scheme::default(),
-            vector_color_scheme:            base_color::Scheme::default(),
-        }
-    }
+#[derive(Config)]
+#[config(expose(read))]
+struct TrackConf {
+    /// Maximum number of track points for unfocused objects.
+    #[config(default = 5, min = 0, max = 100)]
+    normal_max_points:   u32,
+    /// Size of track points.
+    #[config(default = 1.0, min = 0.0, max = 3.0)]
+    point_size:          f32,
+    /// Color of track points at base altitude.
+    #[config(default = Color::srgb(0.8, 0.4, 0.6))]
+    point_base_color:    Color,
+    /// Base altitude for track point coloring.
+    #[config(default = Position::SEA_LEVEL)]
+    point_base_altitude: Position<f32>,
+    /// Color of track points at top altitude.
+    #[config(default = Color::srgb(0.4, 0.8, 0.6))]
+    point_top_color:     Color,
+    /// Top altitude for track point coloring.
+    #[config(default = TROPOPAUSE_ALTITUDE)]
+    point_top_altitude:  Position<f32>,
 }
 
-#[derive(strum::EnumIter, Clone, Copy, PartialEq, Eq, strum::Display, Serialize, Deserialize)]
+#[derive(Config)]
+#[config(expose(read))]
+struct PreviewLineConf {
+    /// Thickness of planned track preview line.
+    #[config(default = 1.0)]
+    thickness:         f32,
+    /// Color of planned track preview line.
+    #[config(default = Color::srgb(0.9, 0.7, 0.8))]
+    color_normal:      Color,
+    /// Color of planned track preview line when setting heading.
+    #[config(default = Color::srgb(0.9, 0.9, 0.6))]
+    color_set_heading: Color,
+    /// Color of available route presets from the current target waypoint.
+    #[config(default = Color::srgb(0.5, 0.6, 0.8))]
+    color_preset:      Color,
+}
+
+#[derive(
+    strum::EnumIter, Clone, Copy, PartialEq, Eq, strum::Display, Serialize, Deserialize, Config,
+)]
+#[config(expose(read))]
 enum SpriteType {
     #[strum(message = "Plane")]
     Plane,
 }
 
-impl config::EnumField for SpriteType {}
-
-impl SpriteType {
-    fn path(self) -> &'static str {
+impl SpriteTypeRead {
+    fn path(&self) -> &'static str {
         match self {
             Self::Plane => "sprites/plane.png",
         }

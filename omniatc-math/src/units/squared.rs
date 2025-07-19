@@ -3,8 +3,8 @@ use std::{cmp, ops};
 
 use ordered_float::OrderedFloat;
 
-use super::{Accel, Distance, Speed, Unit};
-use crate::DistanceBase;
+use super::{Accel, Length, Quantity, Speed};
+use crate::LengthBase;
 
 /// A wrapper type for squared distance,
 /// used to compare with other distances without the pow2 boilerplate.
@@ -32,16 +32,16 @@ impl<Dt, Pow> PartialOrd for AsSqrt<Dt, Pow> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { Some(self.cmp(other)) }
 }
 
-impl<Dt, Pow> PartialEq<Unit<f32, DistanceBase, Dt, Pow>> for AsSqrt<Dt, Pow> {
-    fn eq(&self, other: &Unit<f32, DistanceBase, Dt, Pow>) -> bool {
+impl<Dt, Pow> PartialEq<Quantity<f32, LengthBase, Dt, Pow>> for AsSqrt<Dt, Pow> {
+    fn eq(&self, other: &Quantity<f32, LengthBase, Dt, Pow>) -> bool {
         // Check other >= 0.0 to ensure consistency with PartialOrd
         OrderedFloat(other.0) >= OrderedFloat(0.0)
             && self.norm_squared == OrderedFloat(other.0.powi(2))
     }
 }
 
-impl<Dt, Pow> PartialOrd<Unit<f32, DistanceBase, Dt, Pow>> for AsSqrt<Dt, Pow> {
-    fn partial_cmp(&self, other: &Unit<f32, DistanceBase, Dt, Pow>) -> Option<cmp::Ordering> {
+impl<Dt, Pow> PartialOrd<Quantity<f32, LengthBase, Dt, Pow>> for AsSqrt<Dt, Pow> {
+    fn partial_cmp(&self, other: &Quantity<f32, LengthBase, Dt, Pow>) -> Option<cmp::Ordering> {
         if other.0 < 0.0 {
             Some(cmp::Ordering::Greater)
         } else {

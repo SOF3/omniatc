@@ -8,7 +8,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
-use math::{point_line_closest, Accel, AngularSpeed, CanSqrt, Distance, Position, Speed};
+use math::{point_line_closest, Accel, AngularSpeed, CanSqrt, Length, Position, Speed};
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -30,11 +30,11 @@ const MIN_POSITIVE_SPEED: Speed<f32> = Speed::from_knots(2.);
 /// it is considered to be on the centerline,
 /// and it will head directly towards the target endpoint
 /// instead of pursuing the centerline.
-const NEGLIGIBLE_DEVIATION: Distance<f32> = Distance::from_meters(20.0);
+const NEGLIGIBLE_DEVIATION: Length<f32> = Length::from_meters(20.0);
 
 /// If the object is expected to diverge from the centerline beyond this distance,
 /// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
-const OVERSHOOT_TOLERANCE: Distance<f32> = Distance::from_meters(10.0);
+const OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(10.0);
 
 pub struct Plug;
 
@@ -69,12 +69,12 @@ pub struct Limits {
     ///
     /// For planes, this is the wingspan.
     /// For helicopters, this is the rotor diameter.
-    pub width:       Distance<f32>,
+    pub width:       Length<f32>,
     /// The distance between two objects on the same segment
     /// must be at least the sum of their half-lengths.
     ///
     /// This value could include extra padding to represent safety distance.
-    pub half_length: Distance<f32>,
+    pub half_length: Length<f32>,
 }
 
 fn maintain_dir(
@@ -570,7 +570,7 @@ impl TargetPathParams<'_, '_> {
         ground.target_speed = Speed::ZERO;
     }
 
-    fn endpoint_width(&self, endpoint: Entity) -> Option<Distance<f32>> {
+    fn endpoint_width(&self, endpoint: Entity) -> Option<Length<f32>> {
         let endpoint = try_log!(
             self.endpoint_query.get(endpoint),
             expect "endpoint must reference valid endpoint {endpoint:?}"

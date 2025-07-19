@@ -18,9 +18,8 @@ rust-analyzer = []
 
 [dependencies]
 omniatc-core.workspace = true
-omniatc-math.workspace = true
-omniatc-macros = {path="../omniatc-macros"}
-bevy-inspector-egui = { version = "0.31.0", optional = true }
+omniatc-math = { workspace = true, features = ["egui"] }
+bevy-inspector-egui = { version = "0.32.0", optional = true }
 anyhow = "1.0.97"
 async-lock = "3.4.0"
 bevy_mod_config = { workspace = true, features = ["serde_json", "egui"] }
@@ -36,6 +35,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 serde_with = { version = "3.12.0", features = ["macros", "base64"] }
 strum = { version = "0.26.3", features = ["derive"] }
 smallvec = "1.15.0"
+clap = { version = "4.5.41", features = ["derive"] }
 
 [dependencies.bevy]
 workspace = true
@@ -57,7 +57,7 @@ features = [
 ]
 
 [dependencies.bevy_egui]
-version = "0.34.1"
+version = "0.35.1"
 default-features = false
 features = ["default_fonts", "manage_clipboard", "open_url", "render"]
 

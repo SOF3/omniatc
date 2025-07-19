@@ -1,7 +1,7 @@
 use bevy_math::{Dir2, Vec2};
 
 use super::{Line, LineIndex, LineIntersection, LineSweeper};
-use crate::{Distance, Position};
+use crate::{Length, Position};
 
 #[test]
 fn sweep_cross_aligned() {
@@ -20,7 +20,7 @@ fn sweep_cross_aligned() {
             _ => unreachable!(),
         },
         2,
-        Distance::new(0.0001),
+        Length::new(0.0001),
         Dir2::EAST,
     )
     .unwrap()
@@ -30,7 +30,7 @@ fn sweep_cross_aligned() {
     assert!((intersects[0].dot.into_inner() - 0.5).abs() < 0.0001);
     assert!(
         intersects[0].position.distance_cmp(Position::from_origin_nm(0.5, 0.))
-            < Distance::from_nm(0.0001)
+            < Length::from_nm(0.0001)
     );
     assert_eq!(intersects[0].lines, [LineIndex(0), LineIndex(1)]);
 }
@@ -125,7 +125,7 @@ fn quad_complete_graph_sweeper(sweep_dir: Dir2) -> LineSweeper<impl Fn(LineIndex
     LineSweeper::new(
         move |LineIndex(index)| lines[index],
         lines_len,
-        Distance::new(0.0001),
+        Length::new(0.0001),
         sweep_dir,
     )
     .unwrap()
@@ -291,7 +291,7 @@ fn sweep_quad_complete_graph_merged(sweep_dir: Dir2) {
             ExpectGroup { len: 3, position: Position::from_origin_nm(-1., 0.) },
             ExpectGroup { len: 3, position: Position::from_origin_nm(1., 0.) },
         ],
-        Distance::from_nm(0.0001),
+        Length::from_nm(0.0001),
     );
 }
 
@@ -302,7 +302,7 @@ struct ExpectGroup {
 }
 
 impl ExpectGroup {
-    fn matches(&self, group: &[LineIntersection], epsilon: Distance<f32>) -> bool {
+    fn matches(&self, group: &[LineIntersection], epsilon: Length<f32>) -> bool {
         group.len() == self.len
             && group.iter().all(|item| item.position.distance_cmp(self.position) < epsilon)
     }
@@ -311,7 +311,7 @@ impl ExpectGroup {
 fn assert_groups(
     groups: Vec<Vec<LineIntersection>>,
     expect_groups: impl IntoIterator<Item = ExpectGroup>,
-    epsilon: Distance<f32>,
+    epsilon: Length<f32>,
 ) {
     let mut expect_groups: Vec<_> = expect_groups.into_iter().collect();
 

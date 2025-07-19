@@ -5,7 +5,7 @@ use std::{fmt, ops};
 use bevy_math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 use ordered_float::{FloatIsNan, NotNan};
 
-use super::{Angle, Distance, Position};
+use super::{Angle, Length, Position};
 
 #[cfg(test)]
 mod tests;
@@ -270,7 +270,7 @@ pub enum TurnDirection {
 impl TurnDirection {
     /// Similar to [`Self::from_triangle`], but assumes `p1` is the origin.
     #[must_use]
-    pub fn from_triangle_23(p1_to_p2: Distance<Vec2>, p1_to_p3: Distance<Vec2>) -> Option<Self> {
+    pub fn from_triangle_23(p1_to_p2: Length<Vec2>, p1_to_p3: Length<Vec2>) -> Option<Self> {
         let dot = p1_to_p2.0.perp_dot(p1_to_p3.0);
         if dot > 0. {
             Some(Self::CounterClockwise)

@@ -1,7 +1,7 @@
 use bevy_math::Vec2;
 
 use super::line_circle_intersect;
-use crate::units::{Distance, Position, Squared, TurnDirection};
+use crate::units::{Length, Position, Squared, TurnDirection};
 use crate::{find_circle_tangent_towards, range_steps};
 
 #[test]

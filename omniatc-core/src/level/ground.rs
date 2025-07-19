@@ -2,7 +2,7 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, Name};
-use math::{Distance, Position, Speed};
+use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
 pub struct Plug;
@@ -68,7 +68,7 @@ pub struct Segment {
     pub alpha:     Entity,
     /// An [`Endpoint`] entity.
     pub beta:      Entity,
-    pub width:     Distance<f32>,
+    pub width:     Length<f32>,
     pub max_speed: Speed<f32>,
     pub elevation: Position<f32>,
 }

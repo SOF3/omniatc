@@ -14,14 +14,15 @@ use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
-use math::Distance;
+use bevy_mod_config::ReadConfig;
+use math::Length;
 use omniatc::level::object;
 use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};
+use crate::render;
 use crate::render::twodim::Zorder;
-use crate::{config, render};
 
 pub(super) struct Plug;
 
@@ -43,7 +44,7 @@ impl Plugin for Plug {
 #[derive(Resource, Default)]
 pub(super) struct SeparationRingMesh {
     handle:    Option<asset::Handle<Mesh>>,
-    radius:    Distance<f32>,
+    radius:    Length<f32>,
     thickness: f32,
 }
 
@@ -95,12 +96,14 @@ fn maintain_color_system(
 fn maintain_thickness_system(
     handle: Res<SeparationRingMesh>,
     mut assets: ResMut<Assets<Mesh>>,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     camera_query: Query<&GlobalTransform, With<Camera2d>>,
 ) {
+    let conf = conf.read();
+
     #[expect(clippy::float_cmp)] // float is exactly equal if config is unchanged
-    if conf.separation_ring_radius == handle.radius
-        && conf.separation_ring_thickness == handle.thickness
+    if conf.separation_ring.radius == handle.radius
+        && conf.separation_ring.thickness == handle.thickness
     {
         return;
     }
@@ -109,13 +112,13 @@ fn maintain_thickness_system(
         .get_mut(handle.handle.as_ref().expect("initialized during startup"))
         .expect("strong handle stored in resource");
 
-    let radius = conf.separation_ring_radius.0;
+    let radius = conf.separation_ring.radius.0;
 
     let camera_scale = match camera_query.iter().next() {
         Some(global_tf) => global_tf.scale().x,
         None => 1.,
     };
-    let thickness_scaled = (conf.separation_ring_thickness * camera_scale).min(radius);
+    let thickness_scaled = (conf.separation_ring.thickness * camera_scale).min(radius);
 
     *asset = Annulus::new(radius - thickness_scaled, radius).into();
 }

@@ -9,7 +9,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, Event};
-use math::{CanSqrt, Distance, Heading, Position, TurnDirection};
+use math::{CanSqrt, Heading, Length, Position, TurnDirection};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
@@ -70,7 +70,7 @@ pub struct Navaid {
     /// This value may fluctuate during ILS ground interference.
     ///
     /// For non-ILS navaids, this value should always be 0.
-    pub min_dist_horizontal: Distance<f32>,
+    pub min_dist_horizontal: Length<f32>,
     /// Minimum vertical distance of the receiver from the navaid.
     ///
     /// This is used to represent the decision height for ILS approach.
@@ -79,12 +79,12 @@ pub struct Navaid {
     /// This value may fluctuate during ILS ground interference.
     ///
     /// For non-ILS navaids, this value should always be 0.
-    pub min_dist_vertical:   Distance<f32>,
+    pub min_dist_vertical:   Length<f32>,
 
     /// Maximum horizontal distance of the receiver from the navaid.
-    pub max_dist_horizontal: Distance<f32>,
+    pub max_dist_horizontal: Length<f32>,
     /// Maximum vertical distance of the receiver from the navaid.
-    pub max_dist_vertical:   Distance<f32>,
+    pub max_dist_vertical:   Length<f32>,
 }
 
 impl Navaid {
@@ -143,7 +143,7 @@ pub struct Visual {
     /// Maximum visual range to see the runway.
     ///
     /// The actual visual range is the minimum of this value and the actual visibility.
-    pub max_range: Distance<f32>,
+    pub max_range: Length<f32>,
 }
 
 /// Marks that the navaid entity has an ILS critical region subject to ground interference.

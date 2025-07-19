@@ -10,6 +10,7 @@
 use std::time::Duration;
 
 use bevy::app::{self, App};
+use bevy::asset::AssetPlugin;
 use bevy::diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{self, ScheduleBuildSettings};
@@ -17,30 +18,44 @@ use bevy::ecs::system::ResMut;
 use bevy::prelude::{IntoScheduleConfigs, PluginGroup, SystemSet};
 use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
-use bevy_egui::{EguiContextPass, EguiContexts};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
+use bevy_mod_config::manager;
 use itertools::Itertools;
 use omniatc::level;
 use strum::IntoEnumIterator;
 
-mod config;
 mod input;
 mod render;
 mod store;
 mod util;
 
+type ConfigManager = (manager::Egui, manager::serde::json::Pretty);
+
+#[derive(clap::Parser)]
+#[clap(version, about)]
+struct Args {
+    /// Path to the assets directory.
+    #[clap(long, default_value = "assets")]
+    assets_dir: String,
+}
+
 fn main() {
+    let clap = <Args as clap::Parser>::parse();
+
     let mut app = App::new();
     app.add_plugins((
-        bevy::DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
-            ..Default::default()
-        }),
+        bevy::DefaultPlugins
+            .set(AssetPlugin { file_path: clap.assets_dir, ..Default::default() })
+            .set(WindowPlugin {
+                primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
+                ..Default::default()
+            }),
         EntityCountDiagnosticsPlugin,
         FrameTimeDiagnosticsPlugin::default(),
-        bevy_egui::EguiPlugin { enable_multipass_for_primary_context: true },
+        bevy_egui::EguiPlugin::default(),
         #[cfg(feature = "inspect")]
         bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
-        level::Plug,
+        level::Plug::<ConfigManager>::default(),
         omniatc::store::Plug,
         omniatc::util::Plug,
         input::Plug,
@@ -63,13 +78,16 @@ fn main() {
     });
 
     for (before, after) in EguiSystemSets::iter().tuple_windows() {
-        app.configure_sets(EguiContextPass, before.before(after));
+        app.configure_sets(EguiPrimaryContextPass, before.before(after));
     }
 
     app.init_resource::<EguiUsedMargins>();
-    app.add_systems(EguiContextPass, EguiUsedMargins::reset_system.in_set(EguiSystemSets::Init));
+    app.add_systems(
+        EguiPrimaryContextPass,
+        EguiUsedMargins::reset_system.in_set(EguiSystemSets::Init),
+    );
 
-    app.edit_schedule(EguiContextPass, |schedule| {
+    app.edit_schedule(EguiPrimaryContextPass, |schedule| {
         schedule.set_build_settings(ScheduleBuildSettings {
             ambiguity_detection: schedule::LogLevel::Warn,
             ..Default::default()
@@ -118,7 +136,7 @@ impl EguiUsedMargins {
     fn reset_system(mut margins: ResMut<Self>, mut contexts: EguiContexts) {
         *margins = Self::default();
 
-        if let Some(ctx) = contexts.try_ctx_mut() {
+        if let Ok(ctx) = contexts.ctx_mut() {
             margins.pointer_acquired = ctx.wants_pointer_input();
             margins.keyboard_acquired = ctx.wants_keyboard_input();
         }

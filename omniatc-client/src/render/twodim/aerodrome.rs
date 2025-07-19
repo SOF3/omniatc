@@ -5,11 +5,11 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Res, ResMut};
 use bevy::sprite::{Anchor, ColorMaterial};
-use math::{Angle, Distance, DistanceUnit};
-use omniatc_macros::Config;
+use bevy_mod_config::{self, AppExt, Config, ReadConfig, ReadConfigChange};
+use math::{Angle, Length, LengthUnit};
 
-use crate::config::{self, AppExt};
-use crate::render;
+use crate::util::AnchorConf;
+use crate::{render, ConfigManager};
 
 mod endpoint;
 mod segment;
@@ -19,7 +19,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:aerodrome");
         app.init_resource::<ColorMaterials>();
         app.add_systems(app::Startup, ColorMaterials::init_system);
         app.add_systems(
@@ -45,29 +45,34 @@ impl ColorMaterials {
     fn init_system(
         mut handles: ResMut<Self>,
         mut materials: ResMut<Assets<ColorMaterial>>,
-        conf: config::Read<Conf>,
+        conf: ReadConfig<Conf>,
     ) {
+        let conf = conf.read();
+
         handles.runway = Some(materials.add(ColorMaterial::from_color(Color::NONE)));
-        handles.taxiway = Some(materials.add(ColorMaterial::from_color(conf.taxiway_color)));
+        handles.taxiway = Some(materials.add(ColorMaterial::from_color(conf.taxiway.color)));
         handles.taxiway_label =
-            Some(materials.add(ColorMaterial::from_color(conf.taxiway_label_color)));
-        handles.apron = Some(materials.add(ColorMaterial::from_color(conf.apron_color)));
+            Some(materials.add(ColorMaterial::from_color(conf.taxiway.label_color)));
+        handles.apron = Some(materials.add(ColorMaterial::from_color(conf.apron.color)));
         handles.apron_label =
-            Some(materials.add(ColorMaterial::from_color(conf.apron_label_color)));
+            Some(materials.add(ColorMaterial::from_color(conf.apron.label_color)));
     }
 
     fn reload_config_system(
         handles: Res<Self>,
         mut materials: ResMut<Assets<ColorMaterial>>,
-        mut conf: config::Read<Conf>,
+        mut conf: ReadConfigChange<Conf>,
     ) {
-        let Some(conf) = conf.consume_change() else { return };
+        if !conf.consume_change() {
+            return;
+        }
+        let conf = conf.read();
 
         for (handle, color) in [
-            (&handles.taxiway, conf.taxiway_color),
-            (&handles.taxiway_label, conf.taxiway_label_color),
-            (&handles.apron, conf.apron_color),
-            (&handles.apron_label, conf.apron_label_color),
+            (&handles.taxiway, conf.taxiway.color),
+            (&handles.taxiway_label, conf.taxiway.label_color),
+            (&handles.apron, conf.apron.color),
+            (&handles.apron_label, conf.apron.label_color),
         ] {
             materials
                 .get_mut(handle.as_ref().expect("initialized during startup"))
@@ -77,84 +82,46 @@ impl ColorMaterials {
     }
 }
 
-#[derive(Resource, Config)]
-#[config(id = "aerodrome", name = "Aerodrome (2D)")]
+#[derive(Config)]
+#[config(expose(read))]
 struct Conf {
     /// Thickness of non-runway segments in screen coordinates.
-    #[config(min = 0., max = 5.)]
-    segment_thickness:   f32,
+    #[config(default = 1.2, min = 0.0, max = 5.0)]
+    segment_thickness:    f32,
     /// Minimum zoom level (in maximum distance per pixel) to display segments.
-    #[config(min = Distance::ZERO, max = Distance::from_meters(500.), precision = Distance::from_meters(10.), unit = DistanceUnit::Meters)]
-    segment_render_zoom: Distance<f32>,
+    #[config(default = Length::from_meters(50.0), min = Length::ZERO, max = Length::from_meters(500.), unit = LengthUnit::Meters)]
+    segment_render_zoom:  Length<f32>,
     /// Distance of the curved intersection turn from the extrapolated intersection point.
-    #[config(min = Distance::from_meters(1.), max = Distance::from_meters(200.), unit = DistanceUnit::Meters)]
-    intersection_size:   Distance<f32>,
+    #[config(default = Length::from_meters(50.0), min = Length::from_meters(1.), max = Length::from_meters(200.), unit = LengthUnit::Meters)]
+    intersection_size:    Length<f32>,
     /// Density of straight lines to interpolate a curved intersection turn.
-    #[config(min = Angle::from_degrees(1.), max = Angle::RIGHT)]
-    arc_interval:        Angle,
-
-    /// Color of taxiways.
-    taxiway_color: Color,
-    /// Color of aprons.
-    apron_color:   Color,
-
+    #[config(default = Angle::from_degrees(15.0), min = Angle::from_degrees(1.), max = Angle::RIGHT)]
+    arc_interval:         Angle,
     /// Minimum zoom level (in maximum distance per pixel) to display endpoint turns.
-    #[config(min = Distance::ZERO, max = Distance::from_meters(500.), precision = Distance::from_meters(10.), unit = DistanceUnit::Meters)]
-    endpoint_render_zoom: Distance<f32>,
-
-    /// Minimum zoom level (in maximum distance per pixel) to display taxiway labels.
-    #[config(min = Distance::ZERO, max = Distance::from_meters(500.), precision = Distance::from_meters(10.), unit = DistanceUnit::Meters)]
-    taxiway_label_render_zoom: Distance<f32>,
-    /// Size of taxiway labels.
-    #[config(min = 0., max = 5.)]
-    taxiway_label_size:        f32,
-    /// Distance of taxiway labels from the center point in screen coordinates.
-    #[config(min = 0., max = 50.)]
-    taxiway_label_distance:    f32,
-    /// Direction of taxiway labels from the center point.
-    taxiway_label_anchor:      Anchor,
-    /// Color of taxiway labels.
-    taxiway_label_color:       Color,
-
-    /// Minimum zoom level (in maximum distance per pixel) to display apron labels.
-    #[config(min = Distance::ZERO, max = Distance::from_meters(500.), precision = Distance::from_meters(10.), unit = DistanceUnit::Meters)]
-    apron_label_render_zoom: Distance<f32>,
-    /// Size of apron labels.
-    #[config(min = 0., max = 5.)]
-    apron_label_size:        f32,
-    /// Distance of apron labels from the center point in screen coordinates.
-    #[config(min = 0., max = 50.)]
-    apron_label_distance:    f32,
-    /// Direction of apron labels from the center point.
-    apron_label_anchor:      Anchor,
-    /// Color of apron labels.
-    apron_label_color:       Color,
+    #[config(default = Length::from_meters(30.0), min = Length::ZERO, max = Length::from_meters(500.), unit = LengthUnit::Meters)]
+    endpoint_render_zoom: Length<f32>,
+    taxiway:              SegmentTypeConf,
+    apron:                SegmentTypeConf,
 }
 
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            segment_thickness:   1.2,
-            segment_render_zoom: Distance::from_meters(50.),
-            intersection_size:   Distance::from_meters(50.),
-            arc_interval:        Angle::RIGHT / 4.,
-
-            taxiway_color: Color::srgb(0.9, 0.9, 0.2),
-            apron_color:   Color::srgb(0.8, 0.5, 0.1),
-
-            endpoint_render_zoom: Distance::from_meters(30.),
-
-            taxiway_label_render_zoom: Distance::from_meters(15.),
-            taxiway_label_size:        0.45,
-            taxiway_label_distance:    0.,
-            taxiway_label_anchor:      Anchor::BottomCenter,
-            taxiway_label_color:       Color::WHITE,
-
-            apron_label_render_zoom: Distance::from_meters(10.),
-            apron_label_size:        0.5,
-            apron_label_distance:    0.,
-            apron_label_anchor:      Anchor::BottomCenter,
-            apron_label_color:       Color::WHITE,
-        }
-    }
+#[derive(Config)]
+#[config(expose(read))]
+struct SegmentTypeConf {
+    /// Color of the segments.
+    color:             Color,
+    /// Minimum zoom level (in maximum distance per pixel) to display segment labels.
+    #[config(default = Length::from_meters(15.0), min = Length::ZERO, max = Length::from_meters(500.), unit = LengthUnit::Meters)]
+    label_render_zoom: Length<f32>,
+    /// Size of segment labels.
+    #[config(default = 0.5, min = 0.0, max = 5.0)]
+    label_size:        f32,
+    /// Distance of segment labels from the center point in screen coordinates.
+    #[config(default = 0.1, min = 0.0, max = 50.0)]
+    label_distance:    f32,
+    /// Direction of segment labels from the center point.
+    #[config(default = Anchor::BottomCenter)]
+    label_anchor:      AnchorConf,
+    /// Color of segment labels.
+    #[config(default = Color::WHITE)]
+    label_color:       Color,
 }

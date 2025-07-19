@@ -13,25 +13,25 @@ use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
 use bevy::render::camera::{Camera, Viewport};
+use bevy::render::view::RenderLayers;
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
-use bevy_egui::EguiContextPass;
-use math::{Angle, Distance};
+use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
+use bevy_mod_config::{AppExt, Config, ReadConfig};
+use math::{Angle, Length};
 use omniatc::{store, try_log_return};
-use omniatc_macros::{Config, FieldEnum};
 use serde::{Deserialize, Serialize};
 
-use crate::config::AppExt;
-use crate::{config, input, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{input, ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:camera");
 
         app.add_systems(app::Startup, setup_system);
-        app.add_systems(EguiContextPass, fit_layout_system.in_set(EguiSystemSets::TwoDim));
+        app.add_systems(EguiPrimaryContextPass, fit_layout_system.in_set(EguiSystemSets::TwoDim));
 
         app.add_systems(app::Update, consume_camera_advice.before(UpdateSystemSets::Input));
 
@@ -70,6 +70,12 @@ pub enum Direction {
 }
 
 fn setup_system(mut commands: Commands) {
+    commands.spawn((
+        PrimaryEguiContext,
+        Camera2d,
+        RenderLayers::none(),
+        Camera { order: isize::MAX, ..Default::default() },
+    ));
     commands.spawn((Camera2d, Layout { order: 0, direction: Direction::Top, ratio: 1. }));
 
     // Example
@@ -91,13 +97,13 @@ fn consume_camera_advice(
         let (start_world_pos, end_world_pos, viewport_dim): (_, _, fn(Vec2) -> f32) =
             match desired.scale_axis {
                 store::AxisDirection::X => (
-                    desired.center - Distance::ZERO.with_x(desired.scale_length / 2.),
-                    desired.center + Distance::ZERO.with_x(desired.scale_length / 2.),
+                    desired.center - Length::ZERO.with_x(desired.scale_length / 2.),
+                    desired.center + Length::ZERO.with_x(desired.scale_length / 2.),
                     |vec| vec.x,
                 ),
                 store::AxisDirection::Y => (
-                    desired.center - Distance::ZERO.with_y(desired.scale_length / 2.),
-                    desired.center + Distance::ZERO.with_y(desired.scale_length / 2.),
+                    desired.center - Length::ZERO.with_y(desired.scale_length / 2.),
+                    desired.center + Length::ZERO.with_y(desired.scale_length / 2.),
                     |vec| vec.y,
                 ),
             };
@@ -186,9 +192,11 @@ fn drag_camera_system(
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     margins: Res<EguiUsedMargins>,
 ) {
+    let conf = conf.read();
+
     let Some(window) = window else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
     if margins.pointer_acquired {
@@ -246,8 +254,10 @@ fn drag_camera_system(
     {
         let delta = Vec3::from((curr_world_pos - start_equiv_world_pos, 0.));
         match conf.camera_drag_direction {
-            CameraDragDirection::WithMap => camera_tf.translation = start_translation - delta,
-            CameraDragDirection::WithCamera => camera_tf.translation = start_translation + delta,
+            CameraDragDirectionRead::WithMap => camera_tf.translation = start_translation - delta,
+            CameraDragDirectionRead::WithCamera => {
+                camera_tf.translation = start_translation + delta;
+            }
         }
     }
 }
@@ -256,9 +266,11 @@ fn scroll_zoom_system(
     mut wheel_events: EventReader<MouseWheel>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
-    conf: config::Read<Conf>,
+    conf: ReadConfig<Conf>,
     margins: Res<EguiUsedMargins>,
 ) {
+    let conf = conf.read();
+
     if margins.pointer_acquired {
         return;
     }
@@ -287,37 +299,28 @@ fn scroll_zoom_system(
     }
 }
 
-#[derive(Resource, Config)]
-#[config(id = "2d/camera", name = "Camera (2D)")]
+#[derive(Config)]
 struct Conf {
     /// Zoom speed based on vertical scroll per line.
+    #[config(default = 1.05)]
     scroll_step_line:      f32,
     /// Zoom speed based on vertical scroll per pixel.
+    #[config(default = 1.007)]
     scroll_step_pixel:     f32,
     /// Rotation speed based on horizontal scroll per line.
+    #[config(default = Angle::from_degrees(6.0))]
     rotation_step_line:    Angle,
     /// Rotation speed based on horizontal scroll per pixel.
+    #[config(default = Angle::from_degrees(1.0))]
     rotation_step_pixel:   Angle,
     /// Direction to move camera when dragging with right button.
     camera_drag_direction: CameraDragDirection,
 }
 
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            scroll_step_line:      1.05,
-            scroll_step_pixel:     1.007,
-            rotation_step_line:    Angle::from_degrees(6.),
-            rotation_step_pixel:   Angle::from_degrees(1.),
-            camera_drag_direction: CameraDragDirection::WithMap,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize, FieldEnum)]
+#[derive(Clone, Copy, Serialize, Deserialize, Config)]
+#[config(expose(read))]
 enum CameraDragDirection {
     /// Map follows cursor location.
-    #[field_default]
     WithMap,
     /// Camera follows cursor location.
     WithCamera,

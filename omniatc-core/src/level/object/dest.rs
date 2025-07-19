@@ -1,5 +1,5 @@
 use bevy::prelude::{Component, Entity};
-use math::{Distance, Position};
+use math::{Length, Position};
 
 /// Objective for the flight.
 #[derive(Component)]
@@ -15,6 +15,6 @@ pub enum Destination {
     /// The control of the object is completed when both are `None`.
     ReachWaypoint {
         min_altitude:       Option<Position<f32>>,
-        waypoint_proximity: Option<(Entity, Distance<f32>)>,
+        waypoint_proximity: Option<(Entity, Length<f32>)>,
     },
 }

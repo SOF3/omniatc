@@ -1,10 +1,12 @@
 //! Gameplay simulation.
 
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::prelude::{Resource, SystemSet};
+use bevy_mod_config::{ConfigFieldFor, Manager};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
@@ -23,12 +25,19 @@ pub mod wake;
 pub mod waypoint;
 pub mod wind;
 
-pub struct Plug;
+pub struct Plug<M>(PhantomData<M>);
 
-impl Plugin for Plug {
+impl<M> Default for Plug<M> {
+    fn default() -> Self { Self(PhantomData) }
+}
+
+impl<M: Manager + Default> Plugin for Plug<M>
+where
+    object::Conf: ConfigFieldFor<M>,
+    wake::Conf: ConfigFieldFor<M>,
+    wind::Conf: ConfigFieldFor<M>,
+{
     fn build(&self, app: &mut App) {
-        app.init_resource::<Config>();
-
         for set in SystemSets::iter() {
             app.configure_sets(app::Update, set.in_set(AllSystemSets));
         }
@@ -39,7 +48,7 @@ impl Plugin for Plug {
 
         app.add_plugins(message::Plug);
         app.add_plugins(aerodrome::Plug);
-        app.add_plugins(object::Plug);
+        app.add_plugins(object::Plug::<M>::default());
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
         app.add_plugins(navaid::Plug);
@@ -49,8 +58,8 @@ impl Plugin for Plug {
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);
         app.add_plugins(taxi::Plug);
-        app.add_plugins(wake::Plug);
-        app.add_plugins(wind::Plug);
+        app.add_plugins(wake::Plug::<M>::default());
+        app.add_plugins(wind::Plug::<M>::default());
     }
 }
 
@@ -77,17 +86,3 @@ pub enum SystemSets {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct AllSystemSets;
-
-#[derive(Resource)]
-pub struct Config {
-    /// Number of positions tracked per object.
-    ///
-    /// The oldest positions are removed when the log exceeds the limit.
-    pub max_track_log: usize,
-    /// Duration between two points in an object track log.
-    pub track_density: Duration,
-}
-
-impl Default for Config {
-    fn default() -> Self { Self { max_track_log: 1024, track_density: Duration::from_secs(5) } }
-}

@@ -2,7 +2,7 @@ use bevy::app::{self, App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without};
-use math::{Angle, Distance, Position};
+use math::{Angle, Length, Position};
 use smallvec::SmallVec;
 
 use super::navaid::Navaid;
@@ -43,7 +43,7 @@ pub struct Runway {
     /// for some `0 <= k < 1`
     /// such that braking over `(1 - k) * landing_length.length()`
     /// allows the plane to reduce to taxi speed.
-    pub landing_length: Distance<Vec2>,
+    pub landing_length: Length<Vec2>,
 
     /// Starting point of the rendered runway.
     pub display_start: Position<Vec3>,
@@ -51,7 +51,7 @@ pub struct Runway {
     pub display_end:   Position<Vec3>,
 
     /// The usable width for the runway.
-    pub width: Distance<f32>,
+    pub width: Length<f32>,
 
     /// Standard angle of depression for the glide path.
     ///
@@ -120,7 +120,7 @@ fn maintain_localizer_waypoint_system(
                 expect "Runway {runway_ref:?} referenced from waypoint {waypoint_entity:?} is not a runway entity"
             );
 
-            let mut range = Distance::from_meters(1.); // visibility is never zero.
+            let mut range = Length::from_meters(1.); // visibility is never zero.
             for &navaid_ref in navaids.navaids() {
                 if let Ok(navaid) = navaid_query.get(navaid_ref) {
                     range = range.max(navaid.max_dist_horizontal);

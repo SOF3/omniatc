@@ -9,10 +9,12 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Single, SystemParam};
 use bevy::render::view::Visibility;
 use bevy::transform::components::GlobalTransform;
-use math::Distance;
+use bevy_mod_config::ReadConfig;
+use math::Length;
 
-use super::Conf;
-use crate::{config, render};
+use super::{Conf, ConfRead};
+use crate::render;
+use crate::render::twodim::camera;
 
 #[derive(Component)]
 pub struct SegmentMarker;
@@ -30,8 +32,8 @@ pub fn add_plugins(app: &mut App) {
     app.add_plugins((
         Plug::<SegmentMarker, _>::new(|conf| conf.segment_render_zoom),
         Plug::<EndpointMarker, _>::new(|conf| conf.endpoint_render_zoom),
-        Plug::<TaxiwayLabelMarker, _>::new(|conf| conf.taxiway_label_render_zoom),
-        Plug::<ApronLabelMarker, _>::new(|conf| conf.apron_label_render_zoom),
+        Plug::<TaxiwayLabelMarker, _>::new(|conf| conf.taxiway.label_render_zoom),
+        Plug::<ApronLabelMarker, _>::new(|conf| conf.apron.label_render_zoom),
     ));
 }
 
@@ -42,7 +44,7 @@ struct Plug<ViewableFilter, GetConf> {
 
 impl<
         ViewableFilter: Component,
-        GetConf: Fn(&Conf) -> Distance<f32> + Copy + Send + Sync + 'static,
+        GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
     > Plug<ViewableFilter, GetConf>
 {
     #[allow(clippy::new_ret_no_self)]
@@ -51,7 +53,7 @@ impl<
 
 impl<
         ViewableFilter: Component,
-        GetConf: Fn(&Conf) -> Distance<f32> + Copy + Send + Sync + 'static,
+        GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
     > Plugin for Plug<ViewableFilter, GetConf>
 {
     fn build(&self, app: &mut App) {
@@ -66,15 +68,15 @@ impl<
 
 #[derive(SystemParam)]
 struct MaintainParams<'w, 's, ViewableFilter: Component> {
-    camera:    Single<'w, &'static GlobalTransform, With<Camera2d>>,
-    conf:      config::Read<'w, 's, Conf>,
+    camera:    Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    conf:      ReadConfig<'w, 's, Conf>,
     vis_query: Query<'w, 's, &'static mut Visibility, With<ViewableFilter>>,
 }
 
 impl<ViewableFilter: Component> MaintainParams<'_, '_, ViewableFilter> {
-    fn system<GetConf: Fn(&Conf) -> Distance<f32>>(&mut self, get_conf: GetConf) {
-        let pixel_width = Distance::new(self.camera.scale().x);
-        let zoom = get_conf(&self.conf);
+    fn system<GetConf: Fn(&ConfRead) -> Length<f32>>(&mut self, get_conf: GetConf) {
+        let pixel_width = Length::new(self.camera.scale().x);
+        let zoom = get_conf(&self.conf.read());
         let vis = if zoom > pixel_width { Visibility::Inherited } else { Visibility::Hidden };
 
         self.vis_query.iter_mut().for_each(|mut comp| {

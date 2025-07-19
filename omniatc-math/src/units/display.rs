@@ -1,75 +1,103 @@
 use std::fmt;
 
 use super::{FEET_PER_NM, KNOTS_PER_MACH, METERS_PER_NM, MILES_PER_NM};
+use crate::{Length, QuantityTrait, Speed};
 
-pub struct Quantity {
-    pub value:  f32,
-    pub prefix: &'static str,
-    pub suffix: &'static str,
+pub trait UnitEnum: Copy + Eq + strum::IntoEnumIterator {
+    type Quantity: QuantityTrait;
+
+    fn to_str(self) -> &'static str;
+
+    fn float_to_quantity(self) -> fn(f32) -> Self::Quantity;
+    fn quantity_to_float(self) -> fn(Self::Quantity) -> f32;
 }
 
-impl fmt::Display for Quantity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:.0}{}", self.prefix, self.value, self.suffix)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub enum LengthUnit {
-    NauticalMile,
-    FlightLevel,
-    FlightLevelMeter,
+    NauticalMiles,
+    Kilometers,
     Feet,
-    Mile,
-    Meter,
-    Kilometer,
+    Miles,
+    Meters,
 }
 
-impl LengthUnit {
-    #[must_use]
-    pub fn convert(self, value: f32) -> Quantity {
+impl UnitEnum for LengthUnit {
+    type Quantity = Length<f32>;
+
+    fn to_str(self) -> &'static str {
         match self {
-            Self::NauticalMile => Quantity { value, prefix: "", suffix: "nm" },
-            Self::FlightLevel => {
-                Quantity { value: value * FEET_PER_NM / 100., prefix: "FL", suffix: "" }
-            }
-            Self::FlightLevelMeter => {
-                Quantity { value: value / METERS_PER_NM, prefix: "FL", suffix: "m" }
-            }
-            Self::Feet => Quantity { value: value * FEET_PER_NM, prefix: "", suffix: "ft" },
-            Self::Mile => Quantity { value: value * MILES_PER_NM, prefix: "", suffix: "mi" },
-            Self::Meter => Quantity { value: value * METERS_PER_NM, prefix: "", suffix: "m" },
-            Self::Kilometer => {
-                Quantity { value: value * METERS_PER_NM / 1000., prefix: "", suffix: "km" }
-            }
+            Self::NauticalMiles => "nmi",
+            Self::Kilometers => "km",
+            Self::Feet => "ft",
+            Self::Miles => "mi",
+            Self::Meters => "m",
+        }
+    }
+
+    #[inline]
+    fn float_to_quantity(self) -> fn(f32) -> Length<f32> {
+        match self {
+            Self::NauticalMiles => Length::from_nm,
+            Self::Kilometers => Length::from_km,
+            Self::Feet => Length::from_feet,
+            Self::Miles => Length::from_miles,
+            Self::Meters => Length::from_meters,
+        }
+    }
+
+    #[inline]
+    fn quantity_to_float(self) -> fn(Length<f32>) -> f32 {
+        match self {
+            Self::NauticalMiles => Length::<f32>::into_nm,
+            Self::Kilometers => Length::<f32>::into_km,
+            Self::Feet => Length::<f32>::into_feet,
+            Self::Miles => Length::<f32>::into_miles,
+            Self::Meters => Length::<f32>::into_meters,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub enum SpeedUnit {
-    Knot,
-    KilometerHour,
-    MileHour,
-    MeterSecond,
-    Mach,
+    Knots,
+    KilometersPerHour,
+    MilePerHour,
+    MetersPerSecond,
+    FeetPerMinute,
 }
 
-impl SpeedUnit {
-    #[must_use]
-    pub fn convert(self, value: f32) -> Quantity {
-        let knots = value * 3600.;
+impl UnitEnum for SpeedUnit {
+    type Quantity = Speed<f32>;
 
+    fn to_str(self) -> &'static str {
         match self {
-            Self::Knot => Quantity { value: knots, prefix: "", suffix: "kt" },
-            Self::KilometerHour => {
-                Quantity { value: knots * METERS_PER_NM / 1000., prefix: "", suffix: "km/h" }
-            }
-            Self::MileHour => Quantity { value: knots * MILES_PER_NM, prefix: "", suffix: "mph" },
-            Self::MeterSecond => {
-                Quantity { value: knots * METERS_PER_NM / 3600., prefix: "", suffix: "m/s" }
-            }
-            Self::Mach => Quantity { value: knots / KNOTS_PER_MACH, prefix: "Ma", suffix: "" },
+            Self::Knots => "kn",
+            Self::KilometersPerHour => "km/h",
+            Self::MilePerHour => "mph",
+            Self::MetersPerSecond => "m/s",
+            Self::FeetPerMinute => "fpm",
+        }
+    }
+
+    #[inline]
+    fn float_to_quantity(self) -> fn(f32) -> Speed<f32> {
+        match self {
+            Self::Knots => Speed::from_knots,
+            Self::KilometersPerHour => Speed::from_kmh,
+            Self::MilePerHour => Speed::from_mph,
+            Self::MetersPerSecond => Speed::from_meter_per_sec,
+            Self::FeetPerMinute => Speed::from_fpm,
+        }
+    }
+
+    #[inline]
+    fn quantity_to_float(self) -> fn(Speed<f32>) -> f32 {
+        match self {
+            Self::Knots => Speed::into_knots,
+            Self::KilometersPerHour => Speed::into_kmh,
+            Self::MilePerHour => Speed::into_mph,
+            Self::MetersPerSecond => Speed::into_meter_per_sec,
+            Self::FeetPerMinute => Speed::into_fpm,
         }
     }
 }

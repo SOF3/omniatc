@@ -10,13 +10,13 @@ use bevy::math::Vec2;
 use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
 use bevy::transform::components::{GlobalTransform, Transform};
-use math::{Distance, Position};
+use bevy_mod_config::{self, ReadConfig};
+use math::{Length, Position};
 use omniatc::level::ground;
 use omniatc::try_log_return;
 
-use super::{vis, Conf};
-use crate::config;
-use crate::render::twodim::Zorder;
+use super::{vis, Conf, SegmentTypeConfRead};
+use crate::render::twodim::{camera, Zorder};
 use crate::util::{billboard, shapes};
 
 pub(super) fn regenerate_system(
@@ -43,8 +43,8 @@ pub(super) struct RegenerateParam<'w, 's> {
     >,
     endpoint_query:         Query<'w, 's, &'static ground::Endpoint>,
     shapes:                 Res<'w, shapes::Meshes>,
-    camera:                 Single<'w, &'static GlobalTransform, With<Camera2d>>,
-    conf:                   config::Read<'w, 's, Conf>,
+    camera:                 Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    conf:                   ReadConfig<'w, 's, Conf>,
     materials:              Res<'w, super::ColorMaterials>,
     viewable_label_queries: ParamSet<
         'w,
@@ -58,6 +58,8 @@ pub(super) struct RegenerateParam<'w, 's> {
 
 impl RegenerateParam<'_, '_> {
     fn regenerate(&mut self, segment_entity: Entity) {
+        let conf = self.conf.read();
+
         let (segment, segment_label, has_segment, has_segment_label) = try_log_return!(
             self.segment_query.get(segment_entity),
             expect "{segment_entity:?} is not a segment entity"
@@ -69,18 +71,18 @@ impl RegenerateParam<'_, '_> {
             segment.alpha, segment.beta,
         );
         let (alpha_trimmed, beta_trimmed) =
-            trim_segment(alpha.position, beta.position, self.conf.intersection_size);
+            trim_segment(alpha.position, beta.position, conf.intersection_size);
 
         if let Some(&HasViewable(viewable_entity)) = has_segment {
             let mut viewable_query = self.viewable_label_queries.p0();
             let (mut tf, mut thickness) = try_log_return!(viewable_query.get_mut(viewable_entity), expect "HasViewable must reference valid viewable {viewable_entity:?}");
             shapes::set_square_line_transform_relative(&mut tf, alpha_trimmed.0, beta_trimmed.0);
-            thickness.0 = self.conf.segment_thickness;
+            thickness.0 = conf.segment_thickness;
         } else {
             self.commands.spawn((
                 IsViewableOf(segment_entity),
                 self.shapes.line_from_to(
-                    self.conf.segment_thickness,
+                    conf.segment_thickness,
                     Zorder::GroundSegmentCenterline,
                     alpha_trimmed,
                     beta_trimmed,
@@ -115,7 +117,7 @@ impl RegenerateParam<'_, '_> {
                             name,
                             alpha.position,
                             beta.position,
-                            LabelConfig::taxiway(&self.conf),
+                            &conf.taxiway,
                             self.materials.taxiway_label.clone().expect("initialized at startup"),
                         ),
                         vis::TaxiwayLabelMarker,
@@ -128,7 +130,7 @@ impl RegenerateParam<'_, '_> {
                             name,
                             alpha.position,
                             beta.position,
-                            LabelConfig::apron(&self.conf),
+                            &conf.apron,
                             self.materials.apron_label.clone().expect("initialized at startup"),
                         ),
                         vis::ApronLabelMarker,
@@ -139,37 +141,13 @@ impl RegenerateParam<'_, '_> {
     }
 }
 
-struct LabelConfig {
-    size:     f32,
-    distance: f32,
-    anchor:   Anchor,
-}
-
-impl LabelConfig {
-    fn taxiway(conf: &Conf) -> Self {
-        Self {
-            size:     conf.taxiway_label_size,
-            distance: conf.taxiway_label_distance,
-            anchor:   conf.taxiway_label_anchor,
-        }
-    }
-
-    fn apron(conf: &Conf) -> Self {
-        Self {
-            size:     conf.apron_label_size,
-            distance: conf.apron_label_distance,
-            anchor:   conf.apron_label_anchor,
-        }
-    }
-}
-
 /// Components shared between taxiway and apron labels.
 fn common_label_bundle(
     segment_entity: Entity,
     name: &str,
     alpha: Position<Vec2>,
     beta: Position<Vec2>,
-    label_conf: LabelConfig,
+    conf: &SegmentTypeConfRead,
     material: Handle<ColorMaterial>,
 ) -> impl Bundle {
     (
@@ -177,11 +155,11 @@ fn common_label_bundle(
         Text2d(name.to_string()),
         billboard::Label {
             offset:   alpha.midpoint(beta) - Position::ORIGIN,
-            distance: label_conf.distance,
+            distance: conf.label_distance,
         },
         billboard::MaintainRotation,
-        billboard::MaintainScale { size: label_conf.size },
-        label_conf.anchor,
+        billboard::MaintainScale { size: conf.label_size },
+        conf.label_anchor,
         MeshMaterial2d(material.clone()),
     )
 }
@@ -189,7 +167,7 @@ fn common_label_bundle(
 fn trim_segment(
     a: Position<Vec2>,
     b: Position<Vec2>,
-    length: Distance<f32>,
+    length: Length<f32>,
 ) -> (Position<Vec2>, Position<Vec2>) {
     let a_to_b_length = (b - a).normalize_to_magnitude(length);
     (a + a_to_b_length, b - a_to_b_length)

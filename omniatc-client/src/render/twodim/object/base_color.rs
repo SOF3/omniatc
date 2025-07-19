@@ -3,13 +3,13 @@ use bevy::color::{Color, Mix};
 use bevy::ecs::query::QueryData;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
-use math::{Position, Speed, TROPOPAUSE_ALTITUDE};
+use bevy_mod_config::{Config, ReadConfig};
+use math::{Position, Speed, SpeedUnit, TROPOPAUSE_ALTITUDE};
 use omniatc::level::object::Object;
-use omniatc_macros::FieldEnum;
 use serde::{Deserialize, Serialize};
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};
-use crate::{config, render};
+use crate::render;
 
 pub struct Plug;
 
@@ -29,21 +29,24 @@ struct UpdateData {
     object: &'static Object,
 }
 
-fn update_system(conf: config::Read<Conf>, object_query: Query<(&mut ColorTheme, UpdateData)>) {
+fn update_system(conf: ReadConfig<Conf>, object_query: Query<(&mut ColorTheme, UpdateData)>) {
+    let conf = conf.read();
+
     for (mut theme, data) in object_query {
-        theme.body = select_color(&conf.base_color_scheme, &data);
-        theme.ring = select_color(&conf.ring_color_scheme, &data);
-        theme.vector = select_color(&conf.vector_color_scheme, &data);
+        theme.body = select_color(&conf.plane.color_scheme, &data);
+        theme.ring = select_color(&conf.separation_ring.color_scheme, &data);
+        theme.vector = select_color(&conf.vector.color_scheme, &data);
     }
 }
 
-fn select_color(scheme: &Scheme, data: &UpdateDataItem) -> Color {
+fn select_color(scheme: &SchemeRead, data: &UpdateDataItem) -> Color {
     match *scheme {
-        Scheme::Altitude { base_color, base_altitude, top_color, top_altitude } => base_color.mix(
-            &top_color,
-            data.object.position.altitude().ratio_between(base_altitude, top_altitude),
-        ),
-        Scheme::Speed { base_color, base_speed, top_color, top_speed } => base_color.mix(
+        SchemeRead::Altitude { base_color, base_altitude, top_color, top_altitude } => base_color
+            .mix(
+                &top_color,
+                data.object.position.altitude().ratio_between(base_altitude, top_altitude),
+            ),
+        SchemeRead::Speed { base_color, base_speed, top_color, top_speed } => base_color.mix(
             &top_color,
             data.object
                 .ground_speed
@@ -51,44 +54,44 @@ fn select_color(scheme: &Scheme, data: &UpdateDataItem) -> Color {
                 .magnitude_exact()
                 .ratio_between(base_speed, top_speed),
         ),
-        Scheme::VertRate { base_color, base_speed, top_color, top_speed } => base_color.mix(
+        SchemeRead::VertRate { base_color, base_speed, top_color, top_speed } => base_color.mix(
             &top_color,
             data.object.ground_speed.vertical().ratio_between(base_speed, top_speed),
         ),
     }
 }
 
-#[derive(FieldEnum, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Config)]
+#[config(expose(read))]
 pub(super) enum Scheme {
-    #[field_default]
     Altitude {
-        #[field_default(Color::srgb(0.8, 0.4, 0.6))]
+        #[config(default = Color::srgb(0.8, 0.4, 0.6))]
         base_color:    Color,
-        #[field_default(Position::SEA_LEVEL)]
+        #[config(default = Position::SEA_LEVEL)]
         base_altitude: Position<f32>,
-        #[field_default(Color::srgb(0.4, 0.8, 0.6))]
+        #[config(default = Color::srgb(0.4, 0.8, 0.6))]
         top_color:     Color,
-        #[field_default(TROPOPAUSE_ALTITUDE)]
+        #[config(default = TROPOPAUSE_ALTITUDE)]
         top_altitude:  Position<f32>,
     },
     Speed {
-        #[field_default(Color::srgb(0.8, 0.4, 0.6))]
+        #[config(default = Color::srgb(0.8, 0.4, 0.6))]
         base_color: Color,
-        #[field_default(Speed::ZERO)]
+        #[config(default = Speed::ZERO)]
         base_speed: Speed<f32>,
-        #[field_default(Color::srgb(0.4, 0.8, 0.6))]
+        #[config(default = Color::srgb(0.4, 0.8, 0.6))]
         top_color:  Color,
-        #[field_default(Speed::from_knots(500.))]
+        #[config(default = Speed::from_knots(500.))]
         top_speed:  Speed<f32>,
     },
     VertRate {
-        #[field_default(Color::srgb(0.8, 0.4, 0.6))]
+        #[config(default = Color::srgb(0.8, 0.4, 0.6))]
         base_color: Color,
-        #[field_default(Speed::from_fpm(-3000.))]
+        #[config(default = Speed::from_fpm(-3000.0), unit = SpeedUnit::FeetPerMinute)]
         base_speed: Speed<f32>,
-        #[field_default(Color::srgb(0.4, 0.8, 0.6))]
+        #[config(default = Color::srgb(0.4, 0.8, 0.6))]
         top_color:  Color,
-        #[field_default(Speed::from_fpm(3000.))]
+        #[config(default = Speed::from_fpm(3000.0), unit = SpeedUnit::FeetPerMinute)]
         top_speed:  Speed<f32>,
     },
 }

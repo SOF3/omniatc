@@ -6,12 +6,12 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
-use math::Distance;
+use bevy_mod_config::{self, ReadConfig};
+use math::Length;
 use omniatc::level::runway::Runway;
 use omniatc::try_log_return;
 
 use super::Conf;
-use crate::config;
 use crate::render::twodim::Zorder;
 use crate::util::shapes;
 
@@ -19,19 +19,21 @@ use crate::util::shapes;
 pub struct SpawnParam<'w, 's> {
     commands:  Commands<'w, 's>,
     shapes:    Res<'w, shapes::Meshes>,
-    conf:      config::Read<'w, 's, Conf>,
+    conf:      ReadConfig<'w, 's, Conf>,
     materials: ResMut<'w, Assets<ColorMaterial>>,
 }
 
 impl SpawnParam<'_, '_> {
     pub fn spawn(&mut self, runway: Entity) {
+        let conf = self.conf.read();
+
         self.commands.spawn((
             IsLocalizerOf(runway),
             ChildOf(runway),
-            self.shapes.line(self.conf.localizer_thickness, Zorder::Localizer),
+            self.shapes.line(conf.localizer_thickness, Zorder::Localizer),
             MeshMaterial2d(
                 self.materials
-                    .add(ColorMaterial { color: self.conf.localizer_color, ..Default::default() }),
+                    .add(ColorMaterial { color: conf.localizer_color, ..Default::default() }),
             ),
         ));
     }
@@ -39,7 +41,7 @@ impl SpawnParam<'_, '_> {
 
 #[derive(SystemParam)]
 pub struct UpdateParam<'w, 's> {
-    conf:            config::Read<'w, 's, Conf>,
+    conf:            ReadConfig<'w, 's, Conf>,
     localizer_query: Query<
         'w,
         's,
@@ -58,17 +60,19 @@ impl UpdateParam<'_, '_> {
         &mut self,
         runway: &Runway,
         &HasLocalizer(entity): &HasLocalizer,
-        localizer_length: Distance<f32>,
+        localizer_length: Length<f32>,
     ) {
+        let conf = self.conf.read();
+
         let (mut line_tf, material_handle, mut thickness) = try_log_return!(self.localizer_query.get_mut(entity), expect "HasLocalizer should reference a localizer entity with transform");
 
         let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
-        material.color = self.conf.localizer_color;
+        material.color = conf.localizer_color;
 
         let localizer_length = runway.landing_length.normalize_to_magnitude(-localizer_length);
-        shapes::set_square_line_transform_relative(&mut line_tf, Distance::ZERO, localizer_length);
+        shapes::set_square_line_transform_relative(&mut line_tf, Length::ZERO, localizer_length);
 
-        thickness.0 = self.conf.localizer_thickness;
+        thickness.0 = conf.localizer_thickness;
     }
 }
 

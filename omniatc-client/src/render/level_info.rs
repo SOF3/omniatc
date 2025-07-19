@@ -14,7 +14,7 @@ use bevy::math::{Rect, Vec3, Vec3Swizzles};
 use bevy::render::camera::Camera;
 use bevy::time::{self, Time};
 use bevy::transform::components::{GlobalTransform, Transform};
-use bevy_egui::{egui, EguiContextPass, EguiContexts};
+use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use egui_extras::{Column, TableBuilder};
 use math::{Angle, Heading};
 use omniatc::level::object;
@@ -22,6 +22,7 @@ use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 
 use super::{config_editor, object_info};
+use crate::render::twodim;
 use crate::util::new_type_id;
 use crate::{input, EguiSystemSets, EguiUsedMargins};
 
@@ -29,7 +30,10 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(EguiContextPass, setup_layout_system.in_set(EguiSystemSets::LevelInfo));
+        app.add_systems(
+            EguiPrimaryContextPass,
+            setup_layout_system.in_set(EguiSystemSets::LevelInfo),
+        );
     }
 }
 
@@ -42,17 +46,14 @@ fn setup_layout_system(
     write_time_params: WriteTimeParams,
     write_object_params: WriteObjectParams,
 ) {
-    let Some(ctx) = contexts.try_ctx_mut() else { return };
+    let Ok(ctx) = contexts.ctx_mut() else { return };
 
     let resp = egui::SidePanel::left(new_type_id!())
         .resizable(true)
         .show(ctx, |ui| {
-            ui.menu_button("Tools", |ui| {
-                if ui.button("Settings").clicked() {
-                    config_editor_opened.0 = true;
-                    ui.close_menu();
-                }
-            });
+            if ui.button("Settings").clicked() {
+                config_editor_opened.0 = true;
+            }
 
             ui.heading("Level info");
 
@@ -134,7 +135,7 @@ struct WriteCameras<'w, 's> {
         'w,
         's,
         (&'static Camera, &'static mut Transform, &'static GlobalTransform),
-        With<Camera>,
+        With<twodim::camera::Layout>,
     >,
     cursor:       Res<'w, input::CurrentCursorCamera>,
 }

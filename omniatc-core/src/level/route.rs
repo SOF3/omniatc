@@ -8,7 +8,7 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, World};
 use bevy::time::{self, Time};
-use math::{Distance, Heading, Position, Speed};
+use math::{Heading, Length, Position, Speed};
 use serde::{Deserialize, Serialize};
 
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
@@ -26,7 +26,7 @@ pub use taxi::*;
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
 /// in order to reach the required configured altitude set in the future.
-const ALTITUDE_CHANGE_TRIGGER_WINDOW: Distance<f32> = Distance::from_nm(1.);
+const ALTITUDE_CHANGE_TRIGGER_WINDOW: Length<f32> = Length::from_nm(1.);
 
 /// Frequency of re-executing the route plan for each object.
 const REFRESH_INTERVAL: Duration = Duration::from_secs(5);
@@ -315,7 +315,7 @@ enum PlanAltitudeResult {
         expedite: bool,
     },
     DelayedTrigger {
-        distance:                 Distance<f32>,
+        distance:                 Length<f32>,
         eventual_target_altitude: Position<f32>,
     },
 }
@@ -381,7 +381,7 @@ fn plan_altitude(
 
     let mut segment_altitude = target_position.altitude();
     for (segment_index, segment) in segments.iter().enumerate().rev() {
-        const SAMPLE_DENSITY: Distance<f32> = Distance::from_nm(1.);
+        const SAMPLE_DENSITY: Length<f32> = Length::from_nm(1.);
 
         let new_altitude = gs_calc.get(world).estimate_altitude_change(
             [segment.start, segment.end],

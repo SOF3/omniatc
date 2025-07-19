@@ -11,10 +11,10 @@ use bevy::math::primitives::{Circle, Rectangle};
 use bevy::math::Vec2;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::transform::components::{GlobalTransform, Transform};
-use math::{Distance, Position};
+use math::{Length, Position};
 
-use crate::render;
 use crate::render::twodim::Zorder;
+use crate::render::{self, twodim};
 
 pub struct Plug;
 
@@ -77,8 +77,8 @@ pub fn set_square_line_transform(tf: &mut Transform, start: Position<Vec2>, end:
 
 pub fn set_square_line_transform_relative(
     tf: &mut Transform,
-    start: Distance<Vec2>,
-    end: Distance<Vec2>,
+    start: Length<Vec2>,
+    end: Length<Vec2>,
 ) {
     let midpt = start.lerp(end, 0.5);
     let translation = midpt.0;
@@ -97,7 +97,7 @@ pub struct MaintainThickness(pub f32);
 
 fn maintain_thickness_system(
     mut query: Query<(&MaintainThickness, &mut Transform)>,
-    camera: Single<&GlobalTransform, With<Camera2d>>,
+    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
 ) {
     query.iter_mut().for_each(|(thickness, mut tf)| {
         tf.scale.x = thickness.0 * camera.scale().y;

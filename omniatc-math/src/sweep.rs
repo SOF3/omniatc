@@ -4,7 +4,7 @@ use std::{cmp, iter, mem};
 use bevy_math::{Dir2, Vec2};
 use ordered_float::NotNan;
 
-use crate::{line_intersect, Distance, Position};
+use crate::{line_intersect, Length, Position};
 
 #[cfg(test)]
 mod tests;
@@ -28,7 +28,7 @@ pub struct LineSweeper<F> {
     /// Intersections within this distance from the end of line segments
     /// are considered on the lines.
     /// This is to prevent numerical issues when line segments only intersect at their ends.
-    epsilon:   Distance<f32>,
+    epsilon:   Length<f32>,
     sweep_dir: Dir2,
     ortho_dir: Dir2,
 
@@ -54,7 +54,7 @@ where
     pub fn new(
         line_fn: F,
         num_lines: usize,
-        epsilon: Distance<f32>,
+        epsilon: Length<f32>,
         sweep_dir: Dir2,
     ) -> Result<Self, Error> {
         // rotate sweep_dir clockwise by 90 degrees
@@ -153,7 +153,7 @@ where
         struct Merge<I> {
             recv:    I,
             buf:     Vec<LineIntersection>,
-            epsilon: Distance<f32>,
+            epsilon: Length<f32>,
         }
 
         impl<I> Merge<I>
@@ -322,7 +322,7 @@ where
 
             if let Some(Vec2 { x: intersect_dot, y: intersect_ortho }) = intersect {
                 let intersect_position = Position::ORIGIN
-                    + Distance::new(
+                    + Length::new(
                         *self.sweeper.sweep_dir * intersect_dot
                             + *self.sweeper.ortho_dir * intersect_ortho,
                     );

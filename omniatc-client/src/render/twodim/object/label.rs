@@ -8,7 +8,7 @@ use bevy::ecs::system::{Commands, EntityCommands, Query, SystemParam};
 use bevy::text::{TextColor, TextSpan};
 use omniatc::level::object::{self};
 
-use super::Conf;
+use super::{Conf, PlaneConfRead};
 
 #[derive(Component)]
 #[relationship(relationship_target = HasLabel)]
@@ -28,7 +28,7 @@ pub struct ObjectData {
 }
 
 impl ObjectDataItem<'_> {
-    pub fn write_label(&self, _conf: &Conf, label_writer: &mut Writer) {
+    pub fn write_label(&self, _conf: &PlaneConfRead, label_writer: &mut Writer) {
         label_writer.rewrite(self.label_entity.0, |mut s| {
             s.write(&self.display.name);
         });

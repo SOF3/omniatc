@@ -1,8 +1,8 @@
 use bevy_math::Vec2;
 
 use crate::{
-    find_circle_tangent_towards, line_circle_intersect, Distance, Position, Squared, TurnDirection,
-    Unit,
+    find_circle_tangent_towards, line_circle_intersect, Length, Position, Quantity, Squared,
+    TurnDirection,
 };
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {
@@ -28,7 +28,7 @@ fn line_circle_intersect_middle() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Unit::new(4.),
+            Quantity::new(4.),
             Position::new(Vec2::new(5., 5.)),
             Position::new(Vec2::new(15., -5.)),
         ),
@@ -41,7 +41,7 @@ fn line_circle_intersect_contain_start() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Unit::new(4.),
+            Quantity::new(4.),
             Position::new(Vec2::new(9., 1.)),
             Position::new(Vec2::new(19., 1.)),
         ),
@@ -54,7 +54,7 @@ fn line_circle_intersect_contain_end() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Unit::new(4.),
+            Quantity::new(4.),
             Position::new(Vec2::new(1., 1.)),
             Position::new(Vec2::new(11., 1.)),
         ),
@@ -67,7 +67,7 @@ fn line_circle_intersect_outside() {
     assert_line_circle_intersect(
         line_circle_intersect(
             Position::new(Vec2::new(10., 0.)),
-            Unit::new(4.),
+            Quantity::new(4.),
             Position::new(Vec2::new(10., 10.)),
             Position::new(Vec2::new(0., 0.)),
         ),
@@ -79,7 +79,7 @@ fn assert_option_pos(actual: Option<Position<Vec2>>, expect: Option<Position<Vec
     assert_eq!(actual.is_some(), expect.is_some());
     if let (Some(actual), Some(expect)) = (actual, expect) {
         assert!(
-            actual.distance_cmp(expect) < Distance::from_nm(0.001),
+            actual.distance_cmp(expect) < Length::from_nm(0.001),
             "expect {expect:?}, got {actual:?}"
         );
     }
@@ -91,7 +91,7 @@ fn find_circle_tangent_towards_clockwise_positive() {
         find_circle_tangent_towards(
             Position::from_origin_nm(5.0, 6.0),
             Position::from_origin_nm(3.0, 4.0),
-            Distance::from_nm(2.0),
+            Length::from_nm(2.0),
             TurnDirection::Clockwise,
         ),
         Some(Position::from_origin_nm(3.0, 6.0)),
@@ -104,7 +104,7 @@ fn find_circle_tangent_towards_counter_clockwise_positive() {
         find_circle_tangent_towards(
             Position::from_origin_nm(5.0, 6.0),
             Position::from_origin_nm(3.0, 4.0),
-            Distance::from_nm(2.0),
+            Length::from_nm(2.0),
             TurnDirection::CounterClockwise,
         ),
         Some(Position::from_origin_nm(5.0, 4.0)),
@@ -117,7 +117,7 @@ fn find_circle_tangent_towards_clockwise_negative() {
         find_circle_tangent_towards(
             Position::from_origin_nm(3.0, 4.0),
             Position::from_origin_nm(5.0, 6.0),
-            Distance::from_nm(2.0),
+            Length::from_nm(2.0),
             TurnDirection::Clockwise,
         ),
         Some(Position::from_origin_nm(5.0, 4.0)),
@@ -130,7 +130,7 @@ fn find_circle_tangent_towards_counter_clockwise_negative() {
         find_circle_tangent_towards(
             Position::from_origin_nm(3.0, 4.0),
             Position::from_origin_nm(5.0, 6.0),
-            Distance::from_nm(2.0),
+            Length::from_nm(2.0),
             TurnDirection::CounterClockwise,
         ),
         Some(Position::from_origin_nm(3.0, 6.0)),
@@ -143,7 +143,7 @@ fn find_circle_tangent_towards_inside() {
         find_circle_tangent_towards(
             Position::from_origin_nm(5.0, 6.0),
             Position::from_origin_nm(5.0, 6.0),
-            Distance::from_nm(2.0),
+            Length::from_nm(2.0),
             TurnDirection::CounterClockwise,
         ),
         None,

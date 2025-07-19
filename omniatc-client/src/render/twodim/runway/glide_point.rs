@@ -7,19 +7,19 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::render::mesh::Mesh2d;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
-use math::Distance;
+use bevy_mod_config::{self, ReadConfig};
+use math::Length;
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::try_log_return;
 
 use super::Conf;
-use crate::config;
 use crate::render::twodim::Zorder;
 use crate::util::{billboard, shapes};
 
 #[derive(SystemParam)]
 pub struct UpdateParam<'w, 's> {
-    conf:              config::Read<'w, 's, Conf>,
+    conf:              ReadConfig<'w, 's, Conf>,
     glide_point_query: Query<
         'w,
         's,
@@ -42,15 +42,17 @@ impl UpdateParam<'_, '_> {
         waypoint: &Waypoint,
         runway: &Runway,
         list: Option<&PointList>,
-        localizer_length: Distance<f32>,
+        localizer_length: Length<f32>,
     ) {
+        let conf = self.conf.read();
+
         let list = list.map(|list| &list.0[..]).unwrap_or_default();
 
         let start_altitude = waypoint.position.altitude();
         let end_altitude =
             start_altitude + localizer_length * runway.glide_descent.acute_signed_tan();
 
-        let density = self.conf.glide_point_density;
+        let density = conf.glide_point_density;
 
         #[expect(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
         let first_multiple = (start_altitude.amsl() / density + 0.5).ceil() as i32;
@@ -84,9 +86,9 @@ impl UpdateParam<'_, '_> {
                 point_tf.translation = Zorder::LocalizerGlidePoint.dist2_to_translation(point_dist);
 
                 let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
-                material.color = self.conf.glide_point_color;
+                material.color = conf.glide_point_color;
 
-                size.size = self.conf.glide_point_size;
+                size.size = conf.glide_point_size;
             } else {
                 self.commands.spawn((
                     ChildOf(runway_entity),
@@ -97,10 +99,10 @@ impl UpdateParam<'_, '_> {
                     },
                     Mesh2d(self.shapes.circle().clone()),
                     MeshMaterial2d(self.materials.add(ColorMaterial {
-                        color: self.conf.glide_point_color,
+                        color: conf.glide_point_color,
                         ..Default::default()
                     })),
-                    billboard::MaintainScale { size: self.conf.glide_point_size },
+                    billboard::MaintainScale { size: conf.glide_point_size },
                 ));
             }
         }

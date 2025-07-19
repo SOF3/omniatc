@@ -7,16 +7,16 @@ use bevy::ecs::system::{Commands, Query, Res, Single, SystemParam};
 use bevy::math::Vec2;
 use bevy::sprite::MeshMaterial2d;
 use bevy::transform::components::{GlobalTransform, Transform};
+use bevy_mod_config::{self, ReadConfig};
 use either::Either;
 use itertools::Itertools;
-use math::{Angle, Distance, Position};
+use math::{Angle, Length, Position};
 use omniatc::level::ground;
 use omniatc::util::manage_entity_vec;
 use omniatc::{try_log, try_log_return};
 
 use super::{vis, Conf};
-use crate::config;
-use crate::render::twodim::Zorder;
+use crate::render::twodim::{camera, Zorder};
 use crate::util::shapes;
 
 #[cfg(test)]
@@ -39,10 +39,10 @@ pub(super) struct RegenerateParam<'w, 's> {
     segment_query:       Query<'w, 's, &'static ground::Segment>,
     curve_query:         Query<'w, 's, &'static mut Transform, With<TurnCurveOf>>,
     shapes:              Res<'w, shapes::Meshes>,
-    conf:                config::Read<'w, 's, Conf>,
+    conf:                ReadConfig<'w, 's, Conf>,
     materials:           Res<'w, super::ColorMaterials>,
     viewable_query:      Query<'w, 's, ()>,
-    camera:              Single<'w, &'static GlobalTransform, With<Camera2d>>,
+    camera:              Single<'w, &'static GlobalTransform, With<camera::Layout>>,
 }
 
 impl RegenerateParam<'_, '_> {
@@ -51,6 +51,8 @@ impl RegenerateParam<'_, '_> {
             self.endpoint_query.get(endpoint_entity),
             expect "{endpoint_entity:?} is not a endpoint entity"
         );
+
+        let conf = self.conf.read();
 
         let all_curve_parts = adjacency.iter().array_combinations().filter_map(|segment_pair| {
             let [Some(other_pos1), Some(other_pos2)] = segment_pair.map(|&segment_entity| {
@@ -75,12 +77,12 @@ impl RegenerateParam<'_, '_> {
             Some(compute_curve_points(
                 intersect,
                 [other_pos1, other_pos2],
-                self.conf.intersection_size,
-                self.conf.arc_interval,
+                conf.intersection_size,
+                conf.arc_interval,
             ).tuple_windows::<(_, _)>())
         }).flatten();
 
-        let Self { ref shapes, ref conf, ref materials, ref mut curve_query, .. } = *self;
+        let Self { ref shapes, conf: _, ref materials, ref mut curve_query, .. } = *self;
         manage_entity_vec(
             endpoint_entity,
             curves,
@@ -119,11 +121,11 @@ impl RegenerateParam<'_, '_> {
 fn compute_curve_points(
     intersect: Position<Vec2>,
     other_positions: [Position<Vec2>; 2],
-    intersection_size: Distance<f32>,
+    intersection_size: Length<f32>,
     arc_interval: Angle,
 ) -> impl Iterator<Item = Position<Vec2>> {
     /// Base distance used for radials from the intersect center point
-    const DISTANCE_UNIT: Distance<f32> = Distance::new(1.);
+    const DISTANCE_UNIT: Length<f32> = Length::new(1.);
 
     let [radial1, radial2] =
         other_positions.map(|pos| (pos - intersect).normalize_to_magnitude(DISTANCE_UNIT));

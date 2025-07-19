@@ -8,7 +8,8 @@ use ordered_float::OrderedFloat;
 
 use crate::Sign;
 
-pub mod display;
+mod display;
+pub use display::{LengthUnit, SpeedUnit, UnitEnum};
 mod heading;
 pub use heading::{Heading, TurnDirection};
 mod position;
@@ -29,13 +30,13 @@ pub const SECONDS_PER_MINUTE: f32 = 60.;
 /// Converts hours to seconds.
 pub const SECONDS_PER_HOUR: f32 = 3600.;
 
-pub struct Unit<T, Base, Dt, Pow>(pub T, pub PhantomData<(Base, Dt, Pow)>);
+pub struct Quantity<T, Base, Dt, Pow>(pub T, pub PhantomData<(Base, Dt, Pow)>);
 
-impl<T, Base, Dt, Pow> Unit<T, Base, Dt, Pow> {
+impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow> {
     pub const fn new(value: T) -> Self { Self(value, PhantomData) }
 }
 
-pub trait UnitTrait: Sized {
+pub trait QuantityTrait: Sized {
     /// The type of the raw value of this unit.
     type Raw;
     /// Returns a unit with the same dimensional characteristics but with a different raw value type.
@@ -49,10 +50,10 @@ pub trait UnitTrait: Sized {
     fn from_raw(value: Self::Raw) -> Self;
 }
 
-impl<T, Base, Dt, Pow> UnitTrait for Unit<T, Base, Dt, Pow> {
+impl<T, Base, Dt, Pow> QuantityTrait for Quantity<T, Base, Dt, Pow> {
     type Raw = T;
-    type WithRaw<U> = Unit<U, Base, Dt, Pow>;
-    type Rate = Unit<T, Base, Ddt<Dt>, Pow>;
+    type WithRaw<U> = Quantity<U, Base, Dt, Pow>;
+    type Rate = Quantity<T, Base, Ddt<Dt>, Pow>;
 
     fn into_raw(self) -> T { self.0 }
 
@@ -61,7 +62,7 @@ impl<T, Base, Dt, Pow> UnitTrait for Unit<T, Base, Dt, Pow> {
     fn from_raw(value: T) -> Self { Self(value, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow>
 where
     T: VectorSpace,
 {
@@ -71,46 +72,46 @@ where
     pub fn lerp(self, other: Self, s: f32) -> Self { Self(self.0.lerp(other.0, s), PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> Default for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Default for Quantity<T, Base, Dt, Pow>
 where
     T: Default,
 {
     fn default() -> Self { Self(T::default(), PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> Clone for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Clone for Quantity<T, Base, Dt, Pow>
 where
     T: Clone,
 {
     fn clone(&self) -> Self { Self(self.0.clone(), PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> Copy for Unit<T, Base, Dt, Pow> where T: Copy {}
+impl<T, Base, Dt, Pow> Copy for Quantity<T, Base, Dt, Pow> where T: Copy {}
 
-impl<T, Base, Dt, Pow> PartialEq for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> PartialEq for Quantity<T, Base, Dt, Pow>
 where
     T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
 }
 
-impl<T, Base, Dt, Pow> Eq for Unit<T, Base, Dt, Pow> where T: Eq {}
+impl<T, Base, Dt, Pow> Eq for Quantity<T, Base, Dt, Pow> where T: Eq {}
 
-impl<T, Base, Dt, Pow> PartialOrd for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> PartialOrd for Quantity<T, Base, Dt, Pow>
 where
     T: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { self.0.partial_cmp(&other.0) }
 }
 
-impl<T, Base, Dt, Pow> Ord for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Ord for Quantity<T, Base, Dt, Pow>
 where
     T: Ord,
 {
     fn cmp(&self, other: &Self) -> cmp::Ordering { self.0.cmp(&other.0) }
 }
 
-impl<T, Base, Dt, Pow> ops::Add for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Add for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Add<Output = T>,
 {
@@ -119,14 +120,14 @@ where
     fn add(self, other: Self) -> Self { Self(self.0 + other.0, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> ops::AddAssign for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::AddAssign for Quantity<T, Base, Dt, Pow>
 where
     T: ops::AddAssign,
 {
     fn add_assign(&mut self, other: Self) { self.0 += other.0; }
 }
 
-impl<T, Base, Dt, Pow> ops::Sub for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Sub for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Sub<Output = T>,
 {
@@ -135,14 +136,14 @@ where
     fn sub(self, other: Self) -> Self { Self(self.0 - other.0, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> ops::SubAssign for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::SubAssign for Quantity<T, Base, Dt, Pow>
 where
     T: ops::SubAssign,
 {
     fn sub_assign(&mut self, other: Self) { self.0 -= other.0; }
 }
 
-impl<T, Base, Dt, Pow> ops::Mul<f32> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Mul<f32> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Mul<f32, Output = T>,
 {
@@ -151,14 +152,14 @@ where
     fn mul(self, other: f32) -> Self { Self(self.0 * other, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> ops::MulAssign<f32> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::MulAssign<f32> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::MulAssign<f32>,
 {
     fn mul_assign(&mut self, other: f32) { self.0 *= other; }
 }
 
-impl<T, Base, Dt, Pow> ops::Div<f32> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Div<f32> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Div<f32, Output = T>,
 {
@@ -167,14 +168,14 @@ where
     fn div(self, other: f32) -> Self { Self(self.0 / other, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> ops::DivAssign<f32> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::DivAssign<f32> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::DivAssign<f32>,
 {
     fn div_assign(&mut self, other: f32) { self.0 /= other; }
 }
 
-impl<T, Base, Dt, Pow> ops::Div for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Div for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Div,
 {
@@ -183,7 +184,7 @@ where
     fn div(self, other: Self) -> Self::Output { self.0 / other.0 }
 }
 
-impl<T, Base, Dt, Pow> ops::Rem for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Rem for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Rem<Output = T>,
 {
@@ -192,14 +193,14 @@ where
     fn rem(self, rhs: Self) -> Self::Output { Self(self.0 % rhs.0, PhantomData) }
 }
 
-impl<T, Base, Dt, Pow> ops::RemAssign for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::RemAssign for Quantity<T, Base, Dt, Pow>
 where
     T: ops::RemAssign,
 {
     fn rem_assign(&mut self, rhs: Self) { self.0 %= rhs.0; }
 }
 
-impl<T, Base, Dt, Pow> ops::Neg for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Neg for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Neg<Output = T>,
 {
@@ -208,49 +209,19 @@ where
     fn neg(self) -> Self { Self(-self.0, PhantomData) }
 }
 
-impl<T: Default + ops::Add<Output = T>, Base, Dt, Pow> iter::Sum for Unit<T, Base, Dt, Pow> {
+impl<T: Default + ops::Add<Output = T>, Base, Dt, Pow> iter::Sum for Quantity<T, Base, Dt, Pow> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::default(), |sum, value| sum + value)
     }
 }
 
-impl<T, Base, Dt, Pow> serde::Serialize for Unit<T, Base, Dt, Pow>
-where
-    T: serde::Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de, T, Base, Dt, Pow> serde::Deserialize<'de> for Unit<T, Base, Dt, Pow>
-where
-    T: serde::Deserialize<'de> + IsFinite,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let value = T::deserialize(deserializer)?;
-
-        if !value.is_finite() {
-            return Err(<D::Error as serde::de::Error>::custom("non-finite quantity"));
-        }
-
-        Ok(Self(value, PhantomData))
-    }
-}
-
-impl<T, Base, Dt, Pow> From<T> for Unit<T, Base, Dt, Pow> {
+impl<T, Base, Dt, Pow> From<T> for Quantity<T, Base, Dt, Pow> {
     fn from(value: T) -> Self { Self(value, PhantomData) }
 }
 
-/// Used as `Dt` in `Unit` to indicate that the unit is not a rate of change.
+/// Used as `Dt` in `Quantity` to indicate that the unit is not a rate of change.
 pub struct DtZero;
-/// Used as `Dt` in `Unit` to indicate that the unit is the rate of change of `Unit<Dt=Dt>`.
+/// Used as `Dt` in `Quantity` to indicate that the unit is the rate of change of `Quantity<Dt=Dt>`.
 pub struct Ddt<Dt>(Dt);
 
 pub type DtOne = Ddt<DtZero>;
@@ -272,85 +243,87 @@ where
     type Squared = Ddt<Ddt<Dt::Squared>>;
 }
 
-impl<T, Base, Dt, Pow> ops::Mul<Duration> for Unit<T, Base, Ddt<Dt>, Pow>
+impl<T, Base, Dt, Pow> ops::Mul<Duration> for Quantity<T, Base, Ddt<Dt>, Pow>
 where
     T: ops::Mul<f32, Output = T>,
 {
-    type Output = Unit<T, Base, Dt, Pow>;
+    type Output = Quantity<T, Base, Dt, Pow>;
 
     fn mul(self, other: Duration) -> Self::Output {
-        Unit(self.0 * other.as_secs_f32(), PhantomData)
+        Quantity(self.0 * other.as_secs_f32(), PhantomData)
     }
 }
 
-impl<T, Base, Dt, Pow> ops::Div<Duration> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Div<Duration> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Div<f32, Output = T>,
 {
-    type Output = Unit<T, Base, Ddt<Dt>, Pow>;
+    type Output = Quantity<T, Base, Ddt<Dt>, Pow>;
 
     fn div(self, other: Duration) -> Self::Output {
-        Unit(self.0 / other.as_secs_f32(), PhantomData)
+        Quantity(self.0 / other.as_secs_f32(), PhantomData)
     }
 }
 
 /// (B / T^n) / (B / T^(n+1)) = T
-impl<T, Base, Dt, Pow> ops::Div<Unit<T, Base, Ddt<Dt>, Pow>> for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Div<Quantity<T, Base, Ddt<Dt>, Pow>> for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Div<Output = f32>,
 {
     type Output = Duration;
 
-    fn div(self, rhs: Unit<T, Base, Ddt<Dt>, Pow>) -> Self::Output {
+    fn div(self, rhs: Quantity<T, Base, Ddt<Dt>, Pow>) -> Self::Output {
         Duration::from_secs_f32(self.0 / rhs.0)
     }
 }
 
 /// (B / T^n) / (B / T^(n+1)) = T
-impl<T, Base, Dt, Pow> Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow>
 where
     T: ops::Div<Output = f32>,
 {
-    pub fn try_div(self, rhs: Unit<T, Base, Ddt<Dt>, Pow>) -> Option<Duration> {
+    pub fn try_div(self, rhs: Quantity<T, Base, Ddt<Dt>, Pow>) -> Option<Duration> {
         Duration::try_from_secs_f32(self.0 / rhs.0).ok()
     }
 }
 
 /// (B^2 / T^(n+1)) / (B / T^n) = B/T
-impl<T, Base, Dt, Pow> ops::Div<Unit<T, Base, Dt, Pow>> for Unit<T, Base, Ddt<Dt>, PowTwo>
+impl<T, Base, Dt, Pow> ops::Div<Quantity<T, Base, Dt, Pow>> for Quantity<T, Base, Ddt<Dt>, PowTwo>
 where
     T: ops::Div,
 {
-    type Output = Unit<T::Output, Base, DtOne, Pow>;
+    type Output = Quantity<T::Output, Base, DtOne, Pow>;
 
-    fn div(self, rhs: Unit<T, Base, Dt, Pow>) -> Self::Output { Unit(self.0 / rhs.0, PhantomData) }
+    fn div(self, rhs: Quantity<T, Base, Dt, Pow>) -> Self::Output {
+        Quantity(self.0 / rhs.0, PhantomData)
+    }
 }
 
-impl<T, Base, Dt, Pow> Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow>
 where
     T: ops::Mul<f32, Output = T>,
 {
     pub fn per_second(
         self,
-        other: Unit<f32, RatioBase, DtOne, PowZero>,
-    ) -> Unit<T, Base, Ddt<Dt>, Pow> {
-        Unit(self.0 * other.0, PhantomData)
+        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+    ) -> Quantity<T, Base, Ddt<Dt>, Pow> {
+        Quantity(self.0 * other.0, PhantomData)
     }
 }
 
-impl<T, Base, Dt, Pow> Unit<T, Base, Ddt<Dt>, Pow>
+impl<T, Base, Dt, Pow> Quantity<T, Base, Ddt<Dt>, Pow>
 where
     T: ops::Div<f32, Output = T>,
 {
     pub fn div_per_second(
         self,
-        other: Unit<f32, RatioBase, DtOne, PowZero>,
-    ) -> Unit<T, Base, Dt, Pow> {
-        Unit(self.0 / other.0, PhantomData)
+        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+    ) -> Quantity<T, Base, Dt, Pow> {
+        Quantity(self.0 / other.0, PhantomData)
     }
 }
 
-/// Used as `Pow` in `Unit` to indicate that the unit is linear (not squared).
+/// Used as `Pow` in `Quantity` to indicate that the unit is linear (not squared).
 pub struct PowZero;
 
 pub struct PowPlusOne<Pow>(Pow);
@@ -378,7 +351,7 @@ pub trait GreaterOrEqPow<Than> {
 pub type PowOne = PowPlusOne<PowZero>;
 pub type PowTwo = PowPlusOne<PowOne>;
 
-impl<T, Dt, Pow> Unit<T, DistanceBase, Dt, Pow>
+impl<T, Dt, Pow> Quantity<T, LengthBase, Dt, Pow>
 where
     T: NormedVectorSpace,
     Dt: DtTrait,
@@ -390,20 +363,22 @@ where
         AsSqrt { norm_squared: OrderedFloat(self.0.norm_squared()), _ph: PhantomData }
     }
 
-    pub fn magnitude_squared(self) -> Unit<f32, DistanceBase, Dt::Squared, Pow::Squared> {
-        Unit(self.0.norm_squared(), PhantomData)
+    pub fn magnitude_squared(self) -> Quantity<f32, LengthBase, Dt::Squared, Pow::Squared> {
+        Quantity(self.0.norm_squared(), PhantomData)
     }
 
-    pub fn magnitude_exact(self) -> Unit<f32, DistanceBase, Dt, Pow> {
-        Unit(self.0.norm(), PhantomData)
+    pub fn magnitude_exact(self) -> Quantity<f32, LengthBase, Dt, Pow> {
+        Quantity(self.0.norm(), PhantomData)
     }
 }
 
-impl<Base, Dt, Pow> ops::Div<Unit<f32, Base, Dt, Pow>> for Unit<f32, Base, Dt, PowPlusOne<Pow>> {
-    type Output = Unit<f32, Base, DtZero, Pow>;
+impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>>
+    for Quantity<f32, Base, Dt, PowPlusOne<Pow>>
+{
+    type Output = Quantity<f32, Base, DtZero, Pow>;
 
-    fn div(self, rhs: Unit<f32, Base, Dt, Pow>) -> Self::Output {
-        Unit(self.0 / rhs.0, PhantomData)
+    fn div(self, rhs: Quantity<f32, Base, Dt, Pow>) -> Self::Output {
+        Quantity(self.0 / rhs.0, PhantomData)
     }
 }
 
@@ -413,16 +388,16 @@ pub trait CanSquare {
 
 pub type Squared<T> = <T as CanSquare>::Squared;
 
-impl<T, Dt, Pow> CanSquare for Unit<T, DistanceBase, Dt, Pow>
+impl<T, Dt, Pow> CanSquare for Quantity<T, LengthBase, Dt, Pow>
 where
     Dt: DtTrait,
     Pow: PowTrait,
 {
-    type Squared = Unit<T, DistanceBase, Dt::Squared, Pow::Squared>;
+    type Squared = Quantity<T, LengthBase, Dt::Squared, Pow::Squared>;
 }
 
-pub trait CanSqrt: UnitTrait<Raw = f32> {
-    type Sqrt: UnitTrait<Raw = f32>;
+pub trait CanSqrt: QuantityTrait<Raw = f32> {
+    type Sqrt: QuantityTrait<Raw = f32>;
 
     fn sqrt(self) -> Self::Sqrt { Self::Sqrt::from_raw(self.into_raw().sqrt()) }
 
@@ -474,37 +449,37 @@ impl IsEven for PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOn
     type Half = PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>;
 }
 
-impl<Dt, Pow> CanSqrt for Unit<f32, DistanceBase, Dt, Pow>
+impl<Dt, Pow> CanSqrt for Quantity<f32, LengthBase, Dt, Pow>
 where
     Dt: IsEven,
     Pow: IsEven,
 {
-    type Sqrt = Unit<f32, DistanceBase, Dt::Half, Pow::Half>;
+    type Sqrt = Quantity<f32, LengthBase, Dt::Half, Pow::Half>;
 }
 
-impl<T, Base, Dt, Pow> Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow>
 where
     T: ops::Mul<Output = T> + Copy,
     Dt: DtTrait,
     Pow: PowTrait,
 {
-    pub fn squared(self) -> Unit<T, Base, Dt::Squared, Pow::Squared> {
-        Unit(self.0 * self.0, PhantomData)
+    pub fn squared(self) -> Quantity<T, Base, Dt::Squared, Pow::Squared> {
+        Quantity(self.0 * self.0, PhantomData)
     }
 }
 
-impl<T, Base, Dt, Pow> ops::Mul for Unit<T, Base, Dt, Pow>
+impl<T, Base, Dt, Pow> ops::Mul for Quantity<T, Base, Dt, Pow>
 where
     T: ops::Mul<Output = T>,
     Dt: DtTrait,
     Pow: PowTrait,
 {
-    type Output = Unit<T, Base, Dt::Squared, Pow::Squared>;
+    type Output = Quantity<T, Base, Dt::Squared, Pow::Squared>;
 
-    fn mul(self, other: Self) -> Self::Output { Unit(self.0 * other.0, PhantomData) }
+    fn mul(self, other: Self) -> Self::Output { Quantity(self.0 * other.0, PhantomData) }
 }
 
-impl<Base, Dt, Pow> Unit<f32, Base, Dt, Pow> {
+impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     #[must_use]
     pub fn is_positive(self) -> bool { self.0 > 0. }
 
@@ -550,25 +525,25 @@ impl<Base, Dt, Pow> Unit<f32, Base, Dt, Pow> {
     }
 
     #[must_use]
-    pub fn with_heading(self, heading: Heading) -> <Self as UnitTrait>::WithRaw<Vec2> {
-        Unit(heading.into_dir2() * self.0, PhantomData)
+    pub fn with_heading(self, heading: Heading) -> <Self as QuantityTrait>::WithRaw<Vec2> {
+        Quantity(heading.into_dir2() * self.0, PhantomData)
     }
 
     #[must_use]
     pub fn midpoint(self, other: Self) -> Self { Self(self.0.midpoint(other.0), PhantomData) }
 
     #[must_use]
-    pub const fn splat2(self) -> <Self as UnitTrait>::WithRaw<Vec2> {
-        Unit(Vec2::new(self.0, self.0), PhantomData)
+    pub const fn splat2(self) -> <Self as QuantityTrait>::WithRaw<Vec2> {
+        Quantity(Vec2::new(self.0, self.0), PhantomData)
     }
 }
 
-impl<Dt, Pow> Unit<f32, DistanceBase, Dt, Pow> {
+impl<Dt, Pow> Quantity<f32, LengthBase, Dt, Pow> {
     #[must_use]
     pub fn atan2(self, x: Self) -> Angle { Angle::from_raw(self.0.atan2(x.0)) }
 }
 
-impl Distance<f32> {
+impl Length<f32> {
     /// Computes the arc length given an arc length (the receiver) and an angular quantity (the
     /// parameter).
     ///
@@ -576,108 +551,111 @@ impl Distance<f32> {
     #[must_use]
     pub fn radius_to_arc<Dt>(
         self,
-        angular: Unit<f32, AngleBase, Dt, PowOne>,
-    ) -> Unit<f32, DistanceBase, Dt, PowOne> {
-        Unit::new(self.0 * angular.0)
+        angular: Quantity<f32, AngleBase, Dt, PowOne>,
+    ) -> Quantity<f32, LengthBase, Dt, PowOne> {
+        Quantity::new(self.0 * angular.0)
     }
 }
 
-impl<Dt> Unit<f32, DistanceBase, Dt, PowOne> {
+impl<Dt> Quantity<f32, LengthBase, Dt, PowOne> {
     /// Computes the radius of a circle given an arc length (the receiver) and an angular quantity
     /// (the parameter).
     ///
     /// The receiver and parameter must have the same temporal dimensoin.
     #[must_use]
-    pub fn arc_to_radius(self, angular: Unit<f32, AngleBase, Dt, PowOne>) -> Distance<f32> {
-        Distance::new(self.0 / angular.0)
+    pub fn arc_to_radius(self, angular: Quantity<f32, AngleBase, Dt, PowOne>) -> Length<f32> {
+        Length::new(self.0 / angular.0)
     }
 }
 
-impl<Dt> ops::Mul<Dir2> for Unit<f32, DistanceBase, Dt, PowOne> {
-    type Output = Unit<Vec2, DistanceBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Dir2> for Quantity<f32, LengthBase, Dt, PowOne> {
+    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
 
-    fn mul(self, other: Dir2) -> Unit<Vec2, DistanceBase, Dt, PowOne> {
-        Unit(other * self.0, PhantomData)
+    fn mul(self, other: Dir2) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
+        Quantity(other * self.0, PhantomData)
     }
 }
 
-impl<Dt> ops::Mul<Vec2> for Unit<f32, DistanceBase, Dt, PowOne> {
-    type Output = Unit<Vec2, DistanceBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Vec2> for Quantity<f32, LengthBase, Dt, PowOne> {
+    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
 
-    fn mul(self, other: Vec2) -> Unit<Vec2, DistanceBase, Dt, PowOne> {
-        Unit(other * self.0, PhantomData)
+    fn mul(self, other: Vec2) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
+        Quantity(other * self.0, PhantomData)
     }
 }
 
-impl<Dt> ops::Mul<Heading> for Unit<f32, DistanceBase, Dt, PowOne> {
-    type Output = Unit<Vec2, DistanceBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Heading> for Quantity<f32, LengthBase, Dt, PowOne> {
+    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
 
-    fn mul(self, other: Heading) -> Unit<Vec2, DistanceBase, Dt, PowOne> {
+    fn mul(self, other: Heading) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
         self * other.into_dir2()
     }
 }
 
-impl<Dt> ops::Mul<Dir3> for Unit<f32, DistanceBase, Dt, PowOne> {
-    type Output = Unit<Vec3, DistanceBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Dir3> for Quantity<f32, LengthBase, Dt, PowOne> {
+    type Output = Quantity<Vec3, LengthBase, Dt, PowOne>;
 
-    fn mul(self, other: Dir3) -> Unit<Vec3, DistanceBase, Dt, PowOne> {
-        Unit(other * self.0, PhantomData)
+    fn mul(self, other: Dir3) -> Quantity<Vec3, LengthBase, Dt, PowOne> {
+        Quantity(other * self.0, PhantomData)
     }
 }
 
-impl<Dt, Pow> Unit<Vec2, DistanceBase, Dt, Pow>
+impl<Dt, Pow> Quantity<Vec2, LengthBase, Dt, Pow>
 where
     Dt: DtTrait,
     Pow: PowTrait,
 {
     #[must_use]
-    pub fn x(self) -> Unit<f32, DistanceBase, Dt, Pow> { Unit(self.0.x, PhantomData) }
+    pub fn x(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.x, PhantomData) }
 
     #[must_use]
-    pub fn y(self) -> Unit<f32, DistanceBase, Dt, Pow> { Unit(self.0.y, PhantomData) }
+    pub fn y(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.y, PhantomData) }
 
     #[must_use]
-    pub fn with_x(self, x: Unit<f32, DistanceBase, Dt, Pow>) -> Self {
+    pub fn with_x(self, x: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
         Self(self.0.with_x(x.0), PhantomData)
     }
 
     #[must_use]
-    pub fn with_y(self, y: Unit<f32, DistanceBase, Dt, Pow>) -> Self {
+    pub fn with_y(self, y: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
         Self(self.0.with_y(y.0), PhantomData)
     }
 
     #[must_use]
-    pub const fn horizontally(self) -> Unit<Vec3, DistanceBase, Dt, Pow> {
-        Unit(Vec3::new(self.0.x, self.0.y, 0.), PhantomData)
+    pub const fn horizontally(self) -> Quantity<Vec3, LengthBase, Dt, Pow> {
+        Quantity(Vec3::new(self.0.x, self.0.y, 0.), PhantomData)
     }
 
     #[must_use]
     pub const fn with_vertical(
         self,
-        vertical: Unit<f32, DistanceBase, Dt, Pow>,
-    ) -> Unit<Vec3, DistanceBase, Dt, Pow> {
-        Unit(Vec3::new(self.0.x, self.0.y, vertical.0), PhantomData)
+        vertical: Quantity<f32, LengthBase, Dt, Pow>,
+    ) -> Quantity<Vec3, LengthBase, Dt, Pow> {
+        Quantity(Vec3::new(self.0.x, self.0.y, vertical.0), PhantomData)
     }
 
     #[must_use]
     pub fn heading(self) -> Heading { Heading::from_vec2(self.0) }
 
     #[must_use]
-    pub fn normalize_to_magnitude(self, magnitude: Unit<f32, DistanceBase, Dt, Pow>) -> Self {
+    pub fn normalize_to_magnitude(self, magnitude: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
         Self(self.0.normalize_or_zero() * magnitude.0, PhantomData)
     }
 
     /// Returns a `Vec3` such that
     /// the horizontal projection of the result is equal to `self`.
     #[must_use]
-    pub fn projected_from_elevation_angle(self, angle: Angle) -> Unit<Vec3, DistanceBase, Dt, Pow> {
+    pub fn projected_from_elevation_angle(
+        self,
+        angle: Angle,
+    ) -> Quantity<Vec3, LengthBase, Dt, Pow> {
         self.with_vertical(self.magnitude_exact() * angle.acute_signed_tan())
     }
 
     /// Rotates the `horizontally()` of this vector upwards by `angle`.
     /// The result has the same magnitude as `self`.
     #[must_use]
-    pub fn rotate_with_elevation_angle(self, angle: Angle) -> Unit<Vec3, DistanceBase, Dt, Pow> {
+    pub fn rotate_with_elevation_angle(self, angle: Angle) -> Quantity<Vec3, LengthBase, Dt, Pow> {
         let horizontal = self * angle.cos();
         let vertical = self.magnitude_exact() * angle.sin();
         horizontal.with_vertical(vertical)
@@ -685,8 +663,8 @@ where
 
     /// Returns the vector component projected along `dir`.
     #[must_use]
-    pub fn project_onto_dir(self, dir: Dir2) -> Unit<f32, DistanceBase, Dt, Pow> {
-        Unit(self.0.dot(*dir), PhantomData)
+    pub fn project_onto_dir(self, dir: Dir2) -> Quantity<f32, LengthBase, Dt, Pow> {
+        Quantity(self.0.dot(*dir), PhantomData)
     }
 
     #[must_use]
@@ -705,64 +683,73 @@ where
     }
 }
 
-impl<Dt, Pow> From<(Unit<f32, DistanceBase, Dt, Pow>, Unit<f32, DistanceBase, Dt, Pow>)>
-    for Unit<Vec2, DistanceBase, Dt, Pow>
+impl<Dt, Pow> From<(Quantity<f32, LengthBase, Dt, Pow>, Quantity<f32, LengthBase, Dt, Pow>)>
+    for Quantity<Vec2, LengthBase, Dt, Pow>
 {
-    fn from((x, y): (Unit<f32, DistanceBase, Dt, Pow>, Unit<f32, DistanceBase, Dt, Pow>)) -> Self {
+    fn from(
+        (x, y): (Quantity<f32, LengthBase, Dt, Pow>, Quantity<f32, LengthBase, Dt, Pow>),
+    ) -> Self {
         Self(Vec2 { x: x.0, y: y.0 }, PhantomData)
     }
 }
 
 impl<Dt, Pow>
     From<(
-        Unit<f32, DistanceBase, Dt, Pow>,
-        Unit<f32, DistanceBase, Dt, Pow>,
-        Unit<f32, DistanceBase, Dt, Pow>,
-    )> for Unit<Vec3, DistanceBase, Dt, Pow>
+        Quantity<f32, LengthBase, Dt, Pow>,
+        Quantity<f32, LengthBase, Dt, Pow>,
+        Quantity<f32, LengthBase, Dt, Pow>,
+    )> for Quantity<Vec3, LengthBase, Dt, Pow>
 {
     fn from(
         (x, y, z): (
-            Unit<f32, DistanceBase, Dt, Pow>,
-            Unit<f32, DistanceBase, Dt, Pow>,
-            Unit<f32, DistanceBase, Dt, Pow>,
+            Quantity<f32, LengthBase, Dt, Pow>,
+            Quantity<f32, LengthBase, Dt, Pow>,
+            Quantity<f32, LengthBase, Dt, Pow>,
         ),
     ) -> Self {
         Self(Vec3 { x: x.0, y: y.0, z: z.0 }, PhantomData)
     }
 }
 
-impl<Dt, Pow> Unit<Vec3, DistanceBase, Dt, Pow>
+impl<Dt, Pow> Quantity<Vec3, LengthBase, Dt, Pow>
 where
     Dt: DtTrait,
     Pow: PowTrait,
 {
     #[must_use]
-    pub fn x(self) -> Unit<f32, DistanceBase, Dt, Pow> { Unit(self.0.x, PhantomData) }
+    pub fn x(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.x, PhantomData) }
 
     #[must_use]
-    pub fn y(self) -> Unit<f32, DistanceBase, Dt, Pow> { Unit(self.0.y, PhantomData) }
+    pub fn y(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.y, PhantomData) }
 
     /// Returns the horizontal projection of this vector.
     #[must_use]
-    pub fn horizontal(self) -> Unit<Vec2, DistanceBase, Dt, Pow> { Unit(self.0.xy(), PhantomData) }
+    pub fn horizontal(self) -> Quantity<Vec2, LengthBase, Dt, Pow> {
+        Quantity(self.0.xy(), PhantomData)
+    }
 
     #[must_use]
-    pub fn vertical(self) -> Unit<f32, DistanceBase, Dt, Pow> { Unit(self.0.z, PhantomData) }
+    pub fn vertical(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.z, PhantomData) }
 
-    pub fn set_horizontal(&mut self, value: Unit<Vec2, DistanceBase, Dt, Pow>) {
+    pub fn set_horizontal(&mut self, value: Quantity<Vec2, LengthBase, Dt, Pow>) {
         self.0.x = value.0.x;
         self.0.y = value.0.y;
     }
 
-    pub fn set_vertical(&mut self, value: Unit<f32, DistanceBase, Dt, Pow>) { self.0.z = value.0; }
+    pub fn set_vertical(&mut self, value: Quantity<f32, LengthBase, Dt, Pow>) {
+        self.0.z = value.0;
+    }
 
     #[must_use]
-    pub fn normalize_to_magnitude(self, magnitude: Unit<f32, DistanceBase, Dt, Pow>) -> Self {
+    pub fn normalize_to_magnitude(self, magnitude: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
         Self(self.0.normalize_or_zero() * magnitude.0, PhantomData)
     }
 
     #[must_use]
-    pub fn normalize_by_vertical(self, desired_vertical: Unit<f32, DistanceBase, Dt, Pow>) -> Self {
+    pub fn normalize_by_vertical(
+        self,
+        desired_vertical: Quantity<f32, LengthBase, Dt, Pow>,
+    ) -> Self {
         Self(self.0 * (desired_vertical / self.vertical()), PhantomData)
     }
 
@@ -779,57 +766,57 @@ where
     }
 }
 
-pub struct DistanceBase;
+pub struct LengthBase;
 
 /// A distance quantity. Internal representation is in nautical miles.
-pub type Distance<T> = Unit<T, DistanceBase, DtZero, PowOne>;
+pub type Length<T> = Quantity<T, LengthBase, DtZero, PowOne>;
 
-/// A linear speed (rate of [distance](Distance) change) quantity.
-pub type Speed<T> = Unit<T, DistanceBase, DtOne, PowOne>;
+/// A linear speed (rate of [length](Length) change) quantity.
+pub type Speed<T> = Quantity<T, LengthBase, DtOne, PowOne>;
 
 /// A linear acceleration (rate of linear [speed](Speed) change) quantity.
-pub type Accel<T> = Unit<T, DistanceBase, DtTwo, PowOne>;
+pub type Accel<T> = Quantity<T, LengthBase, DtTwo, PowOne>;
 
 /// Rate of linear [acceleration](Accel) change.
-pub type AccelRate<T> = Unit<T, DistanceBase, Ddt<DtTwo>, PowOne>;
+pub type AccelRate<T> = Quantity<T, LengthBase, Ddt<DtTwo>, PowOne>;
 
 pub struct AngleBase;
 
 /// A relative angle. Internal representation is in radians.
-pub type Angle = Unit<f32, AngleBase, DtZero, PowOne>;
+pub type Angle = Quantity<f32, AngleBase, DtZero, PowOne>;
 
 /// An angular speed (rate of [angle](Angle) change) quantity.
 /// Always in rad/s.
-pub type AngularSpeed = Unit<f32, AngleBase, DtOne, PowOne>;
+pub type AngularSpeed = Quantity<f32, AngleBase, DtOne, PowOne>;
 
 /// An angular acceleration (rate of [angular speed](AngularSpeed) change) quantity.
-pub type AngularAccel = Unit<f32, AngleBase, DtTwo, PowOne>;
+pub type AngularAccel = Quantity<f32, AngleBase, DtTwo, PowOne>;
 
 pub struct RatioBase;
 
-pub type Frequency = Unit<f32, RatioBase, DtOne, PowZero>;
+pub type Frequency = Quantity<f32, RatioBase, DtOne, PowZero>;
 
-impl fmt::Debug for Distance<f32> {
+impl fmt::Debug for Length<f32> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Distance")
+        f.debug_struct("Length")
             .field("nm", &self.into_nm())
             .field("feet", &self.into_feet())
             .finish()
     }
 }
 
-impl fmt::Debug for Distance<Vec2> {
+impl fmt::Debug for Length<Vec2> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Distance")
+        f.debug_struct("Length")
             .field("x.nm", &self.x().into_nm())
             .field("y.nm", &self.y().into_nm())
             .finish()
     }
 }
 
-impl fmt::Debug for Distance<Vec3> {
+impl fmt::Debug for Length<Vec3> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Distance")
+        f.debug_struct("Length")
             .field("x.nm", &self.x().into_nm())
             .field("y.nm", &self.y().into_nm())
             .field("vertical.feet", &self.vertical().into_feet())
@@ -889,7 +876,7 @@ impl fmt::Debug for AngularAccel {
     }
 }
 
-impl Distance<f32> {
+impl Length<f32> {
     #[must_use]
     pub const fn into_nm(self) -> f32 { self.0 }
 
@@ -923,7 +910,7 @@ impl Distance<f32> {
     }
 }
 
-impl Distance<Vec2> {
+impl Length<Vec2> {
     #[must_use]
     pub const fn into_nm(self) -> Vec2 { self.0 }
 
@@ -970,6 +957,14 @@ impl Speed<f32> {
     #[must_use]
     pub const fn from_kmh(kmh: f32) -> Self {
         Self(kmh / (SECONDS_PER_HOUR * METERS_PER_NM / 1000.), PhantomData)
+    }
+
+    #[must_use]
+    pub const fn into_mph(self) -> f32 { self.0 * (SECONDS_PER_HOUR * MILES_PER_NM / 1000.) }
+
+    #[must_use]
+    pub const fn from_mph(mph: f32) -> Self {
+        Self(mph / (SECONDS_PER_HOUR * MILES_PER_NM / 1000.), PhantomData)
     }
 
     #[must_use]
@@ -1092,48 +1087,105 @@ impl IsFinite for Vec3 {
     fn is_finite(self) -> bool { Vec3::is_finite(self) }
 }
 
-#[derive(Clone, Copy)]
-pub enum DistanceUnit {
-    Nautical,
-    Kilometer,
-    Feet,
-    Miles,
-    Meters,
-}
-
-impl DistanceUnit {
-    #[must_use]
-    pub fn to_str(self) -> &'static str {
-        match self {
-            Self::Nautical => "nm",
-            Self::Kilometer => "km",
-            Self::Feet => "ft",
-            Self::Miles => "mi",
-            Self::Meters => "m",
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn into_distance(self) -> fn(f32) -> Distance<f32> {
-        match self {
-            Self::Nautical => Distance::from_nm,
-            Self::Kilometer => Distance::from_km,
-            Self::Feet => Distance::from_feet,
-            Self::Miles => Distance::from_miles,
-            Self::Meters => Distance::from_meters,
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn from_distance(self) -> fn(Distance<f32>) -> f32 {
-        match self {
-            Self::Nautical => Distance::<f32>::into_nm,
-            Self::Kilometer => Distance::<f32>::into_km,
-            Self::Feet => Distance::<f32>::into_feet,
-            Self::Miles => Distance::<f32>::into_miles,
-            Self::Meters => Distance::<f32>::into_meters,
-        }
+impl<T, Base, Dt, Pow> serde::Serialize for Quantity<T, Base, Dt, Pow>
+where
+    T: serde::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
     }
 }
+
+impl<'de, T, Base, Dt, Pow> serde::Deserialize<'de> for Quantity<T, Base, Dt, Pow>
+where
+    T: serde::Deserialize<'de> + IsFinite,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+
+        if !value.is_finite() {
+            return Err(<D::Error as serde::de::Error>::custom("non-finite quantity"));
+        }
+
+        Ok(Self(value, PhantomData))
+    }
+}
+
+bevy_mod_config::impl_scalar_config_field!(
+    Length<f32>,
+    QuantityMetadataWithUnit<Length<f32>, LengthUnit>,
+    |metadata: &LengthMetadata| metadata.default,
+    'a => Length<f32>,
+    |&value: &Length<f32>| value,
+);
+
+#[derive(Clone)]
+pub struct QuantityMetadataWithUnit<T, U> {
+    pub default:   T,
+    pub unit:      U,
+    pub min:       T,
+    pub max:       T,
+    pub precision: Option<T>,
+}
+
+pub type LengthMetadata = QuantityMetadataWithUnit<Length<f32>, LengthUnit>;
+impl Default for LengthMetadata {
+    fn default() -> Self {
+        Self {
+            default:   Length::from_nm(1.0),
+            unit:      LengthUnit::NauticalMiles,
+            min:       Length::from_nm(0.0),
+            max:       Length::from_nm(100.0),
+            precision: None,
+        }
+    }
+}
+
+bevy_mod_config::impl_scalar_config_field!(
+    Speed<f32>,
+    SpeedMetadata,
+    |metadata: &SpeedMetadata| metadata.default,
+    'a => Speed<f32>,
+    |&value: &Speed<f32>| value,
+);
+
+pub type SpeedMetadata = QuantityMetadataWithUnit<Speed<f32>, SpeedUnit>;
+impl Default for QuantityMetadataWithUnit<Speed<f32>, SpeedUnit> {
+    fn default() -> Self {
+        Self {
+            default:   Speed::from_knots(200.0),
+            unit:      SpeedUnit::Knots,
+            min:       Speed::from_knots(0.0),
+            max:       Speed::from_knots(500.0),
+            precision: Some(Speed::from_knots(1.0)),
+        }
+    }
+}
+
+bevy_mod_config::impl_scalar_config_field!(
+    Angle,
+    AngleMetadata,
+    |metadata: &AngleMetadata| metadata.default,
+    'a => Angle,
+    |&value: &Angle| value,
+);
+
+#[derive(Clone)]
+pub struct AngleMetadata {
+    pub default: Angle,
+    pub min:     Angle,
+    pub max:     Angle,
+}
+
+impl Default for AngleMetadata {
+    fn default() -> Self { Self { default: Angle::ZERO, min: Angle::ZERO, max: Angle::RIGHT } }
+}
+
+#[cfg(feature = "egui")]
+mod egui_impl;

@@ -7,21 +7,21 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, ParamSet, Query};
 use bevy::render::view::Visibility;
 use bevy::transform::components::Transform;
-use math::{Distance, DistanceUnit};
+use bevy_mod_config::{AppExt, Config};
+use math::{Length, LengthUnit};
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::try_log;
 use ordered_float::OrderedFloat;
 
-use crate::config::{AppExt, Config};
-use crate::render;
+use crate::{render, ConfigManager};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_config::<Conf>();
+        app.init_config::<ConfigManager, Conf>("2d:runway");
         app.add_systems(app::Update, spawn_system.in_set(render::SystemSets::Spawn));
         app.add_systems(app::Update, update_system.in_set(render::SystemSets::Update));
     }
@@ -62,7 +62,7 @@ fn update_system(
         }).max_by_key(|&f| OrderedFloat(f.0))
         .unwrap_or_else(|| {
                 bevy::log::warn!("Every runway must have visual navaid");
-                Distance::from_nm(1.)
+                Length::from_nm(1.0)
             });
 
         params.p0().update(runway, localizer, localizer_length);
@@ -71,39 +71,33 @@ fn update_system(
     }
 }
 
-#[derive(Resource, Config)]
-#[config(id = "runway", name = "Runways")]
+#[derive(Config)]
 struct Conf {
     /// Thickness of runway localizer display, in screen coordinates.
-    #[config(min = 0., max = 10.)]
+    #[config(default = 0.8, min = 0.0, max = 10.0)]
     localizer_thickness: f32,
     /// Color of runway localizer display.
+    #[config(default = Color::WHITE)]
     localizer_color:     Color,
     /// Thickness of runway strip display, in screen coordinates.
-    #[config(min = 0., max = 10.)]
+    #[config(default = 5.0, min = 0.0, max = 10.0)]
     strip_thickness:     f32,
     /// Color of runway strip display.
+    #[config(default = Color::WHITE)]
     strip_color:         Color,
     /// Size of glidepath points, in screen coordinates.
-    #[config(min = 0., max = 5.)]
+    #[config(default = 3.0, min = 0.0, max = 5.0)]
     glide_point_size:    f32,
     /// Color of glidepath points.
+    #[config(default = Color::WHITE)]
     glide_point_color:   Color,
     /// Glidepath points are rendered when they intersect multiples of this altitude AMSL.
-    #[config(min = Distance::from_feet(100.), max = Distance::from_feet(10000.), precision = Distance::from_feet(100.), unit = DistanceUnit::Feet)]
-    glide_point_density: Distance<f32>,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            localizer_thickness: 0.8,
-            localizer_color:     Color::WHITE,
-            strip_thickness:     5.,
-            strip_color:         Color::WHITE,
-            glide_point_size:    3.,
-            glide_point_color:   Color::WHITE,
-            glide_point_density: Distance::from_feet(1000.),
-        }
-    }
+    #[config(
+        default = Length::from_feet(1000.0),
+        min = Length::from_feet(100.0),
+        max = Length::from_feet(10000.0),
+        precision = Some(Length::from_feet(100.0)),
+        unit = LengthUnit::Feet,
+    )]
+    glide_point_density: Length<f32>,
 }

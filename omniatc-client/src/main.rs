@@ -16,6 +16,8 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{self, ScheduleBuildSettings};
 use bevy::ecs::system::ResMut;
 use bevy::prelude::{IntoScheduleConfigs, PluginGroup, SystemSet};
+use bevy::render::settings::{RenderCreation, WgpuLimits, WgpuSettings};
+use bevy::render::RenderPlugin;
 use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
@@ -48,6 +50,15 @@ fn main() {
             .set(AssetPlugin { file_path: clap.assets_dir, ..Default::default() })
             .set(WindowPlugin {
                 primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
+                ..Default::default()
+            }).set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    limits: WgpuLimits {
+                        max_texture_dimension_2d: 8192,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
         EntityCountDiagnosticsPlugin,
@@ -119,7 +130,7 @@ enum EguiSystemSets {
     TwoDim,
 }
 
-#[derive(Resource, Default)]
+#[derive(Debug, Resource, Default)]
 struct EguiUsedMargins {
     left:   f32,
     right:  f32,

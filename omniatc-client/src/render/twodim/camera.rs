@@ -143,6 +143,9 @@ fn fit_layout_system(
     let mut end_pos = Vec2::new(window.physical_width() as f32, window.physical_height() as f32)
         - Vec2::new(margins.right, margins.bottom) * window.scale_factor();
 
+    end_pos = end_pos.max(start_pos + Vec2::splat(1.0));
+    // probalby degenerate interface, but at least avoid panic by ensuring a nonzero viewport
+
     #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     // TODO at least validate the float sign
     for (layout, mut camera) in camera_order {
@@ -168,10 +171,11 @@ fn fit_layout_system(
         start_pos = rem_rect.0;
         end_pos = rem_rect.1;
 
+        bevy::log::info!("margins: {margins:?}, start_pos: {start_pos:?}, end_pos: {end_pos:?}, my_rect: {my_rect:?}");
         let my_start = UVec2::new(my_rect.0.x as u32, my_rect.0.y as u32);
         camera.viewport = Some(Viewport {
             physical_position: my_start,
-            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32) - my_start,
+            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32) .saturating_sub (my_start),
             depth:             0.0..1.0,
         });
         camera.order = layout.order.try_into().expect("layout order out of bounds");

@@ -10,6 +10,7 @@ use bevy::math::Vec2;
 use itertools::Itertools;
 use math::{Length, Position};
 use ordered_float::OrderedFloat;
+use pathfinding::prelude::dijkstra;
 use smallvec::SmallVec;
 
 use super::{trigger, Node, NodeKind, Route, RunNodeResult};
@@ -159,7 +160,7 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
 ///
 /// Returns `None` if no valid path can be found through `initial_segment_id`.
 #[expect(clippy::too_many_lines)] // no point in splitting up a pathfinding algorithm
-fn pathfind_min_distance_segments(
+pub fn pathfind_min_distance_segments(
     world: &World,
     initial_source_endpoint_id: Entity,
     initial_segment_id: Entity,
@@ -346,7 +347,7 @@ fn pathfind_min_distance_segments(
 }
 
 #[derive(Clone)]
-struct PathCost {
+pub struct PathCost {
     alts:     Alts,
     distance: Length<f32>,
 }

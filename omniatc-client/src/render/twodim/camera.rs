@@ -171,11 +171,11 @@ fn fit_layout_system(
         start_pos = rem_rect.0;
         end_pos = rem_rect.1;
 
-        bevy::log::info!("margins: {margins:?}, start_pos: {start_pos:?}, end_pos: {end_pos:?}, my_rect: {my_rect:?}");
         let my_start = UVec2::new(my_rect.0.x as u32, my_rect.0.y as u32);
         camera.viewport = Some(Viewport {
             physical_position: my_start,
-            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32) .saturating_sub (my_start),
+            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32)
+                .saturating_sub(my_start),
             depth:             0.0..1.0,
         });
         camera.order = layout.order.try_into().expect("layout order out of bounds");

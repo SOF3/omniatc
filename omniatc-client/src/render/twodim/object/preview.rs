@@ -77,7 +77,7 @@ fn update_system(
 
         let Some(object) = init.object.0 else { return };
         let current_material = match init.override_query.get(object) {
-            Ok(TargetOverride { cause: TargetOverrideCause::SetHeading, .. }) => {
+            Ok(TargetOverride { cause: TargetOverrideCause::SetRoute, .. }) => {
                 set_heading_material
             }
             _ => normal_material,
@@ -214,6 +214,9 @@ impl DrawCurrent<'_, '_> {
                         material,
                     );
                 }
+            }
+            Target::Segments(ref segments) => {
+                // TODO
             }
         }
 
@@ -551,10 +554,11 @@ pub struct TargetOverride {
 pub enum Target {
     Yaw(nav::YawTarget),
     Waypoint(Entity),
+    Segments(Vec<Entity>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TargetOverrideCause {
     None,
-    SetHeading,
+    SetRoute,
 }

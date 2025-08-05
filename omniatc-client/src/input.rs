@@ -129,7 +129,8 @@ pub struct Hotkeys {
     pub deselect:        bool,
     pub fast_forward:    bool,
     pub toggle_pause:    bool,
-    pub pick_vector:     bool,
+    pub pick_route:     bool,
+    pub append_route:     bool,
     pub set_speed:       bool,
     pub inc_speed:       bool,
     pub dec_speed:       bool,
@@ -159,7 +160,8 @@ impl Hotkeys {
         this.fast_forward = buttons.pressed(KeyCode::Space) && buttons.pressed(KeyCode::ShiftLeft);
         this.toggle_pause =
             buttons.just_pressed(KeyCode::Space) && !buttons.pressed(KeyCode::ShiftLeft);
-        this.pick_vector = buttons.pressed(KeyCode::KeyV);
+        this.pick_route = buttons.pressed(KeyCode::KeyV) && !buttons.pressed(KeyCode::ShiftLeft);
+        this.append_route = buttons.pressed(KeyCode::KeyV) && buttons.pressed(KeyCode::ShiftLeft);
         this.set_speed = buttons.just_pressed(KeyCode::KeyS);
         this.inc_speed = buttons.just_pressed(KeyCode::Period);
         this.dec_speed = buttons.just_pressed(KeyCode::Comma);

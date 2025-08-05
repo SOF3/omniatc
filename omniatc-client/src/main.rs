@@ -51,12 +51,10 @@ fn main() {
             .set(WindowPlugin {
                 primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
                 ..Default::default()
-            }).set(RenderPlugin {
+            })
+            .set(RenderPlugin {
                 render_creation: RenderCreation::Automatic(WgpuSettings {
-                    limits: WgpuLimits {
-                        max_texture_dimension_2d: 8192,
-                        ..Default::default()
-                    },
+                    limits: WgpuLimits { max_texture_dimension_2d: 8192, ..Default::default() },
                     ..Default::default()
                 }),
                 ..Default::default()

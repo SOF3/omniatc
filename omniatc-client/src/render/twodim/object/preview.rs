@@ -47,6 +47,7 @@ use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_mod_config::{Config, ReadConfig};
+use either::Either;
 use itertools::Itertools;
 use math::{Angle, Heading, Length, Position, TurnDirection, find_circle_tangent_towards};
 use omniatc::QueryTryLog;
@@ -88,79 +89,13 @@ fn update_system(
     mut stages: ParamSet<(Init, DrawCurrent, DrawMainRoute, DrawPresets, DrawGroundPaths)>,
 ) {
     let materials = &mut *materials;
-    let (
-        object,
-        current_material,
-        route_material,
-        preset_material,
-        ground_path_material_1,
-        ground_path_material_2,
-        is_airborne,
-        is_ground,
-    ) = {
-        let mut init = stages.p0();
-        let conf = init.conf.read();
+    let Some(init) = stages.p0().init(materials) else { return };
 
-        let (is_airborne, is_ground) = init
-            .object
-            .0
-            .and_then(|object| init.classify_object_query.get(object).ok())
-            .unwrap_or((false, false));
-
-        for mut vis in init.airborne_vis_query {
-            *vis = if is_airborne { Visibility::Visible } else { Visibility::Hidden };
-        }
-        for mut vis in init.ground_vis_query {
-            *vis = if is_ground { Visibility::Visible } else { Visibility::Hidden };
-        }
-
-        let [
-            normal_material,
-            set_heading_material,
-            preset_material,
-            ground_path_material_1,
-            ground_path_material_2,
-        ] = [
-            (&mut materials.normal, conf.preview_line.color_normal),
-            (&mut materials.set_heading, conf.preview_line.color_set_heading),
-            (&mut materials.preset, conf.preview_line.color_preset),
-            (&mut materials.ground_path_1, conf.preview_line.color_ground_path_1),
-            (&mut materials.ground_path_2, conf.preview_line.color_ground_path_2),
-        ]
-        .map(|(local, color)| &*match local {
-            None => local.insert(init.materials.add(color)),
-            Some(handle) => {
-                *init.materials.get_mut(&*handle).expect("strong reference must exist") =
-                    ColorMaterial::from_color(color);
-                handle
-            }
-        });
-
-        let Some(object) = init.object.0 else { return };
-        let current_material = match init.override_query.get(object) {
-            Ok(TargetOverride { cause: TargetOverrideCause::SetHeading, .. }) => {
-                set_heading_material
-            }
-            _ => normal_material,
-        };
-
-        (
-            object,
-            current_material,
-            normal_material,
-            preset_material,
-            ground_path_material_1,
-            ground_path_material_2,
-            is_airborne,
-            is_ground,
-        )
-    };
-
-    if is_airborne {
-        let target = stages.p1().draw(object, current_material);
-        stages.p2().draw_current_plan(object, route_material);
+    if init.is_airborne {
+        let target = stages.p1().draw(init.object, init.materials.current);
+        stages.p2().draw_current_plan(init.object, init.materials.route);
         if let Some(target) = target {
-            stages.p3().draw_avail_presets(target, preset_material);
+            stages.p3().draw_avail_presets(target, init.materials.preset);
         } else {
             let mut stage = stages.p3();
             for (entity, _) in stage.viewable_query {
@@ -168,18 +103,23 @@ fn update_system(
             }
         }
     }
-    if is_ground {
-        stages.p4().draw(object, ground_path_material_1, ground_path_material_2);
+    if init.is_ground {
+        stages.p4().draw(
+            init.object,
+            init.materials.ground_path_best,
+            init.materials.ground_path_alt,
+            init.materials.ground_path_preview,
+        );
     }
 }
 
 #[derive(Default)]
 struct Materials {
-    normal:        Option<Handle<ColorMaterial>>,
-    set_heading:   Option<Handle<ColorMaterial>>,
-    preset:        Option<Handle<ColorMaterial>>,
-    ground_path_1: Option<Handle<ColorMaterial>>,
-    ground_path_2: Option<Handle<ColorMaterial>>,
+    normal:           Option<Handle<ColorMaterial>>,
+    set_heading:      Option<Handle<ColorMaterial>>,
+    preset:           Option<Handle<ColorMaterial>>,
+    ground_path_best: Option<Handle<ColorMaterial>>,
+    ground_path_alt:  Option<Handle<ColorMaterial>>,
 }
 
 #[derive(SystemParam)]
@@ -189,28 +129,123 @@ struct Init<'w, 's> {
         Query<'w, 's, &'static mut Visibility, (With<GroundViewable>, Without<AirborneViewable>)>,
     object:                Res<'w, object_info::CurrentObject>,
     classify_object_query: Query<'w, 's, (Has<object::Airborne>, Has<object::OnGround>)>,
-    override_query:        Query<'w, 's, &'static TargetOverride>,
+    override_query:        Query<'w, 's, &'static AirborneTargetOverride>,
     materials:             ResMut<'w, Assets<ColorMaterial>>,
     conf:                  ReadConfig<'w, 's, super::Conf>,
 }
 
+impl Init<'_, '_> {
+    fn init<'materials>(
+        &mut self,
+        materials: &'materials mut Materials,
+    ) -> Option<InitResult<'materials>> {
+        let conf = self.conf.read();
+
+        let (is_airborne, is_ground) = self
+            .object
+            .0
+            .and_then(|object| self.classify_object_query.get(object).ok())
+            .unwrap_or((false, false));
+
+        for mut vis in &mut self.airborne_vis_query {
+            *vis = if is_airborne { Visibility::Visible } else { Visibility::Hidden };
+        }
+        for mut vis in &mut self.ground_vis_query {
+            *vis = if is_ground { Visibility::Visible } else { Visibility::Hidden };
+        }
+
+        let [
+            normal_material,
+            set_heading_material,
+            preset_material,
+            ground_path_material_best,
+            ground_path_material_alt,
+        ] = [
+            (&mut materials.normal, conf.preview_line.color_normal),
+            (&mut materials.set_heading, conf.preview_line.color_set_heading),
+            (&mut materials.preset, conf.preview_line.color_preset),
+            (&mut materials.ground_path_best, conf.preview_line.color_ground_path_best),
+            (&mut materials.ground_path_alt, conf.preview_line.color_ground_path_alt),
+        ]
+        .map(|(local, color)| &*match local {
+            None => local.insert(self.materials.add(color)),
+            Some(handle) => {
+                *self.materials.get_mut(&*handle).expect("strong reference must exist") =
+                    ColorMaterial::from_color(color);
+                handle
+            }
+        });
+
+        let object = self.object.0?;
+        let current_material = match self.override_query.get(object) {
+            Ok(AirborneTargetOverride { cause: TargetOverrideCause::SetRoute, .. }) => {
+                set_heading_material
+            }
+            _ => normal_material,
+        };
+
+        Some(InitResult {
+            object,
+            is_airborne,
+            is_ground,
+            materials: UsedMaterials {
+                current:             current_material,
+                route:               normal_material,
+                preset:              preset_material,
+                ground_path_best:    ground_path_material_best,
+                ground_path_alt:     Some(ground_path_material_alt)
+                    .filter(|_| conf.preview_line.render_ground_path_alt),
+                ground_path_preview: set_heading_material,
+            },
+        })
+    }
+}
+
+struct InitResult<'a> {
+    object:      Entity,
+    is_airborne: bool,
+    is_ground:   bool,
+    materials:   UsedMaterials<'a>,
+}
+
+struct UsedMaterials<'a> {
+    current:             &'a Handle<ColorMaterial>,
+    route:               &'a Handle<ColorMaterial>,
+    preset:              &'a Handle<ColorMaterial>,
+    ground_path_best:    &'a Handle<ColorMaterial>,
+    ground_path_alt:     Option<&'a Handle<ColorMaterial>>,
+    ground_path_preview: &'a Handle<ColorMaterial>,
+}
+
 #[derive(Component, Clone)]
 #[component(storage = "SparseSet")]
-pub struct TargetOverride {
-    pub target: Target,
+pub struct AirborneTargetOverride {
+    pub target: AirborneTarget,
+    pub cause:  TargetOverrideCause,
+}
+
+#[derive(Component, Clone)]
+#[component(storage = "SparseSet")]
+pub struct GroundTargetOverride {
+    pub target: GroundTarget,
     pub cause:  TargetOverrideCause,
 }
 
 #[derive(Clone)]
-pub enum Target {
+pub enum AirborneTarget {
     Yaw(nav::YawTarget),
     Waypoint(Entity),
+}
+
+#[derive(Clone)]
+pub enum GroundTarget {
+    Endpoints(Vec<Entity>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TargetOverrideCause {
     None,
-    SetHeading,
+    SetRoute,
 }
 
 #[derive(SystemParam)]
@@ -241,11 +276,15 @@ struct DrawCurrentObject {
     limits:          &'static nav::Limits,
     plane_control:   Option<&'static plane::Control>,
     target_waypoint: Option<&'static nav::TargetWaypoint>,
-    target_override: Option<&'static TargetOverride>,
+    target_override: Option<&'static AirborneTargetOverride>,
 }
 
 impl DrawCurrent<'_, '_> {
-    fn draw(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) -> Option<Target> {
+    fn draw(
+        &mut self,
+        object_id: Entity,
+        material: &Handle<ColorMaterial>,
+    ) -> Option<AirborneTarget> {
         let Ok(DrawCurrentObjectItem {
             object: &Object { position: curr_pos, ground_speed: speed },
             vel_target: &nav::VelocityTarget { yaw: yaw_target, .. },
@@ -266,17 +305,17 @@ impl DrawCurrent<'_, '_> {
             || {
                 let target = match target_waypoint {
                     Some(&nav::TargetWaypoint { waypoint_entity }) => {
-                        Target::Waypoint(waypoint_entity)
+                        AirborneTarget::Waypoint(waypoint_entity)
                     }
-                    None => Target::Yaw(yaw_target),
+                    None => AirborneTarget::Yaw(yaw_target),
                 };
-                TargetOverride { target, cause: TargetOverrideCause::None }
+                AirborneTargetOverride { target, cause: TargetOverrideCause::None }
             },
-            TargetOverride::clone,
+            AirborneTargetOverride::clone,
         );
 
         match target.target {
-            Target::Waypoint(waypoint_entity) => {
+            AirborneTarget::Waypoint(waypoint_entity) => {
                 let &Waypoint { position: waypoint_pos, .. } =
                     self.waypoint_query.log_get(waypoint_entity)?;
                 let waypoint_pos = waypoint_pos.horizontal();
@@ -306,7 +345,7 @@ impl DrawCurrent<'_, '_> {
                     }
                 }
             }
-            Target::Yaw(yaw_target) => {
+            AirborneTarget::Yaw(yaw_target) => {
                 if let Some(&plane::Control { heading: curr_heading, .. }) = plane_control {
                     self.draw_turn_to_heading(
                         yaw_target,
@@ -558,8 +597,8 @@ struct DrawPresets<'w, 's> {
 }
 
 impl DrawPresets<'_, '_> {
-    fn draw_avail_presets(&mut self, target: Target, material: &Handle<ColorMaterial>) {
-        let Target::Waypoint(waypoint) = target else { return };
+    fn draw_avail_presets(&mut self, target: AirborneTarget, material: &Handle<ColorMaterial>) {
+        let AirborneTarget::Waypoint(waypoint) = target else { return };
         let Ok(presets) = self.waypoint_presets_query.get(waypoint) else { return };
         let mut viewables = self.viewable_query.iter_mut();
 
@@ -647,7 +686,8 @@ struct PresetViewable;
 
 #[derive(SystemParam)]
 struct DrawGroundPaths<'w, 's> {
-    object_query:   Query<'w, 's, &'static route::PossiblePaths>,
+    object_query:
+        Query<'w, 's, (&'static route::PossiblePaths, Option<&'static GroundTargetOverride>)>,
     viewable_query: Query<
         'w,
         's,
@@ -661,19 +701,31 @@ impl DrawGroundPaths<'_, '_> {
     fn draw(
         &mut self,
         object_id: Entity,
-        material_1: &Handle<ColorMaterial>,
-        material_2: &Handle<ColorMaterial>,
+        material_best: &Handle<ColorMaterial>,
+        material_alt: Option<&Handle<ColorMaterial>>,
+        material_preview: &Handle<ColorMaterial>,
     ) {
         let mut viewables = self.viewable_query.iter_mut();
 
-        let paths: Vec<_> =
-            self.object_query.get(object_id).iter().flat_map(|paths| &paths.paths).collect();
-        for (i, path) in paths.into_iter().enumerate().rev() {
-            self.draw_once.draw(
-                path,
-                if i == 0 { material_1 } else { material_2 },
-                viewables.by_ref(),
-            );
+        let mut render_paths = Vec::new();
+        if let Ok((paths, target_override)) = self.object_query.get(object_id) {
+            if let Some(GroundTargetOverride { target, .. }) = target_override {
+                match target {
+                    GroundTarget::Endpoints(endpoints) => {
+                        render_paths
+                            .push((material_preview, Either::Right(endpoints.iter().copied())));
+                    }
+                }
+            }
+
+            render_paths.extend(paths.paths.iter().enumerate().filter_map(|(index, path)| {
+                let material = if index == 0 { material_best } else { material_alt? };
+                Some((material, Either::Left(path.endpoints())))
+            }));
+        }
+
+        for (material, path) in render_paths {
+            self.draw_once.draw(path, material, viewables.by_ref());
         }
 
         for (entity, _, _) in viewables {
@@ -694,16 +746,13 @@ struct DrawGroundPathOnce<'w, 's> {
 impl DrawGroundPathOnce<'_, '_> {
     fn draw<'w>(
         &mut self,
-        path: &route::PossiblePath,
+        path: impl Iterator<Item = Entity>,
         material: &Handle<ColorMaterial>,
         mut viewables: impl Iterator<
             Item = (Entity, Mut<'w, Transform>, Mut<'w, MeshMaterial2d<ColorMaterial>>),
         >,
     ) {
-        let endpoint_pairs = [&path.start_endpoint]
-            .into_iter()
-            .chain(&path.next_endpoints)
-            .copied()
+        let endpoint_pairs = path
             .filter_map(|endpoint_id| {
                 let endpoint = self.endpoint_query.log_get(endpoint_id)?;
                 Some(endpoint.position)
@@ -743,23 +792,27 @@ struct GroundPathViewable;
 pub(super) struct Conf {
     /// Thickness of planned track preview line for airborne objects.
     #[config(default = 1.0)]
-    airborne_thickness:  f32,
+    airborne_thickness:     f32,
     /// Thickness of planned track preview line for ground objects.
     #[config(default = 1.5)]
-    ground_thickness:    f32,
-    /// Color of planned track preview line.
+    ground_thickness:       f32,
+    /// Color of planned track preview line,
+    /// including both the immediate track and the planned route.
     #[config(default = Color::srgb(0.9, 0.7, 0.8))]
-    color_normal:        Color,
+    color_normal:           Color,
     /// Color of planned track preview line when setting heading.
     #[config(default = Color::srgb(0.9, 0.9, 0.6))]
-    color_set_heading:   Color,
+    color_set_heading:      Color,
     /// Color of available route presets from the current target waypoint.
     #[config(default = Color::srgb(0.5, 0.6, 0.8))]
-    color_preset:        Color,
+    color_preset:           Color,
     /// Color of the best path found by the ground pathfinder.
     #[config(default = Color::srgb(0.5, 0.8, 0.6))]
-    color_ground_path_1: Color,
+    color_ground_path_best: Color,
     /// Color of the other paths found by the ground pathfinder.
     #[config(default = Color::srgb(0.4, 0.4, 0.1))]
-    color_ground_path_2: Color,
+    color_ground_path_alt:  Color,
+    /// Whether to render alternative paths found by the ground pathfinder.
+    #[config(default = false)]
+    render_ground_path_alt: bool,
 }

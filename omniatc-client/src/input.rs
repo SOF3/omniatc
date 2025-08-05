@@ -133,7 +133,8 @@ pub struct Hotkeys {
     pub toggle_pause:    bool,
     pub reset_speed:     bool,
     pub north:           bool,
-    pub pick_vector:     bool,
+    pub pick_route:      bool,
+    pub append_route:    bool,
     pub set_speed:       bool,
     pub inc_speed:       bool,
     pub dec_speed:       bool,
@@ -165,7 +166,8 @@ impl Hotkeys {
             this.toggle_pause = conf.level_control.toggle_pause.clicked(state);
             this.reset_speed = conf.level_control.reset_speed.clicked(state);
             this.north = conf.level_control.north.clicked(state);
-            this.pick_vector = conf.picking.pick_vector.down(state);
+            this.pick_route = conf.picking.pick_route.down(state);
+            this.append_route = conf.picking.append_route.down(state);
             this.set_speed = conf.object_control.speed.set.clicked(state);
             this.inc_speed = conf.object_control.speed.inc.clicked_or_repeated(state);
             this.dec_speed = conf.object_control.speed.dec.clicked_or_repeated(state);
@@ -206,8 +208,10 @@ struct LevelControlConf {
 
 #[derive(Config)]
 struct PickingConf {
-    #[config(default = KeySet::from(egui::Key::V))]
-    pick_vector: KeySet,
+    #[config(default = KeySet::from(egui::Key::V).shift(false))]
+    pick_route:   KeySet,
+    #[config(default = KeySet::from(egui::Key::V).shift(true))]
+    append_route: KeySet,
 }
 
 #[derive(Config)]

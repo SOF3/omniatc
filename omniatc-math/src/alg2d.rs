@@ -55,24 +55,30 @@ pub fn point_line_closest(
     line_end: Position<Vec2>,
 ) -> Position<Vec2> {
     let line_dir = line_end - line_start;
-    let ortho_dir = line_dir.rotate_right_angle_clockwise();
-
-    let (line_t, _ortho_t) = line_intersect(line_start.get(), line_dir.0, point.get(), ortho_dir.0);
-    line_start + line_dir * line_t
+    line_start + line_dir * point_line_closest_t(point, line_start, line_dir)
 }
 
-/// Returns the closest point from `point` on the line segment between `line_start` and `line_end`.
+/// Returns the closest point from `point` on the line segment intersecting `line_start` and `line_end`.
+/// Returns either `line_start` or `line_end` if the closest point is outside the segment.
 #[must_use]
-pub fn point_line_segment_closest(
+pub fn point_segment_closest(
     point: Position<Vec2>,
     line_start: Position<Vec2>,
     line_end: Position<Vec2>,
 ) -> Position<Vec2> {
     let line_dir = line_end - line_start;
+    line_start + line_dir * point_line_closest_t(point, line_start, line_dir).clamp(0.0, 1.0)
+}
+
+fn point_line_closest_t(
+    point: Position<Vec2>,
+    line_start: Position<Vec2>,
+    line_dir: Length<Vec2>,
+) -> f32 {
     let ortho_dir = line_dir.rotate_right_angle_clockwise();
 
     let (line_t, _ortho_t) = line_intersect(line_start.get(), line_dir.0, point.get(), ortho_dir.0);
-    line_start + line_dir * line_t.clamp(0.0, 1.0)
+    line_t
 }
 
 /// Returns the shortest distance between two line segments.

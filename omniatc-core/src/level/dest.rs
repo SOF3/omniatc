@@ -49,7 +49,7 @@ pub enum Destination {
 #[derive(Component)]
 pub struct CompletionScore {
     /// Score delta for each completed arrival or departure.
-    pub delta: score::Unit,
+    pub score: score::Unit,
 }
 
 fn completion_system(
@@ -90,7 +90,7 @@ fn completion_system(
             }
 
             if let Some(reward) = reward {
-                delta += reward.delta;
+                delta += reward.score;
             }
         }
     }

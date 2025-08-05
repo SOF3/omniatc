@@ -50,7 +50,15 @@ const NEGLIGIBLE_DEVIATION: Length<f32> = Length::from_meters(1.0);
 
 /// If the object is expected to diverge from the centerline beyond this distance,
 /// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
-const OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(3.0);
+const SLOW_TURN_OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(3.0);
+
+/// If the object exceeds this distance beyond the ideal turning point
+/// even with maximum braking from now on,
+/// it will consider this turn as missed.
+const MISS_TURN_OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(15.0);
+
+/// Extra deceleration distance in case braking is less effective.
+const DECEL_BUFFER: f32 = 1.2;
 
 pub struct Plug;
 
@@ -267,10 +275,11 @@ fn maintain_dir_for_object(
         // desired is always positive anyway
         // cross centerline and diverge beyond threshold
         let crossing_diverge =
-            object_to_line_ortho.magnitude_cmp() < convergence_dist - OVERSHOOT_TOLERANCE;
+            object_to_line_ortho.magnitude_cmp() < convergence_dist - SLOW_TURN_OVERSHOOT_TOLERANCE;
         // diverging from centerline and will continue to diverge beyond threshold
         let continue_diverge = !is_towards_centerline
-            && object_to_line_ortho.magnitude_cmp() > OVERSHOOT_TOLERANCE - convergence_dist;
+            && object_to_line_ortho.magnitude_cmp()
+                > SLOW_TURN_OVERSHOOT_TOLERANCE - convergence_dist;
 
         if crossing_diverge || continue_diverge {
             // In either case, the object will cross the centerline significantly
@@ -541,7 +550,7 @@ impl TargetPathParams<'_, '_> {
             // max_turn_speed^2 = linear_speed^2 - 2 * limits.base_braking * decel_distance =>
             let decel_distance =
                 (linear_speed.squared() - max_turn_speed.squared()) / (limits.base_braking * 2.0);
-            if object_dist > decel_distance {
+            if object_dist > decel_distance * DECEL_BUFFER {
                 // We can continue at the current speed on the original segment
                 // until decel_distance from the intersection threshold.
                 ground.target_speed = current_segment.max_speed;
@@ -550,7 +559,7 @@ impl TargetPathParams<'_, '_> {
 
             // How much extra distance behind the threshold before we are slow enough to turn?
             let deficit = decel_distance - object_dist;
-            if deficit > OVERSHOOT_TOLERANCE {
+            if deficit > MISS_TURN_OVERSHOOT_TOLERANCE {
                 // Even if we start braking now, we are already past the intersection
                 // by the time we are slow enough to turn,
                 // so just skip this turn.

@@ -97,6 +97,14 @@ impl Route {
     #[must_use]
     pub fn next(&self) -> Option<&Node> { self.next_queue.front() }
 
+    #[must_use]
+    pub fn last(&self) -> Option<&Node> { self.next_queue.back().or(self.current.as_ref()) }
+
+    #[must_use]
+    pub fn last_mut(&mut self) -> Option<&mut Node> {
+        self.next_queue.back_mut().or(self.current.as_mut())
+    }
+
     pub fn shift(&mut self) -> Option<Node> {
         let ret = self.current.take();
         self.current = self.next_queue.pop_front();

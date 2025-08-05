@@ -254,7 +254,7 @@ fn write_route_node(
                 ));
             } else {
                 ui.label(format!(
-                    "Taxi through {}",
+                    "Taxi via {}",
                     dir::display_segment_label(&node.label, &params.waypoint_query)
                 ));
             }

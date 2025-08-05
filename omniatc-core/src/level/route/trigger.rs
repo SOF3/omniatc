@@ -131,7 +131,7 @@ pub(super) fn time_system(
 ) {
     object_query.iter_mut().for_each(|(object_entity, trigger)| {
         if trigger.0 < time.elapsed() {
-            bevy::log::debug!("Trigger {object_entity:?} resync due to delayed resync");
+            bevy::log::trace!("Trigger {object_entity:?} resync due to delayed resync");
             commands.entity(object_entity).queue(RunCurrentNode);
         }
     });
@@ -157,7 +157,7 @@ pub(super) fn distance_system(
         trigger.remaining_distance -= last_pos.distance_exact(object.position.horizontal());
 
         if !trigger.remaining_distance.is_positive() {
-            bevy::log::debug!("Trigger {object_entity:?} resync due to distance traveled");
+            bevy::log::trace!("Trigger {object_entity:?} resync due to distance traveled");
             commands.entity(object_entity).queue(RunCurrentNode);
         }
     });
@@ -171,7 +171,7 @@ pub(super) fn navaid_system(
     mut commands: Commands,
 ) {
     for event in event_reader.read() {
-        bevy::log::debug!("Trigger {:?} resync due to navaid change", event.object);
+        bevy::log::trace!("Trigger {:?} resync due to navaid change", event.object);
         commands.entity(event.object).queue(RunCurrentNode);
     }
 }
@@ -184,7 +184,7 @@ pub(super) fn taxi_target_resolution_system(
     mut commands: Commands,
 ) {
     for event in event_reader.read() {
-        bevy::log::debug!("Trigger {:?} resync due to taxi resolution", event.object);
+        bevy::log::trace!("Trigger {:?} resync due to taxi resolution", event.object);
         commands.entity(event.object).queue(RunCurrentNode);
     }
 }

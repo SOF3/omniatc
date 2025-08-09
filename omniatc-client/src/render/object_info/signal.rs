@@ -3,7 +3,7 @@ use bevy::ecs::system::{Query, SystemParam};
 use bevy_egui::egui;
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::try_log;
+use omniatc::QueryTryLog;
 
 use super::Writer;
 
@@ -27,16 +27,10 @@ impl Writer for ObjectQuery {
 
     fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         for &navaid_id in this.navaids.iter().flat_map(|v| &v.0) {
-            let (navaid, waypoint_ref) = try_log!(
-                params.navaid_query.get(navaid_id),
-                expect "navaid::ObjectUsageList should reference valid navaids"
-                or continue
-            );
-            let waypoint = try_log!(
-                params.waypoint_query.get(waypoint_ref.0),
-                expect "OwnerWaypoint should reference a valid waypoint"
-                or continue
-            );
+            let Some((navaid, waypoint_ref)) = params.navaid_query.log_get(navaid_id) else {
+                continue;
+            };
+            let Some(waypoint) = params.waypoint_query.log_get(waypoint_ref.0) else { continue };
 
             ui.label(match navaid.kind {
                 navaid::Kind::Visual => format!("{} visual contact", &waypoint.name),

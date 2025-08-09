@@ -1,6 +1,3 @@
-use std::fmt;
-
-use super::{FEET_PER_NM, KNOTS_PER_MACH, METERS_PER_NM, MILES_PER_NM};
 use crate::{Length, QuantityTrait, Speed};
 
 pub trait UnitEnum: Copy + Eq + strum::IntoEnumIterator {

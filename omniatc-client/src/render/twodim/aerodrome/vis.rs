@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use bevy::app::{self, App, Plugin};
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;

@@ -17,8 +17,8 @@ use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::ReadConfig;
 use math::Length;
 use omniatc::level::object;
-use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
+use omniatc::QueryTryLog;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};
 use crate::render;
@@ -85,7 +85,7 @@ fn maintain_color_system(
     mut material_assets: ResMut<Assets<ColorMaterial>>,
 ) {
     for (color, &HasRing(ring_entity)) in object_query {
-        let material_handle = try_log!(ring_query.get(ring_entity), expect "HasRing must reference valid ring viewable" or continue);
+        let Some(material_handle) = ring_query.log_get(ring_entity) else { continue };
         let material = material_assets
             .get_mut(&material_handle.0)
             .expect("asset from strong handle must exist");
@@ -130,10 +130,7 @@ fn maintain_visible_system(
     for (airborne, &HasRing(ring_entity)) in object_query {
         let visible = if airborne.is_some() { Visibility::Inherited } else { Visibility::Hidden };
 
-        let mut ring_visibility = try_log!(
-            ring_query.get_mut(ring_entity),
-            expect "HasRing must reference valid ring viewable" or continue
-        );
+        let Some(mut ring_visibility) = ring_query.log_get_mut(ring_entity) else { continue };
         *ring_visibility = visible;
     }
 }

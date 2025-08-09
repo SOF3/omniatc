@@ -21,7 +21,8 @@ use math::{
 };
 
 use super::{ground, message, nav, wind, SystemSets};
-use crate::{try_log, try_log_return};
+use crate::try_log::EntityWorldMutExt;
+use crate::WorldTryLog;
 
 mod dest;
 pub use dest::Destination;
@@ -128,12 +129,7 @@ impl EntityCommand for SetAirborneCommand {
         entity.remove::<OnGround>();
 
         let (position, ground_speed) = {
-            let &Object { position, ground_speed } = try_log!(
-                entity.get(),
-                expect "attempt to set airborne for non-Object entity {:?}"
-                    (entity.id())
-                or return
-            );
+            let Some(&Object { position, ground_speed }) = entity.log_get() else { return };
             (position, ground_speed)
         };
 
@@ -182,21 +178,17 @@ pub struct SetOnGroundCommand {
 
 impl EntityCommand for SetOnGroundCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        let &ground::Segment { elevation, .. } = try_log_return!(
-            entity.world().get(self.segment),
-            expect "SetOnGroundCommand must reference valid segment {:?}", self.segment,
-        );
+        let Some(&ground::Segment { elevation, .. }) = entity.world().log_get(self.segment) else {
+            return;
+        };
 
-        let mut object = try_log_return!(entity.get_mut::<Object>(), expect "SetOnGroundCommand must be used on objects");
+        let Some(mut object) = entity.log_get_mut::<Object>() else { return };
         // must not descend anymore since we have hit the ground.
         object.ground_speed = object.ground_speed.horizontal().horizontally();
         // force the altitude to be aerodrome elevation
         object.position = object.position.horizontal().with_altitude(elevation);
 
-        let &Airborne { true_airspeed, .. } = try_log_return!(
-            entity.get::<Airborne>(),
-            expect "SetOnGroundCommand must be used on airborne objects"
-        );
+        let Some(&Airborne { true_airspeed, .. }) = entity.log_get::<Airborne>() else { return };
         let heading = true_airspeed.horizontal().heading();
 
         entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {

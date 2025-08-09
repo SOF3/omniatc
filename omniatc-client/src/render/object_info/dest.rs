@@ -4,7 +4,7 @@ use bevy_egui::egui;
 use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::object;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::try_log_return;
+use omniatc::QueryTryLog;
 
 use super::Writer;
 
@@ -29,10 +29,7 @@ impl Writer for ObjectQuery {
     fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         ui.label(match *this.dest {
             object::Destination::Landing { aerodrome } => {
-                let data = try_log_return!(
-                    params.aerodrome.get(aerodrome),
-                    expect "Unknown aerodrome {aerodrome:?}"
-                );
+                let Some(data) = params.aerodrome.log_get(aerodrome) else { return };
                 format!("Arrival at {}", &data.name)
             }
             object::Destination::VacateAnyRunway => String::from("Land at any runway and vacate"),

@@ -14,8 +14,8 @@ use math::{CanSqrt, Heading, Length, Position, TurnDirection};
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::SystemSets;
-use crate::try_log;
 use crate::util::RateLimit;
+use crate::QueryTryLog;
 
 pub struct Plug;
 
@@ -177,10 +177,17 @@ fn maintain_usages_system(
     for (object_id, object, mut used) in object_query {
         mem::swap(&mut used.0, &mut prev);
         used.0.clear();
-        used.0.extend(navaid_query.iter().filter(|(_, waypoint_ref, navaid)| {
-            let waypoint = try_log!(waypoint_query.get(waypoint_ref.0), expect "navaid parent must be waypoint" or return false);
-            navaid.is_usable_from(object.position, waypoint.position)
-        }).map(|(navaid_id, _, _)| navaid_id));
+        used.0.extend(
+            navaid_query
+                .iter()
+                .filter(|(_, waypoint_ref, navaid)| {
+                    let Some(waypoint) = waypoint_query.log_get(waypoint_ref.0) else {
+                        return false;
+                    };
+                    navaid.is_usable_from(object.position, waypoint.position)
+                })
+                .map(|(navaid_id, _, _)| navaid_id),
+        );
 
         used.0.sort();
         if used.0 != prev {

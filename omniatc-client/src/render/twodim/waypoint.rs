@@ -5,7 +5,6 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::hierarchy::ChildOf;
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::render::view::Visibility;

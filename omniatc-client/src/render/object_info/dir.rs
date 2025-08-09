@@ -5,7 +5,7 @@ use bevy_egui::egui;
 use math::{Heading, TurnDirection};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, ground, nav, object, plane};
-use omniatc::{try_log, try_log_return};
+use omniatc::{try_log_return, QueryTryLog};
 
 use super::Writer;
 use crate::input;
@@ -52,10 +52,9 @@ impl Writer for ObjectQuery {
                 show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
             }
             if let Some(target) = this.target_waypoint {
-                let waypoint = try_log_return!(
-                    params.waypoint_query.get(target.waypoint_entity),
-                    expect "TargetWaypoint has invalid waypoint {:?}", target.waypoint_entity,
-                );
+                let Some(waypoint) = params.waypoint_query.log_get(target.waypoint_entity) else {
+                    return;
+                };
 
                 let distance = this.object.position.horizontal_distance_exact(waypoint.position);
                 ui.label(format!(
@@ -147,11 +146,7 @@ fn show_ground(
     endpoint_query: &Query<&ground::Endpoint>,
     waypoint_query: &Query<&Waypoint>,
 ) {
-    let (segment, label) = try_log_return!(
-        segment_query.get(ground.segment),
-        expect "object::OnGround must reference valid segment {:?}",
-        ground.segment,
-    );
+    let Some((segment, label)) = segment_query.log_get(ground.segment) else { return };
 
     let (from_endpoint, to_endpoint) = match ground.direction {
         ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
@@ -176,14 +171,8 @@ fn show_target_alignment(
     target: &nav::TargetAlignment,
     target_status: &nav::TargetAlignmentStatus,
 ) {
-    let start_waypoint = try_log_return!(
-        waypoint_query.get(target.start_waypoint),
-        expect "TargetAlignment has invalid waypoint {:?}", target.start_waypoint,
-    );
-    let end_waypoint = try_log_return!(
-        waypoint_query.get(target.end_waypoint),
-        expect "TargetAlignment has invalid waypoint {:?}", target.end_waypoint,
-    );
+    let Some(start_waypoint) = waypoint_query.log_get(target.start_waypoint) else { return };
+    let Some(end_waypoint) = waypoint_query.log_get(target.end_waypoint) else { return };
 
     let start_distance = this.object.position.horizontal_distance_exact(start_waypoint.position);
     let end_distance = this.object.position.horizontal_distance_exact(end_waypoint.position);
@@ -246,18 +235,13 @@ pub(super) fn display_segment_label(
 ) -> String {
     match label {
         &ground::SegmentLabel::RunwayPair([forward, backward]) => {
-            let forward_name = &try_log!(
-                waypoint_query.get(forward),
-                expect "RunwayPair must reference valid waypoint {forward:?}"
-                or return String::new()
-            )
-            .name;
-            let backward_name = &try_log!(
-                waypoint_query.get(backward),
-                expect "RunwayPair must reference valid waypoint {backward:?}"
-                or return String::new()
-            )
-            .name;
+            let Some(Waypoint { name: forward_name, .. }) = waypoint_query.log_get(forward) else {
+                return String::new();
+            };
+            let Some(Waypoint { name: backward_name, .. }) = waypoint_query.log_get(backward)
+            else {
+                return String::new();
+            };
             format!("runway {forward_name}/{backward_name}")
         }
         ground::SegmentLabel::Taxiway { name } => format!("taxiway {name}"),

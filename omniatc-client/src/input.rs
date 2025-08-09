@@ -1,5 +1,4 @@
 use bevy::app::{self, App, Plugin};
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{Has, Or, QueryData, With};
 use bevy::ecs::resource::Resource;

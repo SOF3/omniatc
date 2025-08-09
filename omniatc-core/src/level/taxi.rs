@@ -15,7 +15,7 @@ use smallvec::SmallVec;
 
 use super::object::Object;
 use super::{ground, object, SystemSets};
-use crate::{try_log, try_log_return};
+use crate::{try_log, try_log_return, QueryTryLog};
 
 /// An object is considered stationary when slower than this speed.
 ///
@@ -88,19 +88,15 @@ fn maintain_dir(
     }
 
     for (mut object, mut ground, limits) in object_query {
-        let segment = try_log!(segment_query.get(ground.segment), expect "object::OnGround must reference valid segment {:?}" (ground.segment) or continue);
+        let Some(segment) = segment_query.log_get(ground.segment) else { continue };
         let (other_endpoint_entity, target_endpoint_entity) = match ground.direction {
             ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
             ground::SegmentDirection::BetaToAlpha => (segment.beta, segment.alpha),
         };
-        let other_endpoint = try_log!(
-            endpoint_query.get(other_endpoint_entity),
-            expect "ground::Segment must reference valid endpoint {other_endpoint_entity:?}" or continue
-        );
-        let target_endpoint = try_log!(
-            endpoint_query.get(target_endpoint_entity),
-            expect "ground::Segment must reference valid endpoint {target_endpoint_entity:?}" or continue
-        );
+        let Some(other_endpoint) = endpoint_query.log_get(other_endpoint_entity) else { continue };
+        let Some(target_endpoint) = endpoint_query.log_get(target_endpoint_entity) else {
+            continue;
+        };
 
         maintain_dir_for_object(
             &time,
@@ -356,11 +352,7 @@ impl TargetPathParams<'_, '_> {
             return Some(TargetResolution::Completed(position));
         }
 
-        let current_segment = try_log!(
-            self.segment_query.get(ground.segment),
-            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
-            or return None
-        );
+        let current_segment = self.segment_query.log_get(ground.segment)?;
 
         let intersection_endpoint = current_segment.by_direction(ground.direction).1;
         for (option_index, &target_segment) in options.iter().enumerate() {
@@ -387,7 +379,7 @@ impl TargetPathParams<'_, '_> {
         }
 
         // All options are inoperable, just hold.
-        self.hold_before_endpoint(object, limits, ground, intersection_endpoint, "current segment");
+        self.hold_before_endpoint(object, limits, ground, intersection_endpoint);
         if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
             Some(TargetResolution::Inoperable)
         } else {
@@ -401,18 +393,13 @@ impl TargetPathParams<'_, '_> {
         limits: &Limits,
         ground: &mut object::OnGround,
     ) -> Option<TargetResolution> {
-        let current_segment = try_log!(
-            self.segment_query.get(ground.segment),
-            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
-            or return None
-        );
+        let current_segment = self.segment_query.log_get(ground.segment)?;
 
         self.hold_before_endpoint(
             object,
             limits,
             ground,
             current_segment.by_direction(ground.direction).1,
-            "current segment",
         );
         if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
             Some(TargetResolution::Completed(0))
@@ -431,23 +418,18 @@ impl TargetPathParams<'_, '_> {
     ) -> TurnResult {
         let linear_speed = object.ground_speed.horizontal().magnitude_exact();
 
-        let intersect_pos = try_log!(
-            self.endpoint_query.get(intersect_endpoint),
-            expect "turn target {intersect_endpoint:?} must be a valid endpoint"
-            or return TurnResult::Error
-        )
-        .position;
+        let Some(&ground::Endpoint { position: intersect_pos, .. }) =
+            self.endpoint_query.log_get(intersect_endpoint)
+        else {
+            return TurnResult::Error;
+        };
 
-        let current_segment = try_log!(
-            self.segment_query.get(ground.segment),
-            expect "object::OnGround must reference valid segment {:?}" (ground.segment)
-            or return TurnResult::Error
-        );
-        let next_segment = try_log!(
-            self.segment_query.get(next_segment_id),
-            expect "turn target {next_segment_id:?} must be a valid segment"
-            or return TurnResult::Error
-        );
+        let Some(current_segment) = self.segment_query.log_get(ground.segment) else {
+            return TurnResult::Error;
+        };
+        let Some(next_segment) = self.segment_query.log_get(next_segment_id) else {
+            return TurnResult::Error;
+        };
         if next_segment.width < limits.width {
             return TurnResult::TooNarrow;
         }
@@ -457,11 +439,11 @@ impl TargetPathParams<'_, '_> {
             expect "adjacent segment {next_segment_id:?} must back-reference endpoint {intersect_endpoint:?}"
             or return TurnResult::Error
         );
-        let next_target_pos = try_log!(
-            self.endpoint_query.get(next_target_endpoint),
-            expect "adjacent segment {next_segment_id:?} must reference valid endpoint {next_target_endpoint:?}"
-            or return TurnResult::Error
-        ).position;
+        let Some(&ground::Endpoint { position: next_target_pos, .. }) =
+            self.endpoint_query.log_get(next_target_endpoint)
+        else {
+            return TurnResult::Error;
+        };
         let next_segment_heading = (next_target_pos - intersect_pos).heading();
         let abs_turn = ground.heading.closest_distance(next_segment_heading).abs();
 
@@ -540,18 +522,18 @@ impl TargetPathParams<'_, '_> {
         limits: &Limits,
         ground: &mut object::OnGround,
         endpoint: Entity,
-        endpoint_referrer: &str,
     ) {
-        let endpoint = try_log_return!(
-            self.endpoint_query.get(endpoint),
-            expect "{endpoint_referrer} must reference valid endpoint {endpoint:?}"
-        );
+        let Some(endpoint) = self.endpoint_query.log_get(endpoint) else { return };
 
         // Use endpoint width as the required distance from the endpoint.
-        let intersection_width = endpoint.adjacency.iter().filter_map(|&segment_id| {
-            let segment = try_log!(self.segment_query.get(segment_id), expect "endpoint adjacency must reference valid segment {segment_id:?}" or return None);
-            Some(segment.width)
-        }).max_by_key(|width| OrderedFloat(width.0));
+        let intersection_width = endpoint
+            .adjacency
+            .iter()
+            .filter_map(|&segment_id| {
+                let segment = self.segment_query.log_get(segment_id)?;
+                Some(segment.width)
+            })
+            .max_by_key(|width| OrderedFloat(width.0));
         let intersection_width =
             try_log_return!(intersection_width, expect "adjacency list must not be empty");
 
@@ -571,15 +553,15 @@ impl TargetPathParams<'_, '_> {
     }
 
     fn endpoint_width(&self, endpoint: Entity) -> Option<Length<f32>> {
-        let endpoint = try_log!(
-            self.endpoint_query.get(endpoint),
-            expect "endpoint must reference valid endpoint {endpoint:?}"
-            or return None
-        );
-        let intersection_width = endpoint.adjacency.iter().filter_map(|&segment_id| {
-            let segment = try_log!(self.segment_query.get(segment_id), expect "endpoint adjacency must reference valid segment {segment_id:?}" or return None);
-            Some(segment.width)
-        }).max_by_key(|width| OrderedFloat(width.0));
+        let endpoint = self.endpoint_query.log_get(endpoint)?;
+        let intersection_width = endpoint
+            .adjacency
+            .iter()
+            .filter_map(|&segment_id| {
+                let segment = self.segment_query.log_get(segment_id)?;
+                Some(segment.width)
+            })
+            .max_by_key(|width| OrderedFloat(width.0));
         intersection_width.map(|width| width * 0.5)
     }
 }

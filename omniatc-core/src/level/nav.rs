@@ -15,7 +15,7 @@ use math::{
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{navaid, object, SystemSets};
-use crate::{pid, try_log_return};
+use crate::{pid, QueryTryLog};
 
 pub struct Plug;
 
@@ -275,11 +275,11 @@ fn glide_control_system(
 
     object_query.par_iter_mut().for_each(
         |(mut signal, glide, mut glide_status, &Object { position, ground_speed })| {
-            let &Waypoint { position: target_position, .. } = try_log_return!(
-                waypoint_query.get(glide.target_waypoint),
-                expect "Reference to non waypoint entity {:?}",
-                glide.target_waypoint,
-            );
+            let Some(&Waypoint { position: target_position, .. }) =
+                waypoint_query.log_get(glide.target_waypoint)
+            else {
+                return;
+            };
 
             // from current position to target waypoint
             let direction = target_position - position;
@@ -382,11 +382,7 @@ fn waypoint_control_system(
     }
 
     object_query.par_iter_mut().for_each(|(mut ground_dir, waypoint, &Object { position, .. })| {
-        let waypoint_pos = try_log_return!(
-            waypoint_query.get(waypoint.waypoint_entity),
-            expect "invalid waypoint entity {:?}",
-            waypoint.waypoint_entity,
-        );
+        let Some(waypoint_pos) = waypoint_query.log_get(waypoint.waypoint_entity) else { return };
         ground_dir.target = (waypoint_pos.position.horizontal() - position.horizontal()).heading();
     });
 }

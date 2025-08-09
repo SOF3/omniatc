@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
 use crate::level::{nav, SystemSets};
-use crate::try_log;
+use crate::WorldTryLog;
 
 mod landing;
 pub use landing::*;
@@ -230,7 +230,9 @@ fn run_current_node(world: &mut World, entity: Entity) {
                     }
                     RunNodeResult::ReplaceWithPreset(preset_id) => {
                         let new_nodes = preset_id.map_or_else(Vec::new, |preset_id| {
-                            let preset = try_log!(world.get::<Preset>(preset_id), expect "invalid route preset reference" or return Vec::new());
+                            let Some(preset) = world.log_get::<Preset>(preset_id) else {
+                                return Vec::new();
+                            };
                             preset.nodes.clone()
                         });
 

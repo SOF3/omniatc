@@ -6,7 +6,7 @@ use bevy_egui::egui;
 use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object};
-use omniatc::try_log_return;
+use omniatc::QueryTryLog;
 
 use super::Writer;
 use crate::input;
@@ -106,10 +106,7 @@ fn display_glide(
     glide: &nav::TargetGlide,
     glide_status: &nav::TargetGlideStatus,
 ) {
-    let waypoint = try_log_return!(
-        params.waypoint_query.get(glide.target_waypoint),
-        expect "TargetGlide has invalid waypoint {:?}", glide.target_waypoint,
-    );
+    let Some(waypoint) = params.waypoint_query.log_get(glide.target_waypoint) else { return };
     let target_altitude = waypoint.position.altitude().amsl().into_feet();
 
     if glide.glide_angle.is_zero() {

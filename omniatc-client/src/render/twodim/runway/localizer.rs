@@ -9,7 +9,7 @@ use bevy::transform::components::Transform;
 use bevy_mod_config::{self, ReadConfig};
 use math::Length;
 use omniatc::level::runway::Runway;
-use omniatc::try_log_return;
+use omniatc::{try_log_return, QueryTryLog};
 
 use super::Conf;
 use crate::render::twodim::Zorder;
@@ -64,7 +64,11 @@ impl UpdateParam<'_, '_> {
     ) {
         let conf = self.conf.read();
 
-        let (mut line_tf, material_handle, mut thickness) = try_log_return!(self.localizer_query.get_mut(entity), expect "HasLocalizer should reference a localizer entity with transform");
+        let Some((mut line_tf, material_handle, mut thickness)) =
+            self.localizer_query.log_get_mut(entity)
+        else {
+            return;
+        };
 
         let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
         material.color = conf.localizer_color;

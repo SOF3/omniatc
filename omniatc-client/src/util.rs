@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 
-use bevy::sprite::Anchor;
 use math::{Angle, Heading};
 
 pub mod billboard;

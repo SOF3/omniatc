@@ -1,7 +1,7 @@
 use bevy::app::{self, App, Plugin};
 use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    Camera2d, Component, GlobalTransform, IntoScheduleConfigs, Query, Single, Transform, With,
+    Component, GlobalTransform, IntoScheduleConfigs, Query, Single, Transform, With,
 };
 use bevy::sprite::Anchor;
 use bevy::text::Text2d;

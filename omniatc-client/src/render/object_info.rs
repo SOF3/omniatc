@@ -7,7 +7,7 @@ use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use bevy_mod_config::ReadConfig;
 use omniatc::level::object;
-use omniatc::try_log_return;
+use omniatc::QueryTryLog;
 
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
@@ -60,10 +60,7 @@ fn setup_layout_system(
                 return;
             };
 
-            let object = try_log_return!(
-                object_query.get(object_entity),
-                expect "CurrentObject points to non-object"
-            );
+            let Some(object) = object_query.log_get(object_entity) else { return };
 
             ui.heading(&object.1.name);
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -147,12 +144,12 @@ fn highlight_selected_system(
     let conf = conf.read();
 
     if let Some(entity) = current_hovered_object.0 {
-        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        let Some(mut theme) = color_theme_query.log_get_mut(entity) else { return };
         theme.body = conf.hovered_color;
     }
 
     if let Some(entity) = current_object.0 {
-        let mut theme = try_log_return!(color_theme_query.get_mut(entity), expect "CurrentObject is Some and must reference valid object entity");
+        let Some(mut theme) = color_theme_query.log_get_mut(entity) else { return };
         theme.body = conf.selected_color;
     }
 }

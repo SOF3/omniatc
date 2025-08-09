@@ -8,7 +8,7 @@ use bevy::ecs::system::{Commands, EntityCommands, Query, SystemParam};
 use bevy::text::{TextColor, TextSpan};
 use omniatc::level::object::{self};
 
-use super::{Conf, PlaneConfRead};
+use super::PlaneConfRead;
 
 #[derive(Component)]
 #[relationship(relationship_target = HasLabel)]

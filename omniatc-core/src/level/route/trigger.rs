@@ -11,7 +11,7 @@ use super::{HorizontalTarget, NextNode, RunCurrentNode};
 use crate::level::object::Object;
 use crate::level::waypoint::Waypoint;
 use crate::level::{nav, navaid, taxi};
-use crate::try_log_return;
+use crate::QueryTryLog;
 
 #[derive(Component)]
 pub(super) struct FlyOver {
@@ -31,10 +31,11 @@ pub(super) fn fly_over_system(
 
     object_query.iter().for_each(
         |(object_entity, &Object { position: current_pos, .. }, trigger)| {
-            let &Waypoint { position: current_target, .. } = try_log_return!(
-                waypoint_query.get(trigger.waypoint),
-                expect "Invalid waypoint referenced in route"
-            );
+            let Some(&Waypoint { position: current_target, .. }) =
+                waypoint_query.log_get(trigger.waypoint)
+            else {
+                return;
+            };
 
             if current_pos.distance_cmp(current_target) <= trigger.distance {
                 commands.entity(object_entity).queue(NextNode);
@@ -71,10 +72,11 @@ pub(super) fn fly_by_system(
             nav_limits,
             trigger,
         )| {
-            let &Waypoint { position: current_target, .. } = try_log_return!(
-                waypoint_query.get(trigger.waypoint),
-                expect "Invalid waypoint referenced in route"
-            );
+            let Some(&Waypoint { position: current_target, .. }) =
+                waypoint_query.log_get(trigger.waypoint)
+            else {
+                return;
+            };
             let current_target = current_target.horizontal();
 
             match trigger.completion_condition {
@@ -84,10 +86,11 @@ pub(super) fn fly_by_system(
                             (next_target - current_target).heading()
                         }
                         HorizontalTarget::Waypoint(next_waypoint) => {
-                            let &Waypoint { position: next_target, .. } = try_log_return!(
-                                waypoint_query.get(next_waypoint),
-                                expect "Invalid waypoint referenced in next node in route"
-                            );
+                            let Some(&Waypoint { position: next_target, .. }) =
+                                waypoint_query.log_get(next_waypoint)
+                            else {
+                                return;
+                            };
                             let next_target = next_target.horizontal();
 
                             (next_target - current_target).heading()

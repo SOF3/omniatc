@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use super::navaid::Navaid;
 use super::waypoint::{self, Waypoint};
 use super::{navaid, SystemSets};
-use crate::try_log_return;
+use crate::QueryTryLog;
 
 pub struct Plug;
 
@@ -105,34 +105,32 @@ pub struct LocalizerWaypointRef {
 }
 
 fn maintain_localizer_waypoint_system(
-    mut waypoint_query: Query<(Entity, &mut Waypoint, &LocalizerWaypoint), Without<Runway>>,
+    mut waypoint_query: Query<(&mut Waypoint, &LocalizerWaypoint), Without<Runway>>,
     runway_query: Query<(&Waypoint, &Runway, &navaid::ListAtWaypoint)>,
     navaid_query: Query<&Navaid>,
 ) {
-    waypoint_query.iter_mut().for_each(
-        |(waypoint_entity, mut waypoint, &LocalizerWaypoint { runway_ref })| {
-            let (
-                &Waypoint { position: runway_position, .. },
-                &Runway { landing_length, glide_descent: glide_angle, .. },
-                navaids,
-            ) = try_log_return!(
-                runway_query.get(runway_ref),
-                expect "Runway {runway_ref:?} referenced from waypoint {waypoint_entity:?} is not a runway entity"
-            );
+    waypoint_query.iter_mut().for_each(|(mut waypoint, &LocalizerWaypoint { runway_ref })| {
+        let Some((
+            &Waypoint { position: runway_position, .. },
+            &Runway { landing_length, glide_descent: glide_angle, .. },
+            navaids,
+        )) = runway_query.log_get(runway_ref)
+        else {
+            return;
+        };
 
-            let mut range = Length::from_meters(1.); // visibility is never zero.
-            for &navaid_ref in navaids.navaids() {
-                if let Ok(navaid) = navaid_query.get(navaid_ref) {
-                    range = range.max(navaid.max_dist_horizontal);
-                }
+        let mut range = Length::from_meters(1.); // visibility is never zero.
+        for &navaid_ref in navaids.navaids() {
+            if let Ok(navaid) = navaid_query.get(navaid_ref) {
+                range = range.max(navaid.max_dist_horizontal);
             }
+        }
 
-            waypoint.position = runway_position
-                + landing_length
-                    .normalize_to_magnitude(-range)
-                    .projected_from_elevation_angle(glide_angle);
-        },
-    );
+        waypoint.position = runway_position
+            + landing_length
+                .normalize_to_magnitude(-range)
+                .projected_from_elevation_angle(glide_angle);
+    });
 }
 
 /// List of ground segment entities that make up the ground structure of this runway.

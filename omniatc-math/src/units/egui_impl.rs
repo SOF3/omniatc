@@ -1,6 +1,5 @@
 use bevy_mod_config::manager::egui::{DefaultStyle, Editable};
 use bevy_mod_config::ConfigField;
-use strum::IntoEnumIterator;
 
 use super::{Angle, Length, LengthUnit};
 use crate::{QuantityMetadataWithUnit, QuantityTrait, Speed, SpeedUnit, UnitEnum};

@@ -11,7 +11,7 @@ use bevy_mod_config::{self, ReadConfig};
 use math::Length;
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::try_log_return;
+use omniatc::{try_log_return, QueryTryLog};
 
 use super::Conf;
 use crate::render::twodim::Zorder;
@@ -81,7 +81,11 @@ impl UpdateParam<'_, '_> {
             let point_dist = glide_direction * (altitude_densities - start_altitude_densities);
 
             if let Some(&point_entity) = list.get(point_number) {
-                let (mut point_tf, material_handle, mut size) = try_log_return!(self.glide_point_query.get_mut(point_entity), expect "HasGlidePoint should reference a glide point entity with transform");
+                let Some((mut point_tf, material_handle, mut size)) =
+                    self.glide_point_query.log_get_mut(point_entity)
+                else {
+                    return;
+                };
 
                 point_tf.translation = Zorder::LocalizerGlidePoint.dist2_to_translation(point_dist);
 

@@ -6,7 +6,6 @@ use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::{QueryData, With};
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::input::keyboard::KeyCode;
@@ -19,7 +18,7 @@ use math::{Angle, Length, Position};
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
-use omniatc::try_log_return;
+use omniatc::QueryTryLog;
 use ordered_float::OrderedFloat;
 
 use super::object::preview;
@@ -219,10 +218,7 @@ impl SetHeadingParams<'_, '_> {
                 body: comm::SetWaypoint { waypoint }.into(),
             });
         } else {
-            let object_data = try_log_return!(
-                self.object_query.get_mut(object),
-                expect "object selected by cursor is not Object or has no nav::Limits"
-            );
+            let Some(object_data) = self.object_query.log_get_mut(object) else { return };
             let target_override_value = preview::TargetOverride {
                 target: preview::Target::Waypoint(waypoint),
                 cause:  preview::TargetOverrideCause::SetHeading,
@@ -236,14 +232,14 @@ impl SetHeadingParams<'_, '_> {
     }
 
     fn propose_set_heading(&mut self, object: Entity, world_pos: Position<Vec2>, commit: bool) {
-        let SetHeadingObjectQueryItem {
+        let Some(SetHeadingObjectQueryItem {
             object: &Object { position: object_pos, .. },
             plane,
             preview_override,
-        } = try_log_return!(
-            self.object_query.get_mut(object),
-            expect "object selected by cursor"
-        );
+        }) = self.object_query.log_get_mut(object)
+        else {
+            return;
+        };
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
         let mut target = nav::YawTarget::Heading(target_heading);

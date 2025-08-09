@@ -6,7 +6,7 @@ use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
 use math::Speed;
 
 use super::{nav, route, SystemSets};
-use crate::try_log_return;
+use crate::EntityMutTryLog;
 
 pub struct Plug;
 
@@ -62,10 +62,7 @@ impl InstructionKind for SetHeading {
 
         let target = self.target;
         entity.queue(move |mut entity: EntityWorldMut| {
-            let mut comp = try_log_return!(
-                entity.get_mut::<nav::VelocityTarget>(),
-                expect "cannot override yaw for entity without velocity target"
-            );
+            let Some(mut comp) = entity.log_get_mut::<nav::VelocityTarget>() else { return };
             comp.yaw = target;
         });
     }
@@ -92,10 +89,7 @@ impl InstructionKind for SetSpeed {
     fn process(&self, mut entity: EntityCommands) {
         let target = self.target;
         entity.queue(move |mut entity: EntityWorldMut| {
-            let mut comp = try_log_return!(
-                entity.get_mut::<nav::VelocityTarget>(),
-                expect "cannot override yaw for entity without velocity target"
-            );
+            let Some(mut comp) = entity.log_get_mut::<nav::VelocityTarget>() else { return };
             comp.horiz_speed = target;
         });
     }

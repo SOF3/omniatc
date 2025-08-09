@@ -1,13 +1,10 @@
-use std::any::TypeId;
-
 use bevy::app::{App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Res, ResMut};
+use bevy::ecs::system::ResMut;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
-use bevy_mod_config::{manager, Config};
+use bevy_mod_config::manager;
 
-use crate::util::new_type_id;
 use crate::EguiSystemSets;
 
 pub struct Plug;

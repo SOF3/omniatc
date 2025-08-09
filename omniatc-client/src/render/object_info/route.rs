@@ -8,7 +8,7 @@ use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, taxi};
-use omniatc::{try_log, try_log_return};
+use omniatc::QueryTryLog;
 
 use super::{dir, Writer};
 use crate::input;
@@ -85,16 +85,8 @@ fn write_route_options(
         Retain,
     }
 
-    let presets: Vec<_> = presets
-        .iter()
-        .filter_map(|entity| {
-            Some(try_log!(
-                preset_query.get(entity),
-                expect "WaypointPresetList member {entity:?} should be a preset entity"
-                or return None
-            ))
-        })
-        .collect();
+    let presets: Vec<_> =
+        presets.iter().filter_map(|entity| preset_query.log_get(entity)).collect();
 
     if current_route_id.is_none() && presets.is_empty() {
         return;
@@ -168,11 +160,7 @@ fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRou
             let label_strs = options
                 .iter()
                 .filter_map(|&segment| {
-                    let label = try_log!(
-                        params.segment_query.get(segment),
-                        expect "taxi target must reference valid labeled segment {segment:?}"
-                        or return None
-                    );
+                    let label = params.segment_query.log_get(segment)?;
                     Some(dir::display_segment_label(label, &params.waypoint_query))
                 })
                 .join(" or ");
@@ -194,7 +182,7 @@ fn write_route_node(
             }
         }
         route::Node::DirectWaypoint(node) => {
-            let waypoint = try_log_return!(params.waypoint_query.get(node.waypoint), expect "route must reference valid waypoint {:?}", node.waypoint);
+            let Some(waypoint) = params.waypoint_query.log_get(node.waypoint) else { return };
             match node.proximity {
                 route::WaypointProximity::FlyBy => ui.label(format!("Fly by {}", &waypoint.name)),
                 route::WaypointProximity::FlyOver => {
@@ -229,18 +217,18 @@ fn write_route_node(
             }
         }
         route::Node::AlignRunway(node) => {
-            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
-            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
+            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
             ui.label(format!("Align with ILS {} of {}", &waypoint.name, &aerodrome.name));
         }
         route::Node::ShortFinal(node) => {
-            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
-            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
+            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
             ui.label(format!("Short final to ILS {} of {}", &waypoint.name, &aerodrome.name));
         }
         route::Node::VisualLanding(node) => {
-            let (runway, waypoint) = try_log_return!(params.runway_query.get(node.runway), expect "route must reference valid runway {:?}", node.runway);
-            let aerodrome = try_log_return!(params.aerodrome_query.get(runway.aerodrome), expect "runway must reference valid aerodrome {:?}", runway.aerodrome);
+            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
+            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
             ui.label(format!(
                 "Visual short final to runway {} of {}",
                 &waypoint.name, &aerodrome.name

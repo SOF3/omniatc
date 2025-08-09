@@ -8,7 +8,6 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::{self, With};
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, ParamSet, Query, Res};
 use bevy::render::view::Visibility;

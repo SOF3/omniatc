@@ -2,7 +2,6 @@ use bevy::app::{self, App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, ParamSet, Query};
 use bevy::render::view::Visibility;
@@ -12,7 +11,7 @@ use math::{Length, LengthUnit};
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::try_log;
+use omniatc::QueryTryLog;
 use ordered_float::OrderedFloat;
 
 use crate::{render, ConfigManager};
@@ -56,11 +55,15 @@ fn update_system(
     mut params: ParamSet<(localizer::UpdateParam, strip::UpdateParam, glide_point::UpdateParam)>,
 ) {
     for (entity, waypoint, runway, navaids, localizer, strip, glide_point) in runway_query {
-        let localizer_length = navaids.navaids().iter().filter_map(|&navaid| {
-            let navaid = try_log!(navaid_query.get(navaid), expect "navaid referenced from runway must be a navaid" or return None);
-            Some(navaid.max_dist_horizontal)
-        }).max_by_key(|&f| OrderedFloat(f.0))
-        .unwrap_or_else(|| {
+        let localizer_length = navaids
+            .navaids()
+            .iter()
+            .filter_map(|&navaid| {
+                let navaid = navaid_query.log_get(navaid)?;
+                Some(navaid.max_dist_horizontal)
+            })
+            .max_by_key(|&f| OrderedFloat(f.0))
+            .unwrap_or_else(|| {
                 bevy::log::warn!("Every runway must have visual navaid");
                 Length::from_nm(1.0)
             });

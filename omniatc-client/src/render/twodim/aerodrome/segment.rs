@@ -1,5 +1,4 @@
 use bevy::asset::Handle;
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -7,13 +6,13 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, ParamSet, Query, Res, Single, SystemParam};
 use bevy::math::Vec2;
-use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d};
+use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::text::Text2d;
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_mod_config::{self, ReadConfig};
 use math::{Length, Position};
 use omniatc::level::ground;
-use omniatc::try_log_return;
+use omniatc::{try_log_return, QueryTryLog};
 
 use super::{vis, Conf, SegmentTypeConfRead};
 use crate::render::twodim::{camera, Zorder};
@@ -60,10 +59,11 @@ impl RegenerateParam<'_, '_> {
     fn regenerate(&mut self, segment_entity: Entity) {
         let conf = self.conf.read();
 
-        let (segment, segment_label, has_segment, has_segment_label) = try_log_return!(
-            self.segment_query.get(segment_entity),
-            expect "{segment_entity:?} is not a segment entity"
-        );
+        let Some((segment, segment_label, has_segment, has_segment_label)) =
+            self.segment_query.log_get(segment_entity)
+        else {
+            return;
+        };
 
         let [alpha, beta] = try_log_return!(
             self.endpoint_query.get_many([segment.alpha, segment.beta]),
@@ -75,7 +75,9 @@ impl RegenerateParam<'_, '_> {
 
         if let Some(&HasViewable(viewable_entity)) = has_segment {
             let mut viewable_query = self.viewable_label_queries.p0();
-            let (mut tf, mut thickness) = try_log_return!(viewable_query.get_mut(viewable_entity), expect "HasViewable must reference valid viewable {viewable_entity:?}");
+            let Some((mut tf, mut thickness)) = viewable_query.log_get_mut(viewable_entity) else {
+                return;
+            };
             shapes::set_square_line_transform_relative(&mut tf, alpha_trimmed.0, beta_trimmed.0);
             thickness.0 = conf.segment_thickness;
         } else {
@@ -105,7 +107,7 @@ impl RegenerateParam<'_, '_> {
 
         if let Some(&HasLabel(label_entity)) = has_segment_label {
             let mut label_query = self.viewable_label_queries.p1();
-            let mut tf = try_log_return!(label_query.get_mut(label_entity), expect "HasLabel must reference valid label {label_entity:?}");
+            let Some(mut tf) = label_query.log_get_mut(label_entity) else { return };
             shapes::set_square_line_transform_relative(&mut tf, alpha_trimmed.0, beta_trimmed.0);
         } else {
             match segment_label {

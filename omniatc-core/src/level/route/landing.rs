@@ -12,7 +12,7 @@ use crate::level::object::{self, Object};
 use crate::level::runway::{self, Runway};
 use crate::level::waypoint::Waypoint;
 use crate::level::{ground, message, nav, navaid, taxi};
-use crate::{try_log, try_log_return};
+use crate::{try_log, EntityMutTryLog, EntityTryLog, WorldTryLog};
 
 /// [Activation range](nav::TargetAlignment::activation_range) for `AlignRunway` nodes.
 ///
@@ -30,18 +30,8 @@ const MAX_TRACK_DEVIATION: Angle = Angle::from_degrees(15.0);
 fn align_runway(object: &mut EntityWorldMut, runway: Entity, expedite: bool) -> Result<(), ()> {
     let Some((glide_descent, localizer_waypoint)) = object.world_scope(|world| {
         Some((
-            try_log!(
-                world.get::<Runway>(runway),
-                expect "AlignRunwayNode references non-runway entity {runway:?}"
-                or return None
-            )
-            .glide_descent,
-            try_log!(
-                world.get::<runway::LocalizerWaypointRef>(runway),
-                expect "Runway {runway:?} has no LocalizerWaypointRef"
-                or return None
-            )
-            .localizer_waypoint,
+            world.log_get::<Runway>(runway)?.glide_descent,
+            world.log_get::<runway::LocalizerWaypointRef>(runway)?.localizer_waypoint,
         ))
     }) else {
         return Err(());
@@ -89,11 +79,11 @@ pub struct AlignRunwayNode {
 
 impl NodeKind for AlignRunwayNode {
     fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
-        let &Waypoint { position: runway_position, .. } = try_log!(
-            world.get::<Waypoint>(self.runway),
-            expect "Runway {:?} must have a corresponding waypoint" (self.runway)
-            or return RunNodeResult::PendingTrigger
-        );
+        let Some(&Waypoint { position: runway_position, .. }) =
+            world.log_get::<Waypoint>(self.runway)
+        else {
+            return RunNodeResult::PendingTrigger;
+        };
 
         let mut object = world.entity_mut(entity);
         if align_runway(&mut object, self.runway, self.expedite).is_err() {
@@ -101,11 +91,9 @@ impl NodeKind for AlignRunwayNode {
         }
 
         let position = object.get::<Object>().expect("entity must be an Object").position;
-        let limits = try_log!(
-            object.get::<nav::Limits>(),
-            expect "Landing aircraft must have nav limits"
-            or return RunNodeResult::PendingTrigger
-        );
+        let Some(limits) = object.log_get::<nav::Limits>() else {
+            return RunNodeResult::PendingTrigger;
+        };
         let dist = position.horizontal_distance_exact(runway_position);
         if dist < limits.short_final_dist {
             RunNodeResult::NodeDone
@@ -153,7 +141,7 @@ impl NodeKind for ShortFinalNode {
             has_visual: &mut bool,
             has_ils: &mut bool,
         ) {
-            let owner = try_log_return!(world.get::<navaid::OwnerWaypoint>(navaid), expect "navaid must have an owner waypoint");
+            let Some(owner) = world.log_get::<navaid::OwnerWaypoint>(navaid) else { return };
             if owner.0 == runway {
                 if world.entity(navaid).contains::<navaid::Visual>() {
                     *has_visual = true;
@@ -169,17 +157,13 @@ impl NodeKind for ShortFinalNode {
             return RunNodeResult::PendingTrigger;
         }
 
-        let &nav::Limits { short_final_speed, .. } = try_log!(
-            object.get(),
-            expect "Landing aircraft must have nav limits"
-            or return RunNodeResult::PendingTrigger
-        );
+        let Some(&nav::Limits { short_final_speed, .. }) = object.log_get() else {
+            return RunNodeResult::PendingTrigger;
+        };
 
-        let mut vel_target = try_log!(
-            object.get_mut::<nav::VelocityTarget>(),
-            expect "Landing aircraft must have navigation target"
-            or return RunNodeResult::PendingTrigger
-        );
+        let Some(mut vel_target) = object.log_get_mut::<nav::VelocityTarget>() else {
+            return RunNodeResult::PendingTrigger;
+        };
         vel_target.horiz_speed = short_final_speed;
 
         let navaids =
@@ -307,23 +291,9 @@ fn set_landed(object: &mut EntityWorldMut, runway_entity: Entity) -> Result<(), 
         .iter()
         .copied()
         .filter_map(|segment_id| {
-            let segment = try_log!(
-                object.world().get::<ground::Segment>(segment_id),
-                expect "runway must reference valid segment {segment_id:?}"
-                or return None
-            );
-            let alpha_pos = try_log!(
-                object.world().get::<ground::Endpoint>(segment.alpha),
-                expect "segment must reference valid endpoint {:?}" (segment.alpha)
-                or return None
-            )
-            .position;
-            let beta_pos = try_log!(
-                object.world().get::<ground::Endpoint>(segment.beta),
-                expect "segment must reference valid endpoint {:?}" (segment.beta)
-                or return None
-            )
-            .position;
+            let segment = object.world().log_get::<ground::Segment>(segment_id)?;
+            let alpha_pos = object.world().log_get::<ground::Endpoint>(segment.alpha)?.position;
+            let beta_pos = object.world().log_get::<ground::Endpoint>(segment.beta)?.position;
             Some((segment_id, segment, alpha_pos, beta_pos))
         })
         .find(|&(_, segment, alpha, beta)| {
@@ -368,16 +338,11 @@ fn find_landing_state(
     let &Object { position: object_position, ground_speed } =
         object.get().expect("entity must be an Object");
     let limits = object.get::<taxi::Limits>().expect("entity must be a navigatable object").clone();
-    let &Waypoint { position: runway_position, .. } = try_log!(
-        runway.get(), expect "runway must be a waypoint" or return Err(None)
-    );
-    let &Runway { landing_length, width: runway_width, .. } = try_log!(
-        runway.get(), expect "runway must be valid" or return Err(None)
-    );
-    let runway_condition = try_log!(
-        runway.get::<runway::Condition>(), expect "runway must have condition" or return Err(None)
-    )
-    .clone();
+    let Some(&Waypoint { position: runway_position, .. }) = runway.get() else { return Err(None) };
+    let Some(&Runway { landing_length, width: runway_width, .. }) = runway.get() else {
+        return Err(None);
+    };
+    let Some(runway_condition) = runway.log_get::<runway::Condition>() else { return Err(None) };
 
     let runway_dir = try_log!(
         Dir2::new(landing_length.0),
@@ -410,7 +375,7 @@ fn find_landing_state(
         let remaining_runway_dist = projected_threshold_dist + landing_length.magnitude_exact();
 
         let required_landing_dist =
-            get_required_landing_dist(&limits, &runway_condition, ground_speed.horizontal());
+            get_required_landing_dist(&limits, runway_condition, ground_speed.horizontal());
 
         if remaining_runway_dist < required_landing_dist {
             return Err(Some(if projected_threshold_dist.is_positive() {

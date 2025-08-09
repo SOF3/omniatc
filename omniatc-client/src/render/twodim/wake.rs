@@ -3,12 +3,10 @@ use std::mem;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::Assets;
 use bevy::color::{Alpha, Color};
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without};
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single, SystemParam};
 use bevy::math::Vec2;
@@ -18,7 +16,7 @@ use bevy_mod_config::{self, AppExt, Config, ReadConfig};
 use itertools::Itertools;
 use math::Length;
 use omniatc::level::wake;
-use omniatc::try_log;
+use omniatc::{try_log, QueryTryLog};
 use smallvec::SmallVec;
 
 use super::Zorder;
@@ -122,7 +120,7 @@ fn update_system(
     let conf = conf.read();
 
     for (&IsSpriteOf(vortex_entity), MeshMaterial2d(handle)) in sprite_query {
-        let vortex = try_log!(vortex_query.get(vortex_entity), expect "parent vortex of sprite must exist" or continue);
+        let Some(vortex) = vortex_query.log_get(vortex_entity) else { continue };
         let material = try_log!(materials.get_mut(handle), expect "material referenced by strong handle must exist" or continue);
         material.color = conf.color_for_intensity(vortex.intensity);
     }

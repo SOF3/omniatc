@@ -7,8 +7,12 @@
 #![cfg_attr(feature = "rust-analyzer", warn(warnings, clippy::pedantic, clippy::dbg_macro))] // TODO remove this in the future
 #![cfg_attr(feature = "rust-analyzer", allow(unused_imports))] // TODO remove this in the future
 
-pub mod util;
-
 pub mod level;
 pub mod pid;
 pub mod store;
+pub mod try_log;
+pub use try_log::{
+    EntityRefExt as EntityTryLog, EntityWorldMutExt as EntityMutTryLog, QueryExt as QueryTryLog,
+    WorldExt as WorldTryLog,
+};
+pub mod util;

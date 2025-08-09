@@ -4,7 +4,7 @@ use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use bevy_mod_config::impl_scalar_config_field;
 
 use super::Length;
-use crate::{AsSqrt, DtZero, LengthUnit, PowOne, QuantityTrait, Squared, SEA_ALTITUDE};
+use crate::{AsSqrt, DtZero, LengthUnit, PowOne, Squared, SEA_ALTITUDE};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
 pub struct Position<T>(pub Length<T>);

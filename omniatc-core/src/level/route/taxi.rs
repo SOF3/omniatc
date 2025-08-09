@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 
 use super::{trigger, Node, NodeKind, Route, RunNodeResult};
 use crate::level::{ground, message, object, taxi};
-use crate::try_log;
+use crate::{try_log, EntityTryLog, WorldTryLog};
 
 #[derive(Clone)]
 pub struct TaxiNode {
@@ -82,23 +82,11 @@ impl NodeKind for TaxiNode {
 }
 
 fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetAction> {
-    let ground = try_log!(
-        object.get::<object::OnGround>(),
-        expect "taxi node must be used on ground objects" or return None
-    );
-    let segment = try_log!(
-        world.get::<ground::Segment>(ground.segment),
-        expect "object::OnGround must refer to a valid segment" or return None
-    );
-    let segment_label = try_log!(
-        world.get::<ground::SegmentLabel>(ground.segment),
-        expect "object::OnGround must refer to a valid labeled segment" or return None
-    );
+    let ground = object.log_get::<object::OnGround>()?;
+    let segment = world.log_get::<ground::Segment>(ground.segment)?;
+    let segment_label = world.log_get::<ground::SegmentLabel>(ground.segment)?;
     let (_, target_endpoint_id) = segment.by_direction(ground.direction);
-    let target_endpoint = try_log!(
-        world.get::<ground::Endpoint>(target_endpoint_id),
-        expect "segment must refer to a valid endpoint" or return None
-    );
+    let target_endpoint = world.log_get::<ground::Endpoint>(target_endpoint_id)?;
 
     let route =
         object.get::<Route>().expect("run_as_current_node must be called from a route handler");
@@ -183,28 +171,14 @@ fn pathfind_min_distance_segments(
     let mut visited_endpoints = EntityHashMap::new();
 
     {
-        let initial_segment = try_log!(
-            world.get::<ground::Segment>(initial_segment_id),
-            expect "initial segment must be a valid segment" or return None
-        );
+        let initial_segment = world.log_get::<ground::Segment>(initial_segment_id)?;
 
-        let initial_segment_label = try_log!(
-            world.get::<ground::SegmentLabel>(initial_segment_id),
-            expect "initial segment must be a valid labeled segment" or return None
-        );
+        let initial_segment_label = world.get::<ground::SegmentLabel>(initial_segment_id)?;
 
-        let initial_source_endpoint = try_log!(
-            world.get::<ground::Endpoint>(initial_source_endpoint_id),
-            expect "initial source endpoint must be a valid endpoint" or return None
-        );
-        let initial_dest_endpoint_id = try_log!(
-            initial_segment.other_endpoint(initial_source_endpoint_id),
-            expect "initial_segment_id should contain initial_source_endpoint_id as one endpoint" or return None
-        );
-        let initial_dest_endpoint = try_log!(
-            world.get::<ground::Endpoint>(initial_dest_endpoint_id),
-            expect "initial destination endpoint must be a valid endpoint" or return None
-        );
+        let initial_source_endpoint = world.get::<ground::Endpoint>(initial_source_endpoint_id)?;
+        let initial_dest_endpoint_id =
+            initial_segment.other_endpoint(initial_source_endpoint_id)?;
+        let initial_dest_endpoint = world.get::<ground::Endpoint>(initial_dest_endpoint_id)?;
         let distance =
             initial_source_endpoint.position.distance_exact(initial_dest_endpoint.position);
 
@@ -281,10 +255,10 @@ fn pathfind_min_distance_segments(
                 continue;
             }
 
-            let adj_segment_label = try_log!(
-                world.get::<ground::SegmentLabel>(adj_segment_id),
-                expect "segment adjacency must refer to a valid labeled segment" or continue
-            );
+            let Some(adj_segment_label) = world.log_get::<ground::SegmentLabel>(adj_segment_id)
+            else {
+                continue;
+            };
             let (next_label_sets_index, alt_index) =
                 if adj_segment_label == source_info.entry_segment_label {
                     (source_info.entry_next_label_sets_index, None)
@@ -296,18 +270,17 @@ fn pathfind_min_distance_segments(
                     continue; // cannot use this segment
                 };
 
-            let adj_segment = try_log!(
-                world.get::<ground::Segment>(adj_segment_id),
-                expect "segment adjacency must refer to a valid segment" or continue
-            );
+            let Some(adj_segment) = world.log_get::<ground::Segment>(adj_segment_id) else {
+                continue;
+            };
             let adj_dest_endpoint_id = try_log!(
                 adj_segment.other_endpoint(source_endpoint_id),
                 expect "segment adjacency must contain source endpoint as one endpoint" or continue
             );
-            let adj_dest_endpoint = try_log!(
-                world.get::<ground::Endpoint>(adj_dest_endpoint_id),
-                expect "segment adjacency must refer to a valid endpoint" or continue
-            );
+            let Some(adj_dest_endpoint) = world.log_get::<ground::Endpoint>(adj_dest_endpoint_id)
+            else {
+                continue;
+            };
             let distance = source_endpoint.position.distance_exact(adj_dest_endpoint.position);
 
             let mut alts = source_info.cost.alts.clone();

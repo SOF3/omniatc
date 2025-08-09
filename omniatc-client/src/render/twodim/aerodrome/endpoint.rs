@@ -1,4 +1,3 @@
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
@@ -13,7 +12,7 @@ use itertools::Itertools;
 use math::{Angle, Length, Position};
 use omniatc::level::ground;
 use omniatc::util::manage_entity_vec;
-use omniatc::{try_log, try_log_return};
+use omniatc::{try_log, QueryTryLog};
 
 use super::{vis, Conf};
 use crate::render::twodim::{camera, Zorder};
@@ -47,30 +46,27 @@ pub(super) struct RegenerateParam<'w, 's> {
 
 impl RegenerateParam<'_, '_> {
     fn regenerate(&mut self, endpoint_entity: Entity) {
-        let (&ground::Endpoint { position: intersect, ref adjacency }, curves) = try_log_return!(
-            self.endpoint_query.get(endpoint_entity),
-            expect "{endpoint_entity:?} is not a endpoint entity"
-        );
+        let Some((&ground::Endpoint { position: intersect, ref adjacency }, curves)) =
+            self.endpoint_query.log_get(endpoint_entity)
+        else {
+            return;
+        };
 
         let conf = self.conf.read();
 
         let all_curve_parts = adjacency.iter().array_combinations().filter_map(|segment_pair| {
             let [Some(other_pos1), Some(other_pos2)] = segment_pair.map(|&segment_entity| {
-                let segment = try_log!(
-                    self.segment_query.get(segment_entity),
-                    expect "endpoint adjacency list must contain segment entity: {segment_entity:?}"
-                    or return None
-                );
+                let segment =
+                    self.segment_query.log_get(segment_entity)?
+                ;
                 let other_endpoint = try_log!(
                     segment.other_endpoint(endpoint_entity),
                     expect "segment {segment_entity:?} is an adjacency of {endpoint_entity:?} and must reference it back"
                     or return None
                 );
-                let &ground::Endpoint{position:other_position,..} = try_log!(
-                    self.endpoint_peer_query.get(other_endpoint),
-                    expect "segment endpoint {other_endpoint:?} must be another endpoint entity"
-                    or return None
-                );
+                let &ground::Endpoint{position:other_position,..} =
+                    self.endpoint_peer_query.log_get(other_endpoint)?
+                ;
                 Some(other_position)
             }) else { return None };
 
@@ -104,11 +100,9 @@ impl RegenerateParam<'_, '_> {
             |_, (curve_query, curve_parts), curve_entity| {
                 let Some((start, end)) = curve_parts.next() else { return Err(()) };
 
-                let mut curve_tf = try_log!(
-                    curve_query.get_mut(curve_entity),
-                    expect "TurnCurveList must contain valid TurnCurveOf members"
-                    or return Err(())
-                );
+                let Some(mut curve_tf) = curve_query.log_get_mut(curve_entity) else {
+                    return Err(());
+                };
 
                 shapes::set_square_line_transform(&mut curve_tf, start, end);
                 Ok(())

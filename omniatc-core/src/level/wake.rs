@@ -33,8 +33,8 @@ use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
 use super::{object, wind, SystemSets};
-use crate::try_log;
 use crate::util::RateLimit;
+use crate::QueryTryLog;
 
 const GRID_SIZE: Length<Vec3> =
     Length::from_nm(0.25).splat2().with_vertical(Length::from_feet(500.));
@@ -190,13 +190,7 @@ impl VortexIndex {
         cuboid_around(center_key)
             .filter_map(|key| self.index.get(&key))
             .flatten()
-            .filter_map(|&entity| {
-                Some(try_log!(
-                    vortex_query.get(entity),
-                    expect "entity in index must be valid vortex entity"
-                    or return None
-                ))
-            })
+            .filter_map(|&entity| vortex_query.log_get(entity))
             .filter(|vortex| vortex.source != exclude)
             .map(|vortex| vortex.intensity)
             .max()

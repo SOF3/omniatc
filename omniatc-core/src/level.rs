@@ -1,11 +1,10 @@
 //! Gameplay simulation.
 
 use std::marker::PhantomData;
-use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::prelude::{Resource, SystemSet};
+use bevy::prelude::SystemSet;
 use bevy_mod_config::{ConfigFieldFor, Manager};
 use itertools::Itertools;
 use strum::IntoEnumIterator;

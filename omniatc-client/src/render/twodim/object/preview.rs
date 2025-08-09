@@ -1,4 +1,3 @@
-use std::f32::consts::FRAC_PI_8;
 use std::mem;
 
 use bevy::app::{self, App, Plugin};
@@ -22,8 +21,8 @@ use omniatc::level::object::Object;
 use omniatc::level::route::{self, Route};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{nav, plane};
-use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
+use omniatc::QueryTryLog;
 
 use super::{Conf, SetColorThemeSystemSet};
 use crate::render;
@@ -171,11 +170,8 @@ impl DrawCurrent<'_, '_> {
 
         match target.target {
             Target::Waypoint(waypoint_entity) => {
-                let &Waypoint { position: waypoint_pos, .. } = try_log!(
-                    self.waypoint_query.get(waypoint_entity),
-                    expect "nav::TargetWaypoint must reference valid waypoint"
-                    or return None
-                );
+                let &Waypoint { position: waypoint_pos, .. } =
+                    self.waypoint_query.log_get(waypoint_entity)?;
                 let waypoint_pos = waypoint_pos.horizontal();
 
                 let direct_heading = (waypoint_pos - curr_pos).heading();
@@ -436,11 +432,7 @@ impl DrawPresets<'_, '_> {
         let mut viewables = self.viewable_query.iter_mut();
 
         for preset_id in presets.iter() {
-            let preset = try_log!(
-                self.preset_query.get(preset_id),
-                expect "waypoint presets references invalid preset {preset_id:?}"
-                or continue
-            );
+            let Some(preset) = self.preset_query.log_get(preset_id) else { continue };
             self.draw_once.draw_route::<PresetViewable>(
                 preset.nodes.iter(),
                 material,
@@ -475,19 +467,13 @@ impl DrawOnce<'_, '_> {
         for node in nodes {
             match node {
                 route::Node::DirectWaypoint(node) => {
-                    let waypoint = try_log!(
-                        self.waypoint_query.get(node.waypoint),
-                        expect "planned waypoint {:?} does not exist" (node.waypoint)
-                        or continue
-                    );
+                    let Some(waypoint) = self.waypoint_query.log_get(node.waypoint) else {
+                        continue;
+                    };
                     positions.push(waypoint.position.horizontal());
                 }
                 route::Node::AlignRunway(node) => {
-                    let waypoint = try_log!(
-                        self.waypoint_query.get(node.runway),
-                        expect "planned runway {:?} does not exist" (node.runway)
-                        or continue
-                    );
+                    let Some(waypoint) = self.waypoint_query.log_get(node.runway) else { continue };
                     positions.push(waypoint.position.horizontal());
                 }
                 _ => {}

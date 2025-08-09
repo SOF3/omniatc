@@ -13,8 +13,6 @@
 
 use std::{cmp, fmt, iter, ops};
 
-use bevy_math::{Dir2, Vec2};
-
 mod units;
 pub use units::*;
 

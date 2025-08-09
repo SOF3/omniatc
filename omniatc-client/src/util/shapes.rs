@@ -1,6 +1,5 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle};
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;

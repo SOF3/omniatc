@@ -1,9 +1,9 @@
+use std::cmp;
 use std::marker::PhantomData;
-use std::{cmp, ops};
 
 use ordered_float::OrderedFloat;
 
-use super::{Accel, Length, Quantity, Speed};
+use super::Quantity;
 use crate::LengthBase;
 
 /// A wrapper type for squared distance,

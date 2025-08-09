@@ -12,8 +12,8 @@ use bevy::transform::components::Transform;
 use bevy_mod_config::ReadConfig;
 use math::Length;
 use omniatc::level::object::Object;
-use omniatc::try_log;
 use omniatc::util::EnumScheduleConfig;
+use omniatc::QueryTryLog;
 
 use super::{ColorTheme, Conf, SetColorThemeSystemSet};
 use crate::render;
@@ -67,7 +67,7 @@ fn maintain_color_system(
     mut material_assets: ResMut<Assets<ColorMaterial>>,
 ) {
     for (color, &HasVector(vector_entity)) in object_query {
-        let material_handle = try_log!(vector_query.get(vector_entity), expect "HasVector must reference valid vector viewable" or continue);
+        let Some(material_handle) = vector_query.log_get(vector_entity) else { continue };
         let material = material_assets
             .get_mut(&material_handle.0)
             .expect("asset from strong handle must exist");
@@ -84,7 +84,7 @@ fn maintain_length_system(
 
     for (object, &HasVector(vector_entity)) in object_query {
         let vector_dist = object.ground_speed.horizontal() * conf.vector.lookahead_time;
-        let mut transform = try_log!(vector_query.get_mut(vector_entity), expect "HasVector must reference valid vector viewable" or continue);
+        let Some(mut transform) = vector_query.log_get_mut(vector_entity) else { continue };
         shapes::set_square_line_transform_relative(&mut transform, Length::ZERO, vector_dist);
     }
 }

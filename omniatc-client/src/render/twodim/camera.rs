@@ -6,7 +6,6 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
-use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
 use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
@@ -19,7 +18,7 @@ use bevy::window::Window;
 use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
-use omniatc::{store, try_log_return};
+use omniatc::{store, QueryTryLog};
 use serde::{Deserialize, Serialize};
 
 use crate::{input, ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
@@ -171,11 +170,15 @@ fn fit_layout_system(
         start_pos = rem_rect.0;
         end_pos = rem_rect.1;
 
-        bevy::log::info!("margins: {margins:?}, start_pos: {start_pos:?}, end_pos: {end_pos:?}, my_rect: {my_rect:?}");
+        bevy::log::info!(
+            "margins: {margins:?}, start_pos: {start_pos:?}, end_pos: {end_pos:?}, my_rect: \
+             {my_rect:?}"
+        );
         let my_start = UVec2::new(my_rect.0.x as u32, my_rect.0.y as u32);
         camera.viewport = Some(Viewport {
             physical_position: my_start,
-            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32) .saturating_sub (my_start),
+            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32)
+                .saturating_sub(my_start),
             depth:             0.0..1.0,
         });
         camera.order = layout.order.try_into().expect("layout order out of bounds");
@@ -240,10 +243,9 @@ fn drag_camera_system(
         return;
     }
 
-    let (mut camera_tf, camera, global_tf) = try_log_return!(
-        camera_query.get_mut(camera_entity),
-        expect "invalid camera entity"
-    );
+    let Some((mut camera_tf, camera, global_tf)) = camera_query.log_get_mut(camera_entity) else {
+        return;
+    };
 
     let Some(viewport_rect) = camera.logical_viewport_rect() else { return };
     let viewport_pos = cursor_pos - viewport_rect.min;

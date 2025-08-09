@@ -12,8 +12,8 @@ use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
 use bevy_mod_config::ReadConfig;
 use omniatc::level::object;
-use omniatc::try_log;
 use omniatc::util::{manage_entity_vec, EnumScheduleConfig};
+use omniatc::QueryTryLog;
 
 use super::{Conf, SetColorThemeSystemSet};
 use crate::render;
@@ -90,11 +90,9 @@ fn respawn_system(
             |_, (point_data, material_assets), point_entity| {
                 let (translation, color) = point_data.next().ok_or(())?;
 
-                let (mut tf, material_ref) = try_log!(
-                    point_query.get_mut(point_entity),
-                    expect "PointList must contain valid IsPointOf members"
-                    or return Err(())
-                );
+                let Some((mut tf, material_ref)) = point_query.log_get_mut(point_entity) else {
+                    return Err(());
+                };
 
                 tf.translation = translation;
                 material_assets

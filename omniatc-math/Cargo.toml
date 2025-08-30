@@ -22,6 +22,7 @@ bevy_ecs = "0.16.1"
 bevy_math.workspace = true
 bevy_mod_config = { workspace = true, features = ["serde_json"] }
 egui = { version = "0.31.1", optional = true }
+num-traits = "0.2.19"
 ordered-float = "5.0.0"
 paste = "1.0.15"
 serde = { workspace = true, features = ["derive"] }

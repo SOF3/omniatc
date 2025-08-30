@@ -236,19 +236,15 @@ fn write_route_node(
         }
         route::Node::Taxi(node) => {
             if node.hold_short {
-                let label_strs = node
-                    .labels
-                    .iter()
-                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
-                    .join(" or ");
-                ui.label(format!("Hold short at {label_strs}"));
+                ui.label(format!(
+                    "Hold short at {}",
+                    dir::display_segment_label(&node.label, &params.waypoint_query)
+                ));
             } else {
-                let label_strs = node
-                    .labels
-                    .iter()
-                    .map(|label| dir::display_segment_label(label, &params.waypoint_query))
-                    .join(" or ");
-                ui.label(format!("Taxi through {label_strs}"));
+                ui.label(format!(
+                    "Taxi through {}",
+                    dir::display_segment_label(&node.label, &params.waypoint_query)
+                ));
             }
         }
     }

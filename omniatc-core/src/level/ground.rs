@@ -155,6 +155,10 @@ pub enum SegmentLabel {
     Apron { name: String },
 }
 
+impl AsRef<SegmentLabel> for SegmentLabel {
+    fn as_ref(&self) -> &SegmentLabel { self }
+}
+
 impl PartialEq for SegmentLabel {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

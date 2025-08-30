@@ -1,32 +1,26 @@
-use std::collections::BinaryHeap;
-use std::num::NonZeroUsize;
+use std::cell::Cell;
+use std::iter;
 use std::time::Duration;
-use std::{iter, slice};
 
-use bevy::ecs::entity::{Entity, EntityHashMap, EntityHashSet};
+use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Command;
 use bevy::ecs::world::{EntityRef, World};
-use bevy::math::Vec2;
 use itertools::Itertools;
-use math::{Length, Position};
+use math::{Length, Speed};
 use ordered_float::OrderedFloat;
-use smallvec::SmallVec;
+use pathfinding::prelude::dijkstra;
 
 use super::{trigger, Node, NodeKind, Route, RunNodeResult};
 use crate::level::{ground, message, object, taxi};
-use crate::{try_log, EntityTryLog, WorldTryLog};
+use crate::{EntityTryLog, WorldTryLog};
 
 #[derive(Clone)]
 pub struct TaxiNode {
-    /// Taxi to the first segment with one of these labels.
-    /// If there is no subsequent `TaxiNode` in the route,
-    /// the object would hold short at the first intersection after entry.
+    /// Taxi through `label`.
     ///
-    /// When there are multiple labels,
-    /// the highest priority path is the shortest path through the first candidate segment
-    /// of each subsequent contiguous `TaxiNode` in the route that reaches the last one.
-    /// The second segment is only used when no path through the first segment is reachable.
-    pub labels:     SmallVec<[ground::SegmentLabel; 1]>,
+    /// When multiple contiguous `TaxiNode`s are planned,
+    /// the shortest possible path satisfying all labels is used.
+    pub label:      ground::SegmentLabel,
     /// If `true`, the object will no enter the intersection reaching the segments in this node.
     /// If `false`, the object will enter the intersection and taxi to the first segment matching
     /// this node.
@@ -82,6 +76,7 @@ impl NodeKind for TaxiNode {
 }
 
 fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetAction> {
+    let taxi_limits = object.log_get::<taxi::Limits>()?;
     let ground = object.log_get::<object::OnGround>()?;
     let segment = world.log_get::<ground::Segment>(ground.segment)?;
     let segment_label = world.log_get::<ground::SegmentLabel>(ground.segment)?;
@@ -91,7 +86,7 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
     let route =
         object.get::<Route>().expect("run_as_current_node must be called from a route handler");
     let mut hold_short = false;
-    let next_label_sets: Vec<_> = iter::once(slice::from_ref(segment_label))
+    let subseq_labels: Vec<_> = iter::once(segment_label)
         .chain(
             route
                 .iter()
@@ -99,17 +94,17 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
                 .while_some()
                 .map(|node| {
                     hold_short = node.hold_short;
-                    &node.labels[..]
+                    &node.label
                 }),
         )
         .collect();
     assert!(
-        next_label_sets.len() >= 2,
-        "next_label_sets is a chain of [segment_label] and route nodes containing at least the \
+        subseq_labels.len() >= 2,
+        "subseq_labels is a chain of segment_label and route nodes containing at least the \
          current executing TaxiNode"
     );
 
-    if next_label_sets[1].contains(segment_label) {
+    if subseq_labels[1] == segment_label {
         // The current node requests the current segment label,
         // so this node is already completed.
         return None;
@@ -120,237 +115,199 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
         .iter()
         .copied()
         .filter(|&next_segment| next_segment != ground.segment)
-        .filter_map(|next_segment| {
-            pathfind_min_distance_segments(
+        .filter_map(|next_segment_id| {
+            let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
+            let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
+
+            pathfind_through_subseq(
                 world,
-                target_endpoint_id,
-                next_segment,
-                &next_label_sets,
-                hold_short,
+                next_segment_id,
+                next_endpoint_id,
+                &subseq_labels,
+                if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
+                PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
             )
-            .map(|cost| (next_segment, cost))
+            .map(|cost| (next_segment_id, cost))
         })
         .collect();
-    next_segments.sort_by_key(|(_, cost)| cost.clone());
+    next_segments.sort_by_key(|(_, cost)| OrderedFloat(cost.cost.0));
 
     Some(taxi::TargetAction::Taxi {
         options: next_segments.into_iter().map(|(segment, _)| segment).collect(),
     })
 }
 
-/// Find the shortest path starting from `initial_source_endpoint_id` through `initial_segment_id`,
-/// passing through one or more segments matching each label in `next_label_sets` in order.
+/// Finds the shortest path starting from `initial_segment_id` through `initial_dest_endpoint_id`,
+/// such that `subseq_labels` is an ordered subsequence of the labels of the segments in the path.
 ///
-/// `next_label_sets[0]` must be a singleton slice containing the label of the previous segment before
-/// `initial_segment_id`.
-/// `next_label_sets.len()` must be at least 2.
-///
-/// Returns `None` if no valid path can be found through `initial_segment_id`.
-#[expect(clippy::too_many_lines)] // no point in splitting up a pathfinding algorithm
-fn pathfind_min_distance_segments(
+/// Returns `None` if no valid path can be found.
+#[expect(clippy::missing_panics_doc)]
+pub fn pathfind_through_subseq(
     world: &World,
-    initial_source_endpoint_id: Entity,
     initial_segment_id: Entity,
-    next_label_sets: &[&[ground::SegmentLabel]],
-    include_last_segment_cost: bool,
-) -> Option<PathCost> {
-    struct VisitedEndpoint<'a> {
-        /// Position of the visited endpoint.
-        position:                    Position<Vec2>,
-        /// The cost of the path to this endpoint.
-        cost:                        PathCost,
-        /// The segment that entered this endpoint.
-        entry_segment:               Entity,
-        /// The index in `next_label_sets` that the segment entering this endpoint matched.
-        entry_next_label_sets_index: usize,
-        /// The label of the entry segment.
-        entry_segment_label:         &'a ground::SegmentLabel,
-    }
-
-    let mut heap = BinaryHeap::new();
-    let mut visited_endpoints = EntityHashMap::new();
-
-    {
-        let initial_segment = world.log_get::<ground::Segment>(initial_segment_id)?;
-
-        let initial_segment_label = world.get::<ground::SegmentLabel>(initial_segment_id)?;
-
-        let initial_source_endpoint = world.get::<ground::Endpoint>(initial_source_endpoint_id)?;
-        let initial_dest_endpoint_id =
-            initial_segment.other_endpoint(initial_source_endpoint_id)?;
-        let initial_dest_endpoint = world.get::<ground::Endpoint>(initial_dest_endpoint_id)?;
-        let distance =
-            initial_source_endpoint.position.distance_exact(initial_dest_endpoint.position);
-
-        // if label is not one of the first two, this segment is invalid and no path can be found.
-        let (next_label_sets_index, alt) = if next_label_sets[0][0] == *initial_segment_label {
-            (0, 0)
-        } else {
-            if let Some(entry_label_alt) =
-                next_label_sets[1].iter().position(|label| label == initial_segment_label)
-            {
-                (1, entry_label_alt)
-            } else {
-                return None; // no valid path through this segment
+    initial_dest_endpoint_id: Entity,
+    subseq_labels: &[impl AsRef<ground::SegmentLabel>],
+    mode: PathfindMode,
+    options: PathfindOptions,
+) -> Option<Path> {
+    macro_rules! get_or_fail {
+        ($world:ident, $failed:ident, $entity:expr $(, $comp:ty)?) => {
+            match $world.log_get $(::<$comp>)? ($entity) {
+                Some(value) => value,
+                None => {
+                    $failed.set(true);
+                    return None;
+                }
             }
-        };
-        let mut alts = Alts::default();
-        alts.push(next_label_sets_index, alt);
-        let cost = PathCost { alts, distance };
-
-        heap.push((cost.clone(), initial_dest_endpoint_id));
-        visited_endpoints.insert(
-            initial_dest_endpoint_id,
-            VisitedEndpoint {
-                position: initial_dest_endpoint.position,
-                cost,
-                entry_segment: initial_segment_id,
-                entry_next_label_sets_index: next_label_sets_index,
-                entry_segment_label: initial_segment_label,
-            },
-        );
-    }
-
-    let mut exclude_heap = EntityHashSet::new();
-
-    while let Some((cost, source_endpoint_id)) = heap.pop() {
-        if exclude_heap.contains(&source_endpoint_id) {
-            // This endpoint was already visited with a shorter path.
-            continue;
         }
+    }
 
-        let source_info = visited_endpoints
-            .get(&source_endpoint_id)
-            .expect("visited_endpoints must contain endpoints pushed to heap");
-        let Some(&next_label_set) =
-            next_label_sets.get(source_info.entry_next_label_sets_index + 1)
-        else {
-            let mut result = cost;
-            if !include_last_segment_cost {
-                let entry_segment = world
-                    .get::<ground::Segment>(source_info.entry_segment)
-                    .expect("visited segment must be a checked segment");
-                let prev_endpoint_id = entry_segment
-                    .other_endpoint(source_endpoint_id)
-                    .expect("visited endpoint has checked segment consistency");
-                let prev_endpoint = world
-                    .get::<ground::Endpoint>(prev_endpoint_id)
-                    .expect("visited segment must be a checked endpoint");
-                result.distance -= prev_endpoint.position.distance_exact(source_info.position);
+    let failed = &Cell::new(false);
+
+    let successors = |source_endpoint_id: Entity, label_offset: usize| {
+        let source = get_or_fail!(world, failed, source_endpoint_id, ground::Endpoint);
+        let successors = source.adjacency.iter().copied().filter_map(move |segment_id| {
+            if source_endpoint_id == initial_dest_endpoint_id && segment_id != initial_segment_id {
+                // cannot turn back
+                return None;
             }
 
-            // Last label reached.
-            return Some(result);
-        };
-
-        let source_endpoint = world
-            .get::<ground::Endpoint>(source_endpoint_id)
-            .expect("visited endpoint must be a checked endpoint");
-        for &adj_segment_id in &source_endpoint.adjacency {
-            // Reborrow source_info every time since visited_endpoints is inserted
-            // by the end of each iteration.
-            let source_info = visited_endpoints.get(&source_endpoint_id).expect("checked above");
-
-            if adj_segment_id == source_info.entry_segment {
-                continue;
+            let segment = get_or_fail!(world, failed, segment_id, ground::Segment);
+            if source_endpoint_id == initial_dest_endpoint_id {
+                if let Some(current_speed) = options.initial_speed {
+                    if segment.max_speed < current_speed {
+                        return None;
+                    }
+                }
             }
 
-            let Some(adj_segment_label) = world.log_get::<ground::SegmentLabel>(adj_segment_id)
-            else {
-                continue;
-            };
-            let (next_label_sets_index, alt_index) =
-                if adj_segment_label == source_info.entry_segment_label {
-                    (source_info.entry_next_label_sets_index, None)
-                } else if let Some(alt_index) =
-                    next_label_set.iter().position(|l| l == adj_segment_label)
-                {
-                    (source_info.entry_next_label_sets_index + 1, Some(alt_index))
+            if let Some(min_width) = options.min_width {
+                if segment.width < min_width {
+                    return None;
+                }
+            }
+
+            let dest_endpoint_id = segment
+                .other_endpoint(source_endpoint_id)
+                .expect("adjacency segment of enndpoint must contain itself");
+            let dest_endpoint = get_or_fail!(world, failed, dest_endpoint_id, ground::Endpoint);
+            let distance = source.position.distance_exact(dest_endpoint.position);
+            let distance = OrderedFloat(distance.0);
+
+            let label = get_or_fail!(world, failed, segment_id, ground::SegmentLabel);
+            let next_label_offset =
+                if subseq_labels.get(label_offset).map(AsRef::as_ref) == Some(label) {
+                    label_offset + 1
                 } else {
-                    continue; // cannot use this segment
+                    label_offset
                 };
 
-            let Some(adj_segment) = world.log_get::<ground::Segment>(adj_segment_id) else {
-                continue;
-            };
-            let adj_dest_endpoint_id = try_log!(
-                adj_segment.other_endpoint(source_endpoint_id),
-                expect "segment adjacency must contain source endpoint as one endpoint" or continue
-            );
-            let Some(adj_dest_endpoint) = world.log_get::<ground::Endpoint>(adj_dest_endpoint_id)
-            else {
-                continue;
-            };
-            let distance = source_endpoint.position.distance_exact(adj_dest_endpoint.position);
+            Some(((dest_endpoint_id, next_label_offset), distance))
+        });
+        Some(successors)
+    };
 
-            let mut alts = source_info.cost.alts.clone();
-            if let Some(alt_index) = alt_index {
-                alts.push(next_label_sets_index, alt_index);
+    let (nodes, cost) = dijkstra(
+        &(initial_dest_endpoint_id, 0),
+        move |&(endpoint_id, required_labels)| {
+            successors(endpoint_id, required_labels).into_iter().flatten()
+        },
+        |&(endpoint_id, label_offset)| {
+            if failed.get() {
+                return false;
             }
 
-            let cost = PathCost { alts, distance: source_info.cost.distance + distance };
-
-            if let Some(prev_visit) = visited_endpoints.get(&adj_segment_id) {
-                if prev_visit.cost <= cost {
-                    continue;
+            match mode {
+                PathfindMode::SegmentStart => {
+                    if label_offset == subseq_labels.len() - 1 {
+                        let endpoint = world
+                            .get::<ground::Endpoint>(endpoint_id)
+                            .expect("successors only generates checked endpoints");
+                        let last_label =
+                            subseq_labels.last().expect("subseq_labels is non-empty").as_ref();
+                        endpoint.adjacency.iter().any(|&segment_id| {
+                            world.log_get::<ground::SegmentLabel>(segment_id) == Some(last_label)
+                        })
+                    } else {
+                        false
+                    }
                 }
-
-                // We found a shorter path to this endpoint.
-                // Since source_info.cost.distance + distance < prev_visit.cost.distance,
-                // prev_visit must still be in the heap,
-                // so we just insert this endpoint into the exclusion set.
-                exclude_heap.insert(adj_dest_endpoint_id);
+                PathfindMode::SegmentEnd => label_offset == subseq_labels.len(),
+                PathfindMode::Endpoint(dest) => {
+                    label_offset == subseq_labels.len() && dest == endpoint_id
+                }
             }
+        },
+    )?;
 
-            let visit = VisitedEndpoint {
-                position:                    adj_dest_endpoint.position,
-                cost:                        cost.clone(),
-                entry_segment:               adj_segment_id,
-                entry_next_label_sets_index: next_label_sets_index,
-                entry_segment_label:         adj_segment_label,
-            };
-            visited_endpoints.insert(adj_dest_endpoint_id, visit);
-            heap.push((cost, adj_dest_endpoint_id));
-        }
-    }
-
-    // All endpoints have been visited, but no path consuming the last label was found.
-    None
+    Some(Path {
+        endpoints: nodes.into_iter().map(|(endpoint_id, _)| endpoint_id).collect(),
+        cost:      Length::new(cost.0),
+    })
 }
 
-#[derive(Clone)]
-struct PathCost {
-    alts:     Alts,
-    distance: Length<f32>,
+/// Destination mode for [`pathfind_through_subseq`].
+pub enum PathfindMode {
+    /// The path ends at the start of a segment with the last `subseq_labels` label.
+    ///
+    /// The returned path always ends with the last endpoint adjacent to `subseq_labels.last()`,
+    /// but the segment between the last two endpoints is not equal to `subseq_labels.last()`.
+    /// The length of the segment matching `subseq_labels.last()`
+    /// is not considered for selecting the shortest path,
+    /// and is not included in the returned cost.
+    SegmentStart,
+    /// The path ends at the end of a segment with the last `subseq_labels` label.
+    /// However, the path does not traverse to the end of other subsequent segments with the same
+    /// label.
+    ///
+    /// The returned cost includes the length of this last segment.
+    ///
+    /// The returned path always ends with the last two endpoints connected by `subseq_labels.last()`.
+    /// The length of such segment is part of the returned cost,
+    /// which is considered for selecting the shortest path.
+    ///
+    /// This may result in a completely different path than `SegmentStart`.
+    /// For example, consider the following graph:
+    /// ```text
+    /// A --- p(3) --- B
+    /// |              |
+    /// |            r(10)
+    /// |              |
+    /// p(4)           C
+    /// |              |
+    /// |            r(1)
+    /// |              |
+    /// D --- q(4) --- E
+    /// ```
+    ///
+    /// For initial endpoint `A` and subsequence `[p, r]`,
+    /// `SegmentStart` would consider the following paths:
+    /// - `A-B` with cost `3` (`p(3)`)
+    /// - `A-D-E` with cost 8 (`p(4) + q(4)`)
+    ///
+    /// On the other hand, `SegmentEnd` would consider the following paths:
+    /// - `A-D-E-C` with cost `9` (`p(4) + q(4) + r(1)`)
+    /// - `A-B-C` with cost `13` (`p(3) + r(10)`)
+    ///
+    /// Note that `SegmentEnd` does not return `A-B-C-E`/`A-D-E-C-B`
+    /// because the path stops at the first segment with the last label.
+    SegmentEnd,
+    /// The path must end at this endpoint.
+    Endpoint(Entity),
 }
 
-impl PartialEq for PathCost {
-    fn eq(&self, other: &Self) -> bool {
-        self.alts == other.alts && OrderedFloat(self.distance.0) == OrderedFloat(other.distance.0)
-    }
-}
-impl Eq for PathCost {}
-impl Ord for PathCost {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.alts
-            .cmp(&other.alts)
-            .then_with(|| OrderedFloat(self.distance.0).cmp(&OrderedFloat(other.distance.0)))
-    }
-}
-impl PartialOrd for PathCost {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+/// Optional limits for [`pathfind_through_subseq`].
+#[derive(Default)]
+pub struct PathfindOptions {
+    /// - If `Some`, the *first* segment after `initial_dest_endpoint_id`
+    ///   must have a `max_speed` greater than or equal to `current_speed`.
+    ///   This limit is not checked for subsequent segments.
+    pub initial_speed: Option<Speed<f32>>,
+    /// - If `Some`, *all* segments in the path must have a width greater than or equal to `width`.
+    pub min_width:     Option<Length<f32>>,
 }
 
-#[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Alts(SmallVec<[(usize, NonZeroUsize); 1]>);
-
-impl Alts {
-    fn push(&mut self, next_label_sets_index: usize, label_alt: usize) {
-        if let Some(label_alt) = NonZeroUsize::new(label_alt) {
-            let item = (next_label_sets_index, label_alt);
-            if self.0.last() != Some(&item) {
-                self.0.push(item);
-            }
-        }
-    }
+pub struct Path {
+    pub endpoints: Vec<Entity>,
+    pub cost:      Length<f32>,
 }

@@ -79,6 +79,15 @@ where
     fn default() -> Self { Self(T::default(), PhantomData) }
 }
 
+impl<T, Base, Dt, Pow> num_traits::Zero for Quantity<T, Base, Dt, Pow>
+where
+    T: Default + PartialEq + ops::Add<Output = T>,
+{
+    fn zero() -> Self { Self::default() }
+
+    fn is_zero(&self) -> bool { self.0 == T::default() }
+}
+
 impl<T, Base, Dt, Pow> Clone for Quantity<T, Base, Dt, Pow>
 where
     T: Clone,

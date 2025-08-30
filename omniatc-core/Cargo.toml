@@ -33,6 +33,7 @@ serde = { workspace = true, features = ["derive"] }
 smallvec = "1.13.2"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2.0.11"
+pathfinding = "4.14.0"
 
 [dependencies.bevy]
 workspace = true

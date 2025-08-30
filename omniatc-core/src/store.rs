@@ -550,7 +550,7 @@ pub enum RouteNode {
         goaround_preset: Option<String>,
     },
     Taxi {
-        options: Vec<SegmentRef>,
+        segment: SegmentRef,
     },
     HoldShort {
         segment: SegmentRef,

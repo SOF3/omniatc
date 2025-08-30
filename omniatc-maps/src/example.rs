@@ -83,15 +83,8 @@ fn route_retry_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi {
-            options: [
-                store::SegmentRef::Taxiway("A3".into()),
-                store::SegmentRef::Taxiway("A4".into()),
-            ]
-            .into(),
-        },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
     .into()
 }
@@ -132,15 +125,8 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi {
-            options: [
-                store::SegmentRef::Taxiway("B3".into()),
-                store::SegmentRef::Taxiway("B4".into()),
-            ]
-            .into(),
-        },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("B".into())].into() },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("B".into()) },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
     .into()
 }
@@ -181,15 +167,8 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi {
-            options: [
-                store::SegmentRef::Taxiway("A3".into()),
-                store::SegmentRef::Taxiway("A4".into()),
-            ]
-            .into(),
-        },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
     .into()
 }
@@ -224,15 +203,8 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi {
-            options: [
-                store::SegmentRef::Taxiway("B3".into()),
-                store::SegmentRef::Taxiway("B4".into()),
-            ]
-            .into(),
-        },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("B".into())].into() },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("B".into()) },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
     .into()
 }
@@ -267,15 +239,8 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi {
-            options: [
-                store::SegmentRef::Taxiway("A3".into()),
-                store::SegmentRef::Taxiway("A4".into()),
-            ]
-            .into(),
-        },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("A".into())].into() },
-        store::RouteNode::Taxi { options: [store::SegmentRef::Taxiway("T".into())].into() },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
+        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
     .into()
 }

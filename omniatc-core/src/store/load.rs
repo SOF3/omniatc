@@ -864,15 +864,12 @@ fn convert_route<'a>(
                         route::VisualLandingNode { runway, goaround_preset }.into(),
                     ])
                 }
-                store::RouteNode::Taxi { ref options } => route::node_vec(route::TaxiNode {
-                    labels:     options
-                        .iter()
-                        .map(|segment| resolve_segment(segment, aerodromes))
-                        .collect::<Result<_, Error>>()?,
+                store::RouteNode::Taxi { ref segment } => route::node_vec(route::TaxiNode {
+                    label:      resolve_segment(segment, aerodromes)?,
                     hold_short: false,
                 }),
                 store::RouteNode::HoldShort { ref segment } => route::node_vec(route::TaxiNode {
-                    labels:     [resolve_segment(segment, aerodromes)?].into(),
+                    label:      resolve_segment(segment, aerodromes)?,
                     hold_short: true,
                 }),
             })

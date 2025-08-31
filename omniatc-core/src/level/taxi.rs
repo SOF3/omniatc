@@ -133,7 +133,7 @@ fn maintain_dir_for_object(
         /// Turn towards the target endpoint.
         TargetEndpoint,
         /// Turn towards the segment centerline,
-        /// targetting the pure pursuit position based on time delta.
+        /// targeting the pure pursuit position based on time delta.
         CenterLine,
     }
 

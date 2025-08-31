@@ -143,7 +143,7 @@ fn fit_layout_system(
         - Vec2::new(margins.right, margins.bottom) * window.scale_factor();
 
     end_pos = end_pos.max(start_pos + Vec2::splat(1.0));
-    // probalby degenerate interface, but at least avoid panic by ensuring a nonzero viewport
+    // probably degenerate interface, but at least avoid panic by ensuring a nonzero viewport
 
     #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     // TODO at least validate the float sign

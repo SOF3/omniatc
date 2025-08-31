@@ -1,8 +1,7 @@
 use bevy_math::Vec2;
 
 use crate::{
-    find_circle_tangent_towards, line_circle_intersect, Length, Position, Quantity, Squared,
-    TurnDirection,
+    find_circle_tangent_towards, line_circle_intersect, Length, Position, Quantity, TurnDirection,
 };
 
 fn assert_line_circle_intersect(actual: Option<[f32; 2]>, expect: Option<[f32; 2]>) {

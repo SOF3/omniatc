@@ -7,12 +7,12 @@ use bevy::prelude::{Entity, EntityCommand, EntityRef, World};
 use bevy::time::{self, Time};
 use math::{Angle, Heading, Length, Speed};
 
-use super::{trigger, HorizontalTarget, NodeKind, RunNodeResult};
+use super::{HorizontalTarget, NodeKind, RunNodeResult, trigger};
 use crate::level::object::{self, Object};
 use crate::level::runway::{self, Runway};
 use crate::level::waypoint::Waypoint;
 use crate::level::{ground, message, nav, navaid, taxi};
-use crate::{try_log, EntityMutTryLog, EntityTryLog, WorldTryLog};
+use crate::{EntityMutTryLog, EntityTryLog, WorldTryLog, try_log};
 
 /// [Activation range](nav::TargetAlignment::activation_range) for `AlignRunway` nodes.
 ///

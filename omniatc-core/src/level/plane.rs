@@ -15,7 +15,7 @@ use bevy::time::{self, Time};
 use math::{Accel, Angle, AngularSpeed, Heading, TurnDirection};
 
 use super::object::Object;
-use super::{nav, object, SystemSets};
+use super::{SystemSets, nav, object};
 
 pub struct Plug;
 
@@ -162,10 +162,10 @@ fn maintain_yaw(
 
     {
         let new_heading = control.heading + control.yaw_speed * time.delta();
-        if let Some((boundary, counter)) = detect_crossing {
-            if boundary.is_between(control.heading, new_heading) {
-                *counter -= 1;
-            }
+        if let Some((boundary, counter)) = detect_crossing
+            && boundary.is_between(control.heading, new_heading)
+        {
+            *counter -= 1;
         }
         control.heading = new_heading;
     }

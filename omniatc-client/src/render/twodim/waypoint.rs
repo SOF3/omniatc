@@ -16,8 +16,8 @@ use math::Length;
 use omniatc::level::waypoint::{self, Waypoint};
 
 use super::Zorder;
-use crate::util::{billboard, AnchorConf};
-use crate::{render, ConfigManager};
+use crate::util::{AnchorConf, billboard};
+use crate::{ConfigManager, render};
 
 pub struct Plug;
 

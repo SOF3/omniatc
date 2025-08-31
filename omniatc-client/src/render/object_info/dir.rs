@@ -5,7 +5,7 @@ use bevy_egui::egui;
 use math::{Heading, TurnDirection};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, ground, nav, object, plane};
-use omniatc::{try_log_return, QueryTryLog};
+use omniatc::{QueryTryLog, try_log_return};
 
 use super::Writer;
 use crate::input;

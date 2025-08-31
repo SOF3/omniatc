@@ -117,10 +117,13 @@ pub fn manage_entity_vec<C, X, NB>(
                 fused = true;
             }
         } else {
-            if let Some(bundle) = spawn_fn(index, ctx) {
-                commands.spawn((bundle, <C::Relationship as Relationship>::from(list_entity)));
-            } else {
-                fused = true;
+            match spawn_fn(index, ctx) {
+                Some(bundle) => {
+                    commands.spawn((bundle, <C::Relationship as Relationship>::from(list_entity)));
+                }
+                _ => {
+                    fused = true;
+                }
             }
         }
 
@@ -159,11 +162,12 @@ impl<R: Send + Sync + 'static> RunAsync<R> {
         let mut task = self.0;
         let handler = commands.add_observer(then).id();
         poll_list.0.push(Box::new(move |commands| {
-            if let Some(result) = tasks::block_on(tasks::poll_once(&mut task)) {
-                commands.entity(handler).trigger(AsyncResultTrigger(Some(result))).despawn();
-                AsyncPollResult::Done
-            } else {
-                AsyncPollResult::Pending
+            match tasks::block_on(tasks::poll_once(&mut task)) {
+                Some(result) => {
+                    commands.entity(handler).trigger(AsyncResultTrigger(Some(result))).despawn();
+                    AsyncPollResult::Done
+                }
+                _ => AsyncPollResult::Pending,
             }
         }));
     }

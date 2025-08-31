@@ -13,7 +13,7 @@
 //! Wake intensity is measured in terms of [virtual clock time](time::Virtual).
 //! An intensity of one second diminishes after one second of virtual clock time.
 
-use std::collections::{hash_map, HashMap};
+use std::collections::{HashMap, hash_map};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::mem;
@@ -32,9 +32,9 @@ use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
-use super::{object, wind, SystemSets};
-use crate::util::RateLimit;
+use super::{SystemSets, object, wind};
 use crate::QueryTryLog;
+use crate::util::RateLimit;
 
 const GRID_SIZE: Length<Vec3> =
     Length::from_nm(0.25).splat2().with_vertical(Length::from_feet(500.));

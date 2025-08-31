@@ -414,11 +414,7 @@ pub trait CanSqrt: QuantityTrait<Raw = f32> {
     where
         Self: Copy,
     {
-        if self.into_raw() < 0.0 {
-            Self::Sqrt::from_raw(0.0)
-        } else {
-            self.sqrt()
-        }
+        if self.into_raw() < 0.0 { Self::Sqrt::from_raw(0.0) } else { self.sqrt() }
     }
 }
 

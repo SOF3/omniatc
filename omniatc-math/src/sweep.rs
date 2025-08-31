@@ -4,7 +4,7 @@ use std::{cmp, iter, mem};
 use bevy_math::{Dir2, Vec2};
 use ordered_float::NotNan;
 
-use crate::{line_intersect, Length, Position};
+use crate::{Length, Position, line_intersect};
 
 #[cfg(test)]
 mod tests;

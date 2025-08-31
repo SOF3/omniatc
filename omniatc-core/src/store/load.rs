@@ -4,15 +4,15 @@ use std::f32::consts;
 use std::{io, iter};
 
 use bevy::ecs::relationship::{RelatedSpawner, Relationship};
-use bevy::math::bounding::Aabb3d;
 use bevy::math::Vec2;
+use bevy::math::bounding::Aabb3d;
 use bevy::prelude::{
     Command as BevyCommand, Entity, EntityCommand, EntityWorldMut, Name, With, World,
 };
 use either::Either;
 use itertools::Itertools;
 use math::sweep::LineSweeper;
-use math::{sweep, Angle, Heading, Length, Position, Speed, SEA_ALTITUDE};
+use math::{Angle, Heading, Length, Position, SEA_ALTITUDE, Speed, sweep};
 
 use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};

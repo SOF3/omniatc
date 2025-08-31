@@ -11,11 +11,11 @@ use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, Event};
 use math::{CanSqrt, Heading, Length, Position, TurnDirection};
 
+use super::SystemSets;
 use super::object::Object;
 use super::waypoint::Waypoint;
-use super::SystemSets;
-use crate::util::RateLimit;
 use crate::QueryTryLog;
+use crate::util::RateLimit;
 
 pub struct Plug;
 

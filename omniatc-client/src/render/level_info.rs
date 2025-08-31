@@ -8,13 +8,13 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
-use bevy::input::keyboard::KeyCode;
 use bevy::input::ButtonInput;
+use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
 use bevy::render::camera::Camera;
 use bevy::time::{self, Time};
 use bevy::transform::components::{GlobalTransform, Transform};
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use egui_extras::{Column, TableBuilder};
 use math::{Angle, Heading};
 use omniatc::level::object;
@@ -24,7 +24,7 @@ use strum::IntoEnumIterator;
 use super::{config_editor, object_info};
 use crate::render::twodim;
 use crate::util::new_type_id;
-use crate::{input, EguiSystemSets, EguiUsedMargins};
+use crate::{EguiSystemSets, EguiUsedMargins, input};
 
 pub struct Plug;
 
@@ -278,10 +278,8 @@ fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
         .body(|body| {
             columns[params.sort_key.0].sort(&mut objects[..], params.sort_key.1);
 
-            if select_first {
-                if let Some(first) = objects.first() {
-                    params.selected_object.0 = Some(first.entity);
-                }
+            if select_first && let Some(first) = objects.first() {
+                params.selected_object.0 = Some(first.entity);
             }
 
             body.rows(20., objects.len(), |mut row| {
@@ -368,11 +366,7 @@ impl<T: Ord> PartialOrd for ConditionalReverse<T> {
 
 impl<T: Ord> Ord for ConditionalReverse<T> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        if self.0 {
-            other.1.cmp(&self.1)
-        } else {
-            self.1.cmp(&other.1)
-        }
+        if self.0 { other.1.cmp(&self.1) } else { self.1.cmp(&other.1) }
     }
 }
 

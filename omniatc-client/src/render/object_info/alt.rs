@@ -4,9 +4,9 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy_egui::egui;
 use math::{Position, TROPOPAUSE_ALTITUDE};
+use omniatc::QueryTryLog;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object};
-use omniatc::QueryTryLog;
 
 use super::Writer;
 use crate::input;

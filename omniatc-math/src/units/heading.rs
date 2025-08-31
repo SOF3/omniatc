@@ -33,7 +33,7 @@ impl Heading {
     /// Converts the heading into a direction vector.
     #[must_use]
     pub fn into_dir2(self) -> Dir2 {
-        let (x, y) = self.0 .0.sin_cos();
+        let (x, y) = self.0.0.sin_cos();
         Dir2::from_xy_unchecked(x, y)
     }
 
@@ -56,11 +56,7 @@ impl Heading {
     #[must_use]
     pub fn degrees(self) -> f32 {
         let degrees = self.0.into_degrees();
-        if degrees < 0. {
-            degrees + 360.
-        } else {
-            degrees
-        }
+        if degrees < 0. { degrees + 360. } else { degrees }
     }
 
     /// Creates a heading from an absolute bearing in radians.
@@ -83,20 +79,16 @@ impl Heading {
     ///
     /// # Errors
     /// Returns an error if the heading is NaN.
-    pub fn as_ordered(self) -> Result<impl Copy + Ord + Hash, FloatIsNan> { NotNan::new(self.0 .0) }
+    pub fn as_ordered(self) -> Result<impl Copy + Ord + Hash, FloatIsNan> { NotNan::new(self.0.0) }
 
     /// Returns the heading in radians in the range `0 <= value < FULL`.
     #[must_use]
     pub fn radians_nonnegative(self) -> Angle {
-        if self.0.is_negative() {
-            self.0 + Angle::FULL
-        } else {
-            self.0
-        }
+        if self.0.is_negative() { self.0 + Angle::FULL } else { self.0 }
     }
 
     #[must_use]
-    pub fn into_rotation_quat(self) -> Quat { Quat::from_rotation_z(-self.0 .0) }
+    pub fn into_rotation_quat(self) -> Quat { Quat::from_rotation_z(-self.0.0) }
 
     /// Radians to turn from `self` to `other` in the given direction.
     /// The output is always in the range [0, FULL) for `Clockwise`,

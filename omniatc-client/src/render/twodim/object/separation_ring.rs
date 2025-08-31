@@ -14,15 +14,16 @@ use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
-use bevy_mod_config::ReadConfig;
+use bevy_mod_config::{Config, ReadConfig};
 use math::Length;
+use omniatc::QueryTryLog;
 use omniatc::level::object;
 use omniatc::util::EnumScheduleConfig;
-use omniatc::QueryTryLog;
 
-use super::{ColorTheme, Conf, SetColorThemeSystemSet};
+use super::{ColorTheme, SetColorThemeSystemSet};
 use crate::render;
 use crate::render::twodim::Zorder;
+use crate::render::twodim::object::base_color;
 
 pub(super) struct Plug;
 
@@ -96,7 +97,7 @@ fn maintain_color_system(
 fn maintain_thickness_system(
     handle: Res<SeparationRingMesh>,
     mut assets: ResMut<Assets<Mesh>>,
-    conf: ReadConfig<Conf>,
+    conf: ReadConfig<super::Conf>,
     camera_query: Query<&GlobalTransform, With<Camera2d>>,
 ) {
     let conf = conf.read();
@@ -133,4 +134,21 @@ fn maintain_visible_system(
         let Some(mut ring_visibility) = ring_query.log_get_mut(ring_entity) else { continue };
         *ring_visibility = visible;
     }
+}
+
+#[derive(Config)]
+pub(super) struct Conf {
+    /// World radius of the separation ring.
+    #[config(
+        default = Length::from_nm(1.5),
+        min = Length::ZERO,
+        max = Length::from_nm(10.0),
+        precision = Some(Length::from_nm(0.5)),
+    )]
+    radius:                  Length<f32>,
+    /// Thickness of the separation ring in screen coordinates.
+    #[config(default = 0.5, min = 0.0, max = 10.0)]
+    thickness:               f32,
+    /// Object separation ring color will be based on this scheme.
+    pub(super) color_scheme: base_color::Scheme,
 }

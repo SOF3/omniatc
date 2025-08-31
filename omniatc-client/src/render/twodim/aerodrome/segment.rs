@@ -12,10 +12,10 @@ use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_mod_config::{self, ReadConfig};
 use math::{Length, Position};
 use omniatc::level::ground;
-use omniatc::{try_log_return, QueryTryLog};
+use omniatc::{QueryTryLog, try_log_return};
 
-use super::{vis, Conf, SegmentTypeConfRead};
-use crate::render::twodim::{camera, Zorder};
+use super::{Conf, SegmentTypeConfRead, vis};
+use crate::render::twodim::{Zorder, camera};
 use crate::util::{billboard, shapes};
 
 pub(super) fn regenerate_system(

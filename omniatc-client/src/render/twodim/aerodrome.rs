@@ -9,7 +9,7 @@ use bevy_mod_config::{self, AppExt, Config, ReadConfig, ReadConfigChange};
 use math::{Angle, Length, LengthUnit};
 
 use crate::util::AnchorConf;
-use crate::{render, ConfigManager};
+use crate::{ConfigManager, render};
 
 mod endpoint;
 mod segment;

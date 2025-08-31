@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
 use bevy::color::Color;
@@ -15,15 +13,15 @@ use bevy::sprite::{Anchor, Sprite};
 use bevy::text::Text2d;
 use bevy::transform::components::Transform;
 use bevy_mod_config::{self, AppExt as _, Config, ReadConfig, ReadConfigChange};
-use math::{Length, Position, TROPOPAUSE_ALTITUDE};
+use math::Length;
 use omniatc::level::object::{self, Object};
 use omniatc::level::plane;
 use omniatc::util::EnumScheduleConfig;
 use serde::{Deserialize, Serialize};
 
 use super::Zorder;
-use crate::util::{billboard, AnchorConf};
-use crate::{render, ConfigManager};
+use crate::util::{AnchorConf, billboard};
+use crate::{ConfigManager, render};
 
 mod base_color;
 
@@ -192,10 +190,10 @@ fn handle_config_change_system(
 #[config(expose(read))]
 struct Conf {
     plane:           PlaneConf,
-    separation_ring: SeparationRingConf,
-    vector:          VectorLineConf,
-    track:           TrackConf,
-    preview_line:    PreviewLineConf,
+    separation_ring: separation_ring::Conf,
+    vector:          vector::Conf,
+    track:           track::Conf,
+    preview_line:    preview::Conf,
 }
 
 #[derive(Config)]
@@ -217,76 +215,6 @@ struct PlaneConf {
     label_anchor:   AnchorConf,
     /// Object color will be based on this scheme.
     color_scheme:   base_color::Scheme,
-}
-
-#[derive(Config)]
-#[config(expose(read))]
-struct SeparationRingConf {
-    /// World radius of the separation ring.
-    #[config(
-        default = Length::from_nm(1.5),
-        min = Length::ZERO,
-        max = Length::from_nm(10.0),
-        precision = Some(Length::from_nm(0.5)),
-    )]
-    radius:       Length<f32>,
-    /// Thickness of the separation ring in screen coordinates.
-    #[config(default = 0.5, min = 0.0, max = 10.0)]
-    thickness:    f32,
-    /// Object separation ring color will be based on this scheme.
-    color_scheme: base_color::Scheme,
-}
-
-#[derive(Config)]
-#[config(expose(read))]
-struct VectorLineConf {
-    #[config(default = Duration::from_secs(60), min = Duration::ZERO, max = Duration::from_secs(300))]
-    lookahead_time: Duration,
-    /// Thickness of the vector line in screen coordinates.
-    #[config(default = 0.5, min = 0., max = 10.)]
-    thickness:      f32,
-    /// Object ground speed vector color will be based on this scheme.
-    color_scheme:   base_color::Scheme,
-}
-
-#[derive(Config)]
-#[config(expose(read))]
-struct TrackConf {
-    /// Maximum number of track points for unfocused objects.
-    #[config(default = 5, min = 0, max = 100)]
-    normal_max_points:   u32,
-    /// Size of track points.
-    #[config(default = 1.0, min = 0.0, max = 3.0)]
-    point_size:          f32,
-    /// Color of track points at base altitude.
-    #[config(default = Color::srgb(0.8, 0.4, 0.6))]
-    point_base_color:    Color,
-    /// Base altitude for track point coloring.
-    #[config(default = Position::SEA_LEVEL)]
-    point_base_altitude: Position<f32>,
-    /// Color of track points at top altitude.
-    #[config(default = Color::srgb(0.4, 0.8, 0.6))]
-    point_top_color:     Color,
-    /// Top altitude for track point coloring.
-    #[config(default = TROPOPAUSE_ALTITUDE)]
-    point_top_altitude:  Position<f32>,
-}
-
-#[derive(Config)]
-#[config(expose(read))]
-struct PreviewLineConf {
-    /// Thickness of planned track preview line.
-    #[config(default = 1.0)]
-    thickness:         f32,
-    /// Color of planned track preview line.
-    #[config(default = Color::srgb(0.9, 0.7, 0.8))]
-    color_normal:      Color,
-    /// Color of planned track preview line when setting heading.
-    #[config(default = Color::srgb(0.9, 0.9, 0.6))]
-    color_set_heading: Color,
-    /// Color of available route presets from the current target waypoint.
-    #[config(default = Color::srgb(0.5, 0.6, 0.8))]
-    color_preset:      Color,
 }
 
 #[derive(

@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::iter;
 use std::time::Duration;
 
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Command;
 use bevy::ecs::world::{EntityRef, World};
@@ -10,7 +11,7 @@ use math::{Length, Speed};
 use ordered_float::OrderedFloat;
 use pathfinding::prelude::dijkstra;
 
-use super::{trigger, Node, NodeKind, Route, RunNodeResult};
+use super::{Node, NodeKind, Route, RunNodeResult, trigger};
 use crate::level::{ground, message, object, taxi};
 use crate::{EntityTryLog, WorldTryLog};
 
@@ -48,25 +49,36 @@ impl NodeKind for TaxiNode {
             // since an unideal segment is selected..
             target.resolution = None;
 
-            let new_action = recompute_action(object.world(), object.as_readonly());
+            let next_segments = recompute_action(object.world(), object.as_readonly());
             let mut target = object
                 .get_mut::<taxi::Target>()
                 .expect("Target should still be present after an immutable world lend");
-            if let Some(action) = new_action {
-                target.action = action;
-                object.insert(trigger::TaxiTargetResolution);
+            if let Some(next_segments) = next_segments {
+                target.action = taxi::TargetAction::Taxi {
+                    options: next_segments.paths.iter().map(|path| path.first_segment).collect(),
+                };
+                object.insert((trigger::TaxiTargetResolution, next_segments));
                 RunNodeResult::PendingTrigger
             } else {
                 target.action = taxi::TargetAction::HoldShort;
                 RunNodeResult::NodeDone
             }
         } else {
-            if let Some(action) = recompute_action(object.world(), object.as_readonly()) {
+            if let Some(next_segments) = recompute_action(object.world(), object.as_readonly()) {
                 object.insert((
-                    taxi::Target { action, resolution: None },
+                    taxi::Target {
+                        action:     taxi::TargetAction::Taxi {
+                            options: next_segments
+                                .paths
+                                .iter()
+                                .map(|path| path.first_segment)
+                                .collect(),
+                        },
+                        resolution: None,
+                    },
                     trigger::TimeDelay(Duration::from_secs(1)),
                 ));
-                object.insert(trigger::TaxiTargetResolution);
+                object.insert((trigger::TaxiTargetResolution, next_segments));
                 RunNodeResult::PendingTrigger
             } else {
                 RunNodeResult::NodeDone
@@ -75,7 +87,25 @@ impl NodeKind for TaxiNode {
     }
 }
 
-fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetAction> {
+#[derive(Component)]
+pub struct PossiblePaths {
+    pub paths: Vec<PossiblePath>,
+}
+
+pub struct PossiblePath {
+    /// The endpoint that the path starts from.
+    /// The object is currently heading towards this endpoint.
+    pub start_endpoint: Entity,
+    /// The first segment in the path.
+    /// This is the segment the object will enter after reaching `start_endpoint`.
+    pub first_segment:  Entity,
+    /// The remaining endpoints in the path, in order.
+    pub next_endpoints: Vec<Entity>,
+    /// The total length of the path.
+    pub length:         Length<f32>,
+}
+
+fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
     let taxi_limits = object.log_get::<taxi::Limits>()?;
     let ground = object.log_get::<object::OnGround>()?;
     let segment = world.log_get::<ground::Segment>(ground.segment)?;
@@ -127,13 +157,21 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
                 if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
                 PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
             )
-            .map(|cost| (next_segment_id, cost))
+            .map(|path| (next_segment_id, path))
         })
         .collect();
-    next_segments.sort_by_key(|(_, cost)| OrderedFloat(cost.cost.0));
+    next_segments.sort_by_key(|(_, path)| OrderedFloat(path.cost.0));
 
-    Some(taxi::TargetAction::Taxi {
-        options: next_segments.into_iter().map(|(segment, _)| segment).collect(),
+    Some(PossiblePaths {
+        paths: next_segments
+            .into_iter()
+            .map(|(first_segment, path)| PossiblePath {
+                start_endpoint: target_endpoint_id,
+                first_segment,
+                next_endpoints: path.endpoints,
+                length: path.cost,
+            })
+            .collect(),
     })
 }
 
@@ -141,7 +179,6 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<taxi::TargetActi
 /// such that `subseq_labels` is an ordered subsequence of the labels of the segments in the path.
 ///
 /// Returns `None` if no valid path can be found.
-#[expect(clippy::missing_panics_doc)]
 pub fn pathfind_through_subseq(
     world: &World,
     initial_segment_id: Entity,
@@ -173,23 +210,22 @@ pub fn pathfind_through_subseq(
             }
 
             let segment = get_or_fail!(world, failed, segment_id, ground::Segment);
-            if source_endpoint_id == initial_dest_endpoint_id {
-                if let Some(current_speed) = options.initial_speed {
-                    if segment.max_speed < current_speed {
-                        return None;
-                    }
-                }
+            if source_endpoint_id == initial_dest_endpoint_id
+                && let Some(current_speed) = options.initial_speed
+                && segment.max_speed < current_speed
+            {
+                return None;
             }
 
-            if let Some(min_width) = options.min_width {
-                if segment.width < min_width {
-                    return None;
-                }
+            if let Some(min_width) = options.min_width
+                && segment.width < min_width
+            {
+                return None;
             }
 
             let dest_endpoint_id = segment
                 .other_endpoint(source_endpoint_id)
-                .expect("adjacency segment of enndpoint must contain itself");
+                .expect("adjacency segment of endpoint must contain itself");
             let dest_endpoint = get_or_fail!(world, failed, dest_endpoint_id, ground::Endpoint);
             let distance = source.position.distance_exact(dest_endpoint.position);
             let distance = OrderedFloat(distance.0);
@@ -307,6 +343,8 @@ pub struct PathfindOptions {
     pub min_width:     Option<Length<f32>>,
 }
 
+/// A pathfinding result.
+#[derive(Debug)]
 pub struct Path {
     pub endpoints: Vec<Entity>,
     pub cost:      Length<f32>,

@@ -9,7 +9,7 @@ use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 use omniatc::store;
-use omniatc::util::{run_async_local, AsyncPollList, AsyncResult};
+use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 
 use super::{ScenarioMeta, Storage};
 use crate::util;

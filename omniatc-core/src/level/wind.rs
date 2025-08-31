@@ -15,7 +15,7 @@ use bevy::math::{Vec2, Vec3A};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use math::{Position, Speed};
 
-use super::{object, SystemSets};
+use super::{SystemSets, object};
 use crate::util::RateLimit;
 
 pub struct Plug<M>(PhantomData<M>);

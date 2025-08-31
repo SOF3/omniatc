@@ -8,14 +8,14 @@ use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{
-    line_circle_intersect, line_intersect, Accel, AccelRate, Angle, AngularAccel, AngularSpeed,
-    CanSqrt, Frequency, Heading, Length, Position, Speed, TurnDirection,
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, CanSqrt, Frequency, Heading, Length,
+    Position, Speed, TurnDirection, line_circle_intersect, line_intersect,
 };
 
 use super::object::Object;
 use super::waypoint::Waypoint;
-use super::{navaid, object, SystemSets};
-use crate::{pid, QueryTryLog};
+use super::{SystemSets, navaid, object};
+use crate::{QueryTryLog, pid};
 
 pub struct Plug;
 

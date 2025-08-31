@@ -52,20 +52,20 @@ impl KeySet {
     }
 
     fn test_modifiers(self, buttons: egui::Modifiers) -> bool {
-        if let Some(command) = self.command {
-            if buttons.command != command {
-                return false;
-            }
+        if let Some(command) = self.command
+            && buttons.command != command
+        {
+            return false;
         }
-        if let Some(alt) = self.alt {
-            if buttons.alt != alt {
-                return false;
-            }
+        if let Some(alt) = self.alt
+            && buttons.alt != alt
+        {
+            return false;
         }
-        if let Some(shift) = self.shift {
-            if buttons.shift != shift {
-                return false;
-            }
+        if let Some(shift) = self.shift
+            && buttons.shift != shift
+        {
+            return false;
         }
         true
     }
@@ -145,29 +145,11 @@ pub struct UiState {
     waiting_for_key: bool,
 }
 
-fn command_label() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "\u{2318}"
-    } else {
-        "Ctrl"
-    }
-}
+fn command_label() -> &'static str { if cfg!(target_os = "macos") { "\u{2318}" } else { "Ctrl" } }
 
-fn alt_label() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "\u{2325}"
-    } else {
-        "Alt"
-    }
-}
+fn alt_label() -> &'static str { if cfg!(target_os = "macos") { "\u{2325}" } else { "Alt" } }
 
-fn shift_label() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "\u{21e7}"
-    } else {
-        "Shift"
-    }
-}
+fn shift_label() -> &'static str { if cfg!(target_os = "macos") { "\u{21e7}" } else { "Shift" } }
 
 fn modifier_checkbox(ui: &mut egui::Ui, value: &mut Option<bool>, label: &str) -> bool {
     let initial_flag = *value == Some(true);

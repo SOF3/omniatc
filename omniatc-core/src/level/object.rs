@@ -15,14 +15,14 @@ use bevy::time::{self, Time, Timer, TimerMode};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
 use math::{
-    range_steps, solve_expected_ground_speed, Heading, Length, Position, Speed,
-    PRESSURE_DENSITY_ALTITUDE_POW, STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE,
-    TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE,
+    Heading, Length, PRESSURE_DENSITY_ALTITUDE_POW, Position, STANDARD_LAPSE_RATE,
+    STANDARD_SEA_LEVEL_TEMPERATURE, Speed, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE, range_steps,
+    solve_expected_ground_speed,
 };
 
-use super::{ground, message, nav, wind, SystemSets};
-use crate::try_log::EntityWorldMutExt;
+use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
+use crate::try_log::EntityWorldMutExt;
 
 mod dest;
 pub use dest::Destination;

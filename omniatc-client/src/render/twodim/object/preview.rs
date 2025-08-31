@@ -1,11 +1,43 @@
+//! Draws the preview lines for the currently selected object.
+//!
+//! # Airborne objects
+//! ## Current viewable
+//! Consists of a "turn" arc and a "direct" line,
+//! representing the trajectory of the object if it were to continue towards its current target.
+//!
+//! The arc is updated by modifying the mesh vertex positions,
+//! reflecting the change from the current ground heading to the target heading
+//! with the turn radius inferred by converting ground speed and yaw rate to angular velocity.
+//!
+//! The turn arc is not drawn if the turn angle is less than 1 degree.
+//! The direct line is not drawn when the target is a waypoint within the circle of turn radius.
+//!
+//! If the current target is a waypoint, the direct line terminates at the waypoint.
+//! Otherwise this line extends at a sufficiently far distance (10000 nm) in the target heading.
+//!
+//! ## Route viewable
+//! Consists of straight lines connecting the waypoints in the current route.
+//! Each line segment is rendered by a separate entity.
+//!
+//! ## Preset viewable
+//! If the current target is a waypoint,
+//! each available route preset from that waypoint is drawn similarly to the route viewable.
+//!
+//! # Ground objects
+//! ## Ground path viewable
+//! Only displayed when the current active node is a taxi node.
+//! Each path planned by `route::taxi` is drawn by
+//! connecting the waypoints in the path with straight lines in separate entities.
+
 use std::mem;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
+use bevy::color::Color;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::{QueryData, With, Without};
+use bevy::ecs::query::{Has, QueryData, With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::ecs::world::Mut;
@@ -14,20 +46,20 @@ use bevy::render::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues}
 use bevy::render::view::Visibility;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::{GlobalTransform, Transform};
-use bevy_mod_config::ReadConfig;
+use bevy_mod_config::{Config, ReadConfig};
 use itertools::Itertools;
-use math::{find_circle_tangent_towards, Angle, Heading, Length, Position, TurnDirection};
-use omniatc::level::object::Object;
+use math::{Angle, Heading, Length, Position, TurnDirection, find_circle_tangent_towards};
+use omniatc::QueryTryLog;
+use omniatc::level::object::{self, Object};
 use omniatc::level::route::{self, Route};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{nav, plane};
+use omniatc::level::{ground, nav, plane};
 use omniatc::util::EnumScheduleConfig;
-use omniatc::QueryTryLog;
 
-use super::{Conf, SetColorThemeSystemSet};
+use super::SetColorThemeSystemSet;
 use crate::render;
 use crate::render::object_info;
-use crate::render::twodim::{camera, Zorder};
+use crate::render::twodim::{Zorder, camera};
 use crate::util::shapes;
 
 const ARC_DENSITY: Angle = Angle::from_degrees(10.0);
@@ -43,27 +75,57 @@ impl Plugin for Plug {
     }
 }
 
-/// Marks an entity as a preview viewable.
+/// Marks an entity as a preview viewable for airborne objects.
 #[derive(Component, Default)]
-struct Viewable;
+struct AirborneViewable;
+
+/// Marks an entity as a preview viewable for ground objects.
+#[derive(Component, Default)]
+struct GroundViewable;
 
 fn update_system(
     mut materials: Local<Materials>,
-    mut stages: ParamSet<(Init, DrawCurrent, DrawRoute, DrawPresets)>,
+    mut stages: ParamSet<(Init, DrawCurrent, DrawMainRoute, DrawPresets, DrawGroundPaths)>,
 ) {
     let materials = &mut *materials;
-    let (object, current_material, route_material, preset_material) = {
+    let (
+        object,
+        current_material,
+        route_material,
+        preset_material,
+        ground_path_material_1,
+        ground_path_material_2,
+        is_airborne,
+        is_ground,
+    ) = {
         let mut init = stages.p0();
         let conf = init.conf.read();
 
-        for mut vis in init.vis_query {
-            *vis = if init.object.0.is_some() { Visibility::Visible } else { Visibility::Hidden };
+        let (is_airborne, is_ground) = init
+            .object
+            .0
+            .and_then(|object| init.classify_object_query.get(object).ok())
+            .unwrap_or((false, false));
+
+        for mut vis in init.airborne_vis_query {
+            *vis = if is_airborne { Visibility::Visible } else { Visibility::Hidden };
+        }
+        for mut vis in init.ground_vis_query {
+            *vis = if is_ground { Visibility::Visible } else { Visibility::Hidden };
         }
 
-        let [normal_material, set_heading_material, preset_material] = [
+        let [
+            normal_material,
+            set_heading_material,
+            preset_material,
+            ground_path_material_1,
+            ground_path_material_2,
+        ] = [
             (&mut materials.normal, conf.preview_line.color_normal),
             (&mut materials.set_heading, conf.preview_line.color_set_heading),
             (&mut materials.preset, conf.preview_line.color_preset),
+            (&mut materials.ground_path_1, conf.preview_line.color_ground_path_1),
+            (&mut materials.ground_path_2, conf.preview_line.color_ground_path_2),
         ]
         .map(|(local, color)| &*match local {
             None => local.insert(init.materials.add(color)),
@@ -82,35 +144,73 @@ fn update_system(
             _ => normal_material,
         };
 
-        (object, current_material, normal_material, preset_material)
+        (
+            object,
+            current_material,
+            normal_material,
+            preset_material,
+            ground_path_material_1,
+            ground_path_material_2,
+            is_airborne,
+            is_ground,
+        )
     };
 
-    let target = stages.p1().draw(object, current_material);
-    stages.p2().draw_current_plan(object, route_material);
-    if let Some(target) = target {
-        stages.p3().draw_avail_presets(target, preset_material);
-    } else {
-        let mut stage = stages.p3();
-        for (entity, _) in stage.viewable_query {
-            stage.draw_once.commands.entity(entity).despawn();
+    if is_airborne {
+        let target = stages.p1().draw(object, current_material);
+        stages.p2().draw_current_plan(object, route_material);
+        if let Some(target) = target {
+            stages.p3().draw_avail_presets(target, preset_material);
+        } else {
+            let mut stage = stages.p3();
+            for (entity, _) in stage.viewable_query {
+                stage.draw_once.commands.entity(entity).despawn();
+            }
         }
     }
-}
-
-#[derive(SystemParam)]
-struct Init<'w, 's> {
-    vis_query:      Query<'w, 's, &'static mut Visibility, With<Viewable>>,
-    object:         Res<'w, object_info::CurrentObject>,
-    override_query: Query<'w, 's, &'static TargetOverride>,
-    materials:      ResMut<'w, Assets<ColorMaterial>>,
-    conf:           ReadConfig<'w, 's, super::Conf>,
+    if is_ground {
+        stages.p4().draw(object, ground_path_material_1, ground_path_material_2);
+    }
 }
 
 #[derive(Default)]
 struct Materials {
-    normal:      Option<Handle<ColorMaterial>>,
-    set_heading: Option<Handle<ColorMaterial>>,
-    preset:      Option<Handle<ColorMaterial>>,
+    normal:        Option<Handle<ColorMaterial>>,
+    set_heading:   Option<Handle<ColorMaterial>>,
+    preset:        Option<Handle<ColorMaterial>>,
+    ground_path_1: Option<Handle<ColorMaterial>>,
+    ground_path_2: Option<Handle<ColorMaterial>>,
+}
+
+#[derive(SystemParam)]
+struct Init<'w, 's> {
+    airborne_vis_query:    Query<'w, 's, &'static mut Visibility, With<AirborneViewable>>,
+    ground_vis_query:
+        Query<'w, 's, &'static mut Visibility, (With<GroundViewable>, Without<AirborneViewable>)>,
+    object:                Res<'w, object_info::CurrentObject>,
+    classify_object_query: Query<'w, 's, (Has<object::Airborne>, Has<object::OnGround>)>,
+    override_query:        Query<'w, 's, &'static TargetOverride>,
+    materials:             ResMut<'w, Assets<ColorMaterial>>,
+    conf:                  ReadConfig<'w, 's, super::Conf>,
+}
+
+#[derive(Component, Clone)]
+#[component(storage = "SparseSet")]
+pub struct TargetOverride {
+    pub target: Target,
+    pub cause:  TargetOverrideCause,
+}
+
+#[derive(Clone)]
+pub enum Target {
+    Yaw(nav::YawTarget),
+    Waypoint(Entity),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TargetOverrideCause {
+    None,
+    SetHeading,
 }
 
 #[derive(SystemParam)]
@@ -118,9 +218,16 @@ struct DrawCurrent<'w, 's> {
     conf:           ReadConfig<'w, 's, super::Conf>,
     object_query:   Query<'w, 's, DrawCurrentObject>,
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    turn_query: Option<Single<'w, (&'static Mesh2d, &'static mut Transform), With<TurnViewable>>>,
-    direct_query:
-        Option<Single<'w, &'static mut Transform, (With<DirectViewable>, Without<TurnViewable>)>>,
+    turn_query: Option<
+        Single<
+            'w,
+            (&'static mut Visibility, &'static Mesh2d, &'static mut Transform),
+            With<TurnArcViewable>,
+        >,
+    >,
+    direct_query: Option<
+        Single<'w, &'static mut Transform, (With<DirectLineViewable>, Without<TurnArcViewable>)>,
+    >,
     commands:       Commands<'w, 's>,
     meshes:         ResMut<'w, Assets<Mesh>>,
     shapes:         Res<'w, shapes::Meshes>,
@@ -187,10 +294,16 @@ impl DrawCurrent<'_, '_> {
                             material,
                         );
                     } else {
-                        self.draw_direct(curr_pos, waypoint_pos, material);
+                        self.draw_direct_line(curr_pos, waypoint_pos, material);
+                        if let Some((vis, _, _)) = self.turn_query.as_deref_mut() {
+                            **vis = Visibility::Hidden;
+                        }
                     }
                 } else {
-                    self.draw_direct(curr_pos, waypoint_pos, material);
+                    self.draw_direct_line(curr_pos, waypoint_pos, material);
+                    if let Some((vis, _, _)) = self.turn_query.as_deref_mut() {
+                        **vis = Visibility::Hidden;
+                    }
                 }
             }
             Target::Yaw(yaw_target) => {
@@ -204,7 +317,7 @@ impl DrawCurrent<'_, '_> {
                     );
                 } else {
                     let target_heading = yaw_target.heading();
-                    self.draw_direct(
+                    self.draw_direct_line(
                         curr_pos,
                         curr_pos + Length::from_nm(10000.) * target_heading,
                         material,
@@ -232,7 +345,7 @@ impl DrawCurrent<'_, '_> {
             find_circle_tangent_towards(waypoint_pos, turn_center, turn_radius, direction)
         {
             let transition_heading = (transition_point - turn_center).heading();
-            self.draw_arc(
+            self.draw_turn_arc(
                 turn_center,
                 turn_radius,
                 curr_pos_to_turn_center.opposite(),
@@ -240,9 +353,9 @@ impl DrawCurrent<'_, '_> {
                 direction,
                 material,
             );
-            self.draw_direct(transition_point, waypoint_pos, material);
+            self.draw_direct_line(transition_point, waypoint_pos, material);
         } else {
-            self.draw_arc(
+            self.draw_turn_arc(
                 turn_center,
                 turn_radius,
                 curr_pos_to_turn_center.opposite(),
@@ -275,7 +388,7 @@ impl DrawCurrent<'_, '_> {
 
             let turn_center_to_transition = curr_pos_to_turn_center.opposite() + turn_angle;
 
-            self.draw_arc(
+            self.draw_turn_arc(
                 turn_center,
                 turn_radius,
                 curr_pos_to_turn_center.opposite(),
@@ -284,21 +397,24 @@ impl DrawCurrent<'_, '_> {
                 material,
             );
             let transition_point = turn_center + turn_radius * turn_center_to_transition;
-            self.draw_direct(
+            self.draw_direct_line(
                 transition_point,
                 transition_point + Length::from_nm(10000.) * target_heading,
                 material,
             );
         } else {
-            self.draw_direct(
+            self.draw_direct_line(
                 curr_pos,
                 curr_pos + Length::from_nm(10000.) * target_heading,
                 material,
             );
+            if let Some((vis, _, _)) = self.turn_query.as_deref_mut() {
+                **vis = Visibility::Hidden;
+            }
         }
     }
 
-    fn draw_arc(
+    fn draw_turn_arc(
         &mut self,
         center: Position<Vec2>,
         radius: Length<f32>,
@@ -337,8 +453,10 @@ impl DrawCurrent<'_, '_> {
             mem::swap(&mut start_heading, &mut end_heading);
         }
 
-        let window_thickness = self.conf.read().preview_line.thickness * self.camera.scale().y;
-        if let Some(&mut (mesh, ref mut tf)) = self.turn_query.as_deref_mut() {
+        let window_thickness =
+            self.conf.read().preview_line.airborne_thickness * self.camera.scale().y;
+        if let Some(&mut (ref mut vis, mesh, ref mut tf)) = self.turn_query.as_deref_mut() {
+            **vis = Visibility::Visible;
             let mesh = self.meshes.get_mut(&mesh.0).expect("strong reference must be valid");
             let Some(VertexAttributeValues::Float32x3(positions)) =
                 mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
@@ -363,12 +481,12 @@ impl DrawCurrent<'_, '_> {
                 Mesh2d(mesh),
                 MeshMaterial2d(material.clone()),
                 Transform::from_translation(Zorder::ObjectTrackPreview.pos2_to_translation(center)),
-                TurnViewable,
+                TurnArcViewable,
             ));
         }
     }
 
-    fn draw_direct(
+    fn draw_direct_line(
         &mut self,
         start: Position<Vec2>,
         end: Position<Vec2>,
@@ -379,27 +497,41 @@ impl DrawCurrent<'_, '_> {
         } else {
             self.commands.spawn((
                 self.shapes.line_from_to(
-                    self.conf.read().preview_line.thickness,
+                    self.conf.read().preview_line.airborne_thickness,
                     Zorder::ObjectTrackPreview,
                     start,
                     end,
                     &self.camera,
                 ),
                 MeshMaterial2d(material.clone()),
-                DirectViewable,
+                DirectLineViewable,
             ));
         }
     }
 }
 
+/// Marks an entity as the arc representing the turn from current heading to current yaw target.
+#[derive(Component)]
+#[require(AirborneViewable)]
+struct TurnArcViewable;
+
+/// Marks an entity as the straight line representing the straight part of the line
+/// towards current target.
+///
+/// If the current target is a waypoint, this line terminates at the waypoint.
+/// Otherwise this line extends very far away (10000 nm).
+#[derive(Component)]
+#[require(AirborneViewable)]
+struct DirectLineViewable;
+
 #[derive(SystemParam)]
-struct DrawRoute<'w, 's> {
+struct DrawMainRoute<'w, 's> {
     object_query:   Query<'w, 's, &'static Route>,
     viewable_query: Query<'w, 's, (Entity, &'static mut Transform), With<RouteViewable>>,
-    draw_once:      DrawOnce<'w, 's>,
+    draw_once:      DrawRouteOnce<'w, 's>,
 }
 
-impl DrawRoute<'_, '_> {
+impl DrawMainRoute<'_, '_> {
     fn draw_current_plan(&mut self, object_id: Entity, material: &Handle<ColorMaterial>) {
         let Ok(route) = self.object_query.get(object_id) else { return };
         let nodes = route.iter();
@@ -422,7 +554,7 @@ struct DrawPresets<'w, 's> {
     waypoint_presets_query: Query<'w, 's, &'static route::WaypointPresetList>,
     preset_query:           Query<'w, 's, &'static route::Preset>,
     viewable_query:         Query<'w, 's, (Entity, &'static mut Transform), With<PresetViewable>>,
-    draw_once:              DrawOnce<'w, 's>,
+    draw_once:              DrawRouteOnce<'w, 's>,
 }
 
 impl DrawPresets<'_, '_> {
@@ -446,16 +578,17 @@ impl DrawPresets<'_, '_> {
     }
 }
 
+/// Shared code for drawing route lines, used in [`DrawRoute`] and [`DrawPresets`].
 #[derive(SystemParam)]
-struct DrawOnce<'w, 's> {
+struct DrawRouteOnce<'w, 's> {
     commands:       Commands<'w, 's>,
     shapes:         Res<'w, shapes::Meshes>,
-    conf:           ReadConfig<'w, 's, Conf>,
+    conf:           ReadConfig<'w, 's, super::Conf>,
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
 }
 
-impl DrawOnce<'_, '_> {
+impl DrawRouteOnce<'_, '_> {
     fn draw_route<'w, MarkerT: Bundle + Default>(
         &mut self,
         nodes: impl Iterator<Item = &'w route::Node>,
@@ -487,7 +620,7 @@ impl DrawOnce<'_, '_> {
             } else {
                 self.commands.spawn((
                     self.shapes.line_from_to(
-                        conf.preview_line.thickness,
+                        conf.preview_line.airborne_thickness,
                         zorder,
                         start,
                         end,
@@ -501,46 +634,132 @@ impl DrawOnce<'_, '_> {
     }
 }
 
-/// Marks an entity as the arc representing the turn from current heading to current yaw target.
-#[derive(Component)]
-#[require(Viewable)]
-struct TurnViewable;
-
-/// Marks an entity as the straight line representing the straight part of the line
-/// towards current target.
-///
-/// If the current target is a waypoint, this line terminates at the waypoint.
-/// Otherwise this line extends very far away (10000 nm).
-#[derive(Component)]
-#[require(Viewable)]
-struct DirectViewable;
-
 /// Marks an entity as an extended route viewable to follow the current target.
 #[derive(Component, Default)]
-#[require(Viewable)]
+#[require(AirborneViewable)]
 struct RouteViewable;
 
-/// Marks an entity as the route preset viewable available for selection from the current target
-/// waypoint.
+/// Marks an entity as a segment of route preset viewable
+/// for presets selectable from the current target waypoint.
 #[derive(Component, Default)]
-#[require(Viewable)]
+#[require(AirborneViewable)]
 struct PresetViewable;
 
-#[derive(Component, Clone)]
-#[component(storage = "SparseSet")]
-pub struct TargetOverride {
-    pub target: Target,
-    pub cause:  TargetOverrideCause,
+#[derive(SystemParam)]
+struct DrawGroundPaths<'w, 's> {
+    object_query:   Query<'w, 's, &'static route::PossiblePaths>,
+    viewable_query: Query<
+        'w,
+        's,
+        (Entity, &'static mut Transform, &'static mut MeshMaterial2d<ColorMaterial>),
+        With<GroundPathViewable>,
+    >,
+    draw_once:      DrawGroundPathOnce<'w, 's>,
 }
 
-#[derive(Clone)]
-pub enum Target {
-    Yaw(nav::YawTarget),
-    Waypoint(Entity),
+impl DrawGroundPaths<'_, '_> {
+    fn draw(
+        &mut self,
+        object_id: Entity,
+        material_1: &Handle<ColorMaterial>,
+        material_2: &Handle<ColorMaterial>,
+    ) {
+        let mut viewables = self.viewable_query.iter_mut();
+
+        let paths: Vec<_> =
+            self.object_query.get(object_id).iter().flat_map(|paths| &paths.paths).collect();
+        for (i, path) in paths.into_iter().enumerate().rev() {
+            self.draw_once.draw(
+                path,
+                if i == 0 { material_1 } else { material_2 },
+                viewables.by_ref(),
+            );
+        }
+
+        for (entity, _, _) in viewables {
+            self.draw_once.commands.entity(entity).despawn();
+        }
+    }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum TargetOverrideCause {
-    None,
-    SetHeading,
+#[derive(SystemParam)]
+struct DrawGroundPathOnce<'w, 's> {
+    commands:       Commands<'w, 's>,
+    shapes:         Res<'w, shapes::Meshes>,
+    conf:           ReadConfig<'w, 's, super::Conf>,
+    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+}
+
+impl DrawGroundPathOnce<'_, '_> {
+    fn draw<'w>(
+        &mut self,
+        path: &route::PossiblePath,
+        material: &Handle<ColorMaterial>,
+        mut viewables: impl Iterator<
+            Item = (Entity, Mut<'w, Transform>, Mut<'w, MeshMaterial2d<ColorMaterial>>),
+        >,
+    ) {
+        let endpoint_pairs = [&path.start_endpoint]
+            .into_iter()
+            .chain(&path.next_endpoints)
+            .copied()
+            .filter_map(|endpoint_id| {
+                let endpoint = self.endpoint_query.log_get(endpoint_id)?;
+                Some(endpoint.position)
+            })
+            .tuple_windows();
+        for (start, end) in endpoint_pairs {
+            if let Some((_, mut tf, mut material_ref)) = viewables.next() {
+                shapes::set_square_line_transform(&mut tf, start, end);
+                if material_ref.0 != *material {
+                    material_ref.0 = material.clone();
+                }
+            } else {
+                let conf = self.conf.read();
+                self.commands.spawn((
+                    self.shapes.line_from_to(
+                        conf.preview_line.ground_thickness,
+                        Zorder::PossibleGroundPathPreview,
+                        start,
+                        end,
+                        &self.camera,
+                    ),
+                    MeshMaterial2d(material.clone()),
+                    GroundPathViewable,
+                ));
+            }
+        }
+    }
+}
+
+/// Marks an entity as a segment of ground path viewable
+/// for the paths planned by the ground pathfinder.
+#[derive(Component, Default)]
+#[require(GroundViewable)]
+struct GroundPathViewable;
+
+#[derive(Config)]
+pub(super) struct Conf {
+    /// Thickness of planned track preview line for airborne objects.
+    #[config(default = 1.0)]
+    airborne_thickness:  f32,
+    /// Thickness of planned track preview line for ground objects.
+    #[config(default = 1.5)]
+    ground_thickness:    f32,
+    /// Color of planned track preview line.
+    #[config(default = Color::srgb(0.9, 0.7, 0.8))]
+    color_normal:        Color,
+    /// Color of planned track preview line when setting heading.
+    #[config(default = Color::srgb(0.9, 0.9, 0.6))]
+    color_set_heading:   Color,
+    /// Color of available route presets from the current target waypoint.
+    #[config(default = Color::srgb(0.5, 0.6, 0.8))]
+    color_preset:        Color,
+    /// Color of the best path found by the ground pathfinder.
+    #[config(default = Color::srgb(0.5, 0.8, 0.6))]
+    color_ground_path_1: Color,
+    /// Color of the other paths found by the ground pathfinder.
+    #[config(default = Color::srgb(0.4, 0.4, 0.1))]
+    color_ground_path_2: Color,
 }

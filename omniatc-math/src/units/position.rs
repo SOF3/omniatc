@@ -4,7 +4,7 @@ use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use bevy_mod_config::impl_scalar_config_field;
 
 use super::Length;
-use crate::{AsSqrt, DtZero, LengthUnit, PowOne, Squared, SEA_ALTITUDE};
+use crate::{AsSqrt, DtZero, LengthUnit, PowOne, SEA_ALTITUDE, Squared};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
 pub struct Position<T>(pub Length<T>);
@@ -18,7 +18,7 @@ impl<'de, T: serde::Deserialize<'de> + super::IsFinite> serde::Deserialize<'de> 
 impl<T> Position<T> {
     pub const fn new(value: T) -> Self { Position(Length::new(value)) }
 
-    pub fn get(self) -> T { self.0 .0 }
+    pub fn get(self) -> T { self.0.0 }
 }
 
 impl Position<f32> {
@@ -46,7 +46,7 @@ impl Position<Vec2> {
 impl fmt::Debug for Position<f32> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Position")
-            .field("nm", &self.0 .0)
+            .field("nm", &self.0.0)
             .field("feet", &self.0.into_feet())
             .finish()
     }
@@ -54,15 +54,15 @@ impl fmt::Debug for Position<f32> {
 
 impl fmt::Debug for Position<Vec2> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Position").field("x", &self.0 .0.x).field("y", &self.0 .0.y).finish()
+        f.debug_struct("Position").field("x", &self.0.0.x).field("y", &self.0.0.y).finish()
     }
 }
 
 impl fmt::Debug for Position<Vec3> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Position")
-            .field("x", &self.0 .0.x)
-            .field("y", &self.0 .0.y)
+            .field("x", &self.0.0.x)
+            .field("y", &self.0.0.y)
             .field("z", &self.altitude().amsl().into_feet())
             .finish()
     }

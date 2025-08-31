@@ -12,10 +12,10 @@ use itertools::Itertools;
 use math::{Angle, Length, Position};
 use omniatc::level::ground;
 use omniatc::util::manage_entity_vec;
-use omniatc::{try_log, QueryTryLog};
+use omniatc::{QueryTryLog, try_log};
 
-use super::{vis, Conf};
-use crate::render::twodim::{camera, Zorder};
+use super::{Conf, vis};
+use crate::render::twodim::{Zorder, camera};
 use crate::util::shapes;
 
 #[cfg(test)]

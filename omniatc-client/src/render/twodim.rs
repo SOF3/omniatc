@@ -55,6 +55,7 @@ pub enum Zorder {
     ScaleRulerLabel,
     RoutePresetPreview,
     ObjectTrackPreview,
+    PossibleGroundPathPreview,
 }
 
 impl Zorder {

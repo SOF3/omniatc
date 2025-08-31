@@ -4,10 +4,10 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::ReadConfig;
-use omniatc::level::object;
 use omniatc::QueryTryLog;
+use omniatc::level::object;
 
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets};

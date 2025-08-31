@@ -5,7 +5,7 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
 use math::Speed;
 
-use super::{nav, route, SystemSets};
+use super::{SystemSets, nav, route};
 use crate::EntityMutTryLog;
 
 pub struct Plug;

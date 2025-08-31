@@ -2,7 +2,7 @@ use bevy::app::{App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::ResMut;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::manager;
 
 use crate::EguiSystemSets;

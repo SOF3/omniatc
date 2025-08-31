@@ -8,22 +8,22 @@ use bevy::ecs::event::EventWriter;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
+use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::MouseButton;
-use bevy::input::ButtonInput;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length, Position};
+use omniatc::QueryTryLog;
 use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, nav, object, plane};
-use omniatc::QueryTryLog;
 use ordered_float::OrderedFloat;
 
 use super::object::preview;
 use crate::render::object_info;
-use crate::{input, ConfigManager, EguiUsedMargins, UpdateSystemSets};
+use crate::{ConfigManager, EguiUsedMargins, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -79,18 +79,18 @@ pub(super) fn input_system(
 
     let mut determine_mode = params.p0();
     let mut is_preview = false;
-    if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.0 {
-        if let Ok(&camera_tf) = determine_mode.camera_query.get(cursor_camera_value.camera_entity) {
-            let mode = determine_mode.determine();
-            match mode {
-                Mode::SelectObject => params.p1().run(cursor_camera_value.world_pos, camera_tf),
-                Mode::CommitHeading => {
-                    params.p2().run(cursor_camera_value.world_pos, camera_tf, true);
-                }
-                Mode::PreviewHeading => {
-                    is_preview = true;
-                    params.p2().run(cursor_camera_value.world_pos, camera_tf, false);
-                }
+    if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.0
+        && let Ok(&camera_tf) = determine_mode.camera_query.get(cursor_camera_value.camera_entity)
+    {
+        let mode = determine_mode.determine();
+        match mode {
+            Mode::SelectObject => params.p1().run(cursor_camera_value.world_pos, camera_tf),
+            Mode::CommitHeading => {
+                params.p2().run(cursor_camera_value.world_pos, camera_tf, true);
+            }
+            Mode::PreviewHeading => {
+                is_preview = true;
+                params.p2().run(cursor_camera_value.world_pos, camera_tf, false);
             }
         }
     }
@@ -245,15 +245,14 @@ impl SetHeadingParams<'_, '_> {
         let mut target = nav::YawTarget::Heading(target_heading);
         if !self.margins.keyboard_acquired
             && self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
+            && let Some(plane) = plane
         {
-            if let Some(plane) = plane {
-                let reflex_dir = -plane.heading.closer_direction_to(target_heading);
-                target = nav::YawTarget::TurnHeading {
-                    heading:           target_heading,
-                    direction:         reflex_dir,
-                    remaining_crosses: 0,
-                };
-            }
+            let reflex_dir = -plane.heading.closer_direction_to(target_heading);
+            target = nav::YawTarget::TurnHeading {
+                heading:           target_heading,
+                direction:         reflex_dir,
+                remaining_crosses: 0,
+            };
         }
 
         if commit {

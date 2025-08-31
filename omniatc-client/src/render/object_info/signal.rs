@@ -1,9 +1,9 @@
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, SystemParam};
 use bevy_egui::egui;
+use omniatc::QueryTryLog;
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::QueryTryLog;
 
 use super::Writer;
 

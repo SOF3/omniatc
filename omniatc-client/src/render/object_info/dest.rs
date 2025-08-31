@@ -1,10 +1,10 @@
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, SystemParam};
 use bevy_egui::egui;
+use omniatc::QueryTryLog;
 use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::object;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::QueryTryLog;
 
 use super::Writer;
 
@@ -35,10 +35,10 @@ impl Writer for ObjectQuery {
             object::Destination::VacateAnyRunway => String::from("Land at any runway and vacate"),
             object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {
                 let mut waypoint_name = None;
-                if let Some((waypoint_entity, _)) = waypoint_proximity {
-                    if let Ok(data) = params.waypoint.get(waypoint_entity) {
-                        waypoint_name = Some(&data.name);
-                    }
+                if let Some((waypoint_entity, _)) = waypoint_proximity
+                    && let Ok(data) = params.waypoint.get(waypoint_entity)
+                {
+                    waypoint_name = Some(&data.name);
                 }
 
                 match (min_altitude, waypoint_name) {

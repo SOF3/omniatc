@@ -4,7 +4,7 @@ use bevy::prelude::{Entity, World};
 use math::{Between, Length, Position, Speed};
 
 use super::{
-    trigger, DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, WaypointProximity,
+    DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, WaypointProximity, trigger,
 };
 use crate::level::nav;
 use crate::level::object::{self, Object};

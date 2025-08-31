@@ -8,7 +8,7 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::system::{Commands, NonSend, ResMut};
 use omniatc::store;
-use omniatc::util::{run_async_local, AsyncPollList, AsyncResult};
+use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 use serde::{Deserialize, Serialize};
 
 mod scenario_loader;

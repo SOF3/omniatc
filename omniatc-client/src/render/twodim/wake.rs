@@ -16,13 +16,13 @@ use bevy_mod_config::{self, AppExt, Config, ReadConfig};
 use itertools::Itertools;
 use math::Length;
 use omniatc::level::wake;
-use omniatc::{try_log, QueryTryLog};
+use omniatc::{QueryTryLog, try_log};
 use smallvec::SmallVec;
 
 use super::Zorder;
 use crate::render::twodim::camera;
 use crate::util::shapes;
-use crate::{render, ConfigManager};
+use crate::{ConfigManager, render};
 
 pub struct Plug;
 

@@ -5,7 +5,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::time::{self, Time};
 use bevy_egui::egui::text::LayoutJob;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use omniatc::level::message::{self, Message};
 
 use crate::util::new_type_id;

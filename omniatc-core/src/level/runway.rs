@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 
 use super::navaid::Navaid;
 use super::waypoint::{self, Waypoint};
-use super::{navaid, SystemSets};
+use super::{SystemSets, navaid};
 use crate::QueryTryLog;
 
 pub struct Plug;

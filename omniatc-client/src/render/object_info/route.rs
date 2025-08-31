@@ -3,14 +3,14 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use itertools::Itertools;
+use omniatc::QueryTryLog;
 use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, taxi};
-use omniatc::QueryTryLog;
 
-use super::{dir, Writer};
+use super::{Writer, dir};
 use crate::input;
 use crate::util::new_type_id;
 
@@ -43,18 +43,18 @@ impl Writer for ObjectQuery {
     fn should_show(_this: &Self::Item<'_>) -> bool { true }
 
     fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
-        if let Some(target) = this.target_waypoint {
-            if let Ok(presets) = params.waypoint_presets_query.get(target.waypoint_entity) {
-                write_route_options(
-                    ui,
-                    &params.preset_query,
-                    &mut params.commands,
-                    this.entity,
-                    presets,
-                    this.route_id.and_then(|id| id.0.as_deref()),
-                    &params.hotkeys,
-                );
-            }
+        if let Some(target) = this.target_waypoint
+            && let Ok(presets) = params.waypoint_presets_query.get(target.waypoint_entity)
+        {
+            write_route_options(
+                ui,
+                &params.preset_query,
+                &mut params.commands,
+                this.entity,
+                presets,
+                this.route_id.and_then(|id| id.0.as_deref()),
+                &params.hotkeys,
+            );
         }
 
         if let Some(target) = this.taxi_target {
@@ -107,10 +107,10 @@ fn write_route_options(
             Selection::Available(n) => Selection::Available(n + 1),
             Selection::Retain => Selection::None,
         };
-        if let Selection::Available(n) = selection {
-            if presets.get(n).is_none() {
-                selection = Selection::None;
-            }
+        if let Selection::Available(n) = selection
+            && presets.get(n).is_none()
+        {
+            selection = Selection::None;
         }
     }
 

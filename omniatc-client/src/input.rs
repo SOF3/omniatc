@@ -9,7 +9,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::render::camera::Camera;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::Window;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::Position;
 use omniatc::try_log_return;
@@ -79,11 +79,11 @@ impl CurrentCursorCamera {
             return;
         };
         let Some((data, viewport_pos)) = camera_query.iter().find_map(|data| {
-            if let Some(viewport_rect) = data.camera.logical_viewport_rect() {
-                if viewport_rect.contains(cursor_pos) {
-                    let viewport_pos = cursor_pos - viewport_rect.min;
-                    return Some((data, viewport_pos));
-                }
+            if let Some(viewport_rect) = data.camera.logical_viewport_rect()
+                && viewport_rect.contains(cursor_pos)
+            {
+                let viewport_pos = cursor_pos - viewport_rect.min;
+                return Some((data, viewport_pos));
             }
             None
         }) else {

@@ -1,6 +1,6 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::Assets;
-use bevy::color::Mix;
+use bevy::color::{Color, Mix};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
@@ -10,12 +10,13 @@ use bevy::math::Vec3;
 use bevy::render::mesh::Mesh2d;
 use bevy::sprite::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
-use bevy_mod_config::ReadConfig;
-use omniatc::level::object;
-use omniatc::util::{manage_entity_vec, EnumScheduleConfig};
+use bevy_mod_config::{Config, ReadConfig};
+use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::QueryTryLog;
+use omniatc::level::object;
+use omniatc::util::{EnumScheduleConfig, manage_entity_vec};
 
-use super::{Conf, SetColorThemeSystemSet};
+use super::SetColorThemeSystemSet;
 use crate::render;
 use crate::render::object_info;
 use crate::render::twodim::Zorder;
@@ -46,7 +47,7 @@ fn respawn_system(
     shapes: Res<shapes::Meshes>,
     mut material_assets: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
-    conf: ReadConfig<Conf>,
+    conf: ReadConfig<super::Conf>,
     current_object: Res<object_info::CurrentObject>,
 ) {
     let conf = conf.read();
@@ -105,4 +106,26 @@ fn respawn_system(
             &mut commands,
         );
     }
+}
+
+#[derive(Config)]
+pub(super) struct Conf {
+    /// Maximum number of track points for unfocused objects.
+    #[config(default = 5, min = 0, max = 100)]
+    normal_max_points:   u32,
+    /// Size of track points.
+    #[config(default = 1.0, min = 0.0, max = 3.0)]
+    point_size:          f32,
+    /// Color of track points at base altitude.
+    #[config(default = Color::srgb(0.8, 0.4, 0.6))]
+    point_base_color:    Color,
+    /// Base altitude for track point coloring.
+    #[config(default = Position::SEA_LEVEL)]
+    point_base_altitude: Position<f32>,
+    /// Color of track points at top altitude.
+    #[config(default = Color::srgb(0.4, 0.8, 0.6))]
+    point_top_color:     Color,
+    /// Top altitude for track point coloring.
+    #[config(default = TROPOPAUSE_ALTITUDE)]
+    point_top_altitude:  Position<f32>,
 }

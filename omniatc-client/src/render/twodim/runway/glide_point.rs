@@ -11,7 +11,7 @@ use bevy_mod_config::{self, ReadConfig};
 use math::Length;
 use omniatc::level::runway::Runway;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::{try_log_return, QueryTryLog};
+use omniatc::{QueryTryLog, try_log_return};
 
 use super::Conf;
 use crate::render::twodim::Zorder;

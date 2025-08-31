@@ -8,8 +8,8 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
-use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
+use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
 use bevy::render::camera::{Camera, Viewport};
 use bevy::render::view::RenderLayers;
@@ -18,10 +18,10 @@ use bevy::window::Window;
 use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
-use omniatc::{store, QueryTryLog};
+use omniatc::{QueryTryLog, store};
 use serde::{Deserialize, Serialize};
 
-use crate::{input, ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -213,8 +213,8 @@ fn drag_camera_system(
         }
         (option @ None, true) => {
             // start dragging
-            if let Some(ref camera_value) = current_cursor_camera.0 {
-                if let Ok((camera_tf, _, _)) = camera_query
+            if let Some(ref camera_value) = current_cursor_camera.0
+                && let Ok((camera_tf, _, _)) = camera_query
                     .get(camera_value.camera_entity) {
                     *option = Some(DraggingState {
                         camera_entity:      camera_value.camera_entity,
@@ -222,7 +222,6 @@ fn drag_camera_system(
                         start_translation:  camera_tf.translation,
                     });
                 }
-            }
         }
         (Some(_), true) // continue dragging
         | (None, false) => {} // not dragging

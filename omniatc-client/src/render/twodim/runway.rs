@@ -8,13 +8,13 @@ use bevy::render::view::Visibility;
 use bevy::transform::components::Transform;
 use bevy_mod_config::{AppExt, Config};
 use math::{Length, LengthUnit};
+use omniatc::QueryTryLog;
 use omniatc::level::navaid::{self, Navaid};
 use omniatc::level::runway::{self, Runway};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::QueryTryLog;
 use ordered_float::OrderedFloat;
 
-use crate::{render, ConfigManager};
+use crate::{ConfigManager, render};
 
 pub struct Plug;
 

@@ -42,18 +42,18 @@ struct Plug<ViewableFilter, GetConf> {
 }
 
 impl<
-        ViewableFilter: Component,
-        GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
-    > Plug<ViewableFilter, GetConf>
+    ViewableFilter: Component,
+    GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
+> Plug<ViewableFilter, GetConf>
 {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(get_conf: GetConf) -> impl Plugin { Self { get_conf, _ph: PhantomData } }
 }
 
 impl<
-        ViewableFilter: Component,
-        GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
-    > Plugin for Plug<ViewableFilter, GetConf>
+    ViewableFilter: Component,
+    GetConf: Fn(&ConfRead) -> Length<f32> + Copy + Send + Sync + 'static,
+> Plugin for Plug<ViewableFilter, GetConf>
 {
     fn build(&self, app: &mut App) {
         let get_conf = self.get_conf;

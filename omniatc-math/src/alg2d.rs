@@ -47,7 +47,7 @@ pub fn line_intersect(s1: Vec2, d1: Vec2, s2: Vec2, d2: Vec2) -> (f32, f32) {
     (t.x, t.y)
 }
 
-/// Returns the closest point from `point` on the extended line intersecting `line_start` and `line_end`
+/// Returns the closest point from `point` on the extended line intersecting `line_start` and `line_end`.
 #[must_use]
 pub fn point_line_closest(
     point: Position<Vec2>,
@@ -59,6 +59,20 @@ pub fn point_line_closest(
 
     let (line_t, _ortho_t) = line_intersect(line_start.get(), line_dir.0, point.get(), ortho_dir.0);
     line_start + line_dir * line_t
+}
+
+/// Returns the closest point from `point` on the line segment between `line_start` and `line_end`.
+#[must_use]
+pub fn point_line_segment_closest(
+    point: Position<Vec2>,
+    line_start: Position<Vec2>,
+    line_end: Position<Vec2>,
+) -> Position<Vec2> {
+    let line_dir = line_end - line_start;
+    let ortho_dir = line_dir.rotate_right_angle_clockwise();
+
+    let (line_t, _ortho_t) = line_intersect(line_start.get(), line_dir.0, point.get(), ortho_dir.0);
+    line_start + line_dir * line_t.clamp(0.0, 1.0)
 }
 
 /// Returns the two points on the circle at `center` with radius `radius`

@@ -22,7 +22,7 @@ pub struct WriteParams<'w, 's> {
 impl Writer for ObjectQuery {
     type SystemParams<'w, 's> = WriteParams<'w, 's>;
 
-    fn title() -> &'static str { "Destination" }
+    fn title() -> &'static str { "Goal" }
 
     fn should_show(_this: &Self::Item<'_>) -> bool { true }
 
@@ -30,7 +30,11 @@ impl Writer for ObjectQuery {
         ui.label(match *this.dest {
             object::Destination::Landing { aerodrome } => {
                 let Some(data) = params.aerodrome.log_get(aerodrome) else { return };
-                format!("Arrival at {}", &data.name)
+                format!("Runway arrival at {}", &data.name)
+            }
+            object::Destination::Parking { aerodrome } => {
+                let Some(data) = params.aerodrome.log_get(aerodrome) else { return };
+                format!("Apron arrival at {}", &data.name)
             }
             object::Destination::VacateAnyRunway => String::from("Land at any runway and vacate"),
             object::Destination::ReachWaypoint { min_altitude, waypoint_proximity } => {

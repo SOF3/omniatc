@@ -13,6 +13,7 @@ use either::Either;
 use itertools::Itertools;
 use math::sweep::LineSweeper;
 use math::{Angle, Heading, Length, Position, SEA_ALTITUDE, Speed, sweep};
+use ordered_float::OrderedFloat;
 
 use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};
@@ -143,7 +144,7 @@ fn spawn_aerodromes(
                 );
             }
 
-            spawn_ground_segments(
+            let spawned_segments = spawn_ground_segments(
                 world,
                 &aerodrome.ground_network,
                 &aerodrome.runways,
@@ -158,6 +159,7 @@ fn spawn_aerodromes(
                     aerodrome_entity,
                     index: aerodrome_id,
                     runways: runway_entities,
+                    spawned_segments,
                 },
             ))
         })
@@ -168,8 +170,8 @@ fn spawn_aerodromes(
 struct AerodromeMap(HashMap<String, SpawnedAerodrome>);
 
 impl AerodromeMap {
-    fn resolve(&self, code: &str) -> Result<&SpawnedAerodrome, Error> {
-        self.0.get(code).ok_or_else(|| Error::UnresolvedAerodrome(code.to_string()))
+    fn resolve(&self, code: &store::AerodromeRef) -> Result<&SpawnedAerodrome, Error> {
+        self.0.get(&code.0).ok_or_else(|| Error::UnresolvedAerodrome(code.0.clone()))
     }
 }
 
@@ -177,6 +179,7 @@ struct SpawnedAerodrome {
     aerodrome_entity: Entity,
     index:            u32,
     runways:          HashMap<String, PairedSpawnedRunway>,
+    spawned_segments: SpawnedSegments,
 }
 
 #[derive(Clone, Copy)]
@@ -189,6 +192,12 @@ struct PairedSpawnedRunway {
     runway: SpawnedRunway,
     /// The other runway in the pair.
     paired: Entity,
+}
+
+impl PairedSpawnedRunway {
+    fn to_segment_label(&self) -> ground::SegmentLabel {
+        ground::SegmentLabel::RunwayPair([self.runway.runway, self.paired])
+    }
 }
 
 fn spawn_runway(
@@ -502,6 +511,15 @@ fn ground_lines_to_segments(
     segments
 }
 
+type SpawnedSegments = HashMap<ground::SegmentLabel, Vec<SpawnedSegment>>;
+
+struct SpawnedSegment {
+    entity:         Entity,
+    alpha_position: Position<Vec2>,
+    beta_position:  Position<Vec2>,
+    width:          Length<f32>,
+}
+
 fn spawn_ground_segments(
     world: &mut World,
     ground_network: &store::GroundNetwork,
@@ -509,7 +527,7 @@ fn spawn_ground_segments(
     runways: &HashMap<String, PairedSpawnedRunway>,
     aerodrome_entity: Entity,
     elevation: Position<f32>,
-) -> Result<(), Error> {
+) -> Result<SpawnedSegments, Error> {
     let mut lines = collect_non_apron_ground_lines(ground_network, runway_pairs, runways);
     generate_apron_lines(ground_network, &mut lines)?;
     let intersect_groups = find_ground_intersects(&lines)?;
@@ -523,6 +541,8 @@ fn spawn_ground_segments(
             entity
         })
         .collect();
+
+    let mut spawned_segments = SpawnedSegments::new();
 
     for segment in segments {
         let [alpha_endpoint, beta_endpoint] = [&segment.alpha, &segment.beta].map(|endpoint| {
@@ -550,9 +570,16 @@ fn spawn_ground_segments(
             label:   label.clone(),
         }
         .apply(world.entity_mut(segment_entity));
+
+        spawned_segments.entry(label.clone()).or_default().push(SpawnedSegment {
+            entity: segment_entity,
+            alpha_position: segment.alpha.position,
+            beta_position: segment.beta.position,
+            width,
+        });
     }
 
-    Ok(())
+    Ok(spawned_segments)
 }
 
 struct GroundLine {
@@ -704,9 +731,13 @@ fn spawn_plane(
         .id();
 
     let destination = match plane.aircraft.dest {
-        store::Destination::Landing { ref aerodrome_code } => {
-            let aerodrome = aerodromes.resolve(aerodrome_code)?;
+        store::Destination::Landing { ref aerodrome } => {
+            let aerodrome = aerodromes.resolve(aerodrome)?;
             object::Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
+        }
+        store::Destination::Parking { ref aerodrome } => {
+            let aerodrome = aerodromes.resolve(aerodrome)?;
+            object::Destination::Parking { aerodrome: aerodrome.aerodrome_entity }
         }
         store::Destination::VacateAnyRunway => object::Destination::VacateAnyRunway,
         store::Destination::ReachWaypoint { min_altitude, ref waypoint_proximity } => {
@@ -742,29 +773,46 @@ fn spawn_plane(
     }
     .apply(world.entity_mut(plane_entity));
 
-    if let store::NavTarget::Airborne(..) = plane.nav_target {
-        object::SetAirborneCommand.apply(world.entity_mut(plane_entity));
+    match &plane.nav_target {
+        store::NavTarget::Airborne(target) => {
+            object::SetAirborneCommand.apply(world.entity_mut(plane_entity));
 
-        let mut plane_ref = world.entity_mut(plane_entity);
-        let airspeed =
-            plane_ref.get::<object::Airborne>().expect("inserted by SetAirborneCommand").airspeed;
+            let mut plane_ref = world.entity_mut(plane_entity);
+            let airspeed = plane_ref
+                .get::<object::Airborne>()
+                .expect("inserted by SetAirborneCommand")
+                .airspeed;
 
-        let dt_target = nav::VelocityTarget {
-            yaw:         nav::YawTarget::Heading(airspeed.horizontal().heading()),
-            horiz_speed: airspeed.horizontal().magnitude_exact(),
-            vert_rate:   Speed::ZERO,
-            expedite:    false,
-        };
+            let dt_target = nav::VelocityTarget {
+                yaw:         nav::YawTarget::Heading(airspeed.horizontal().heading()),
+                horiz_speed: airspeed.horizontal().magnitude_exact(),
+                vert_rate:   Speed::ZERO,
+                expedite:    false,
+            };
 
-        plane_ref.insert(dt_target);
+            plane_ref.insert(dt_target);
+
+            insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
+        }
+        store::NavTarget::Ground(target) => {
+            let (segment, segment_direction) = resolve_closest_segment_by_label(
+                aerodromes,
+                &target.segment,
+                plane.aircraft.position,
+                plane.aircraft.ground_dir,
+                &plane.aircraft.name,
+            )?;
+
+            object::SetOnGroundCommand {
+                segment,
+                direction: segment_direction,
+                heading: Some(plane.aircraft.ground_dir),
+            }
+            .apply(world.entity_mut(plane_entity));
+        }
     }
 
-    let mut plane_ref = world.entity_mut(plane_entity);
-    if let store::NavTarget::Airborne(target) = &plane.nav_target {
-        insert_airborne_nav_targets(&mut plane_ref, aerodromes, waypoints, target)?;
-    }
-
-    plane_ref.insert((
+    world.entity_mut(plane_entity).insert((
         route::Id(plane.route.id.clone()),
         convert_route(aerodromes, waypoints, route_presets, &plane.route.nodes)
             .collect::<Result<Route, Error>>()?,
@@ -892,25 +940,98 @@ fn resolve_segment(
     segment: &store::SegmentRef,
     aerodromes: &AerodromeMap,
 ) -> Result<ground::SegmentLabel, Error> {
-    Ok(match segment {
-        store::SegmentRef::Taxiway(name) => ground::SegmentLabel::Taxiway { name: name.clone() },
-        store::SegmentRef::Apron(name) => ground::SegmentLabel::Apron { name: name.clone() },
-        store::SegmentRef::Runway(runway) => {
-            let runway = resolve_runway_ref(aerodromes, runway)?;
+    Ok(match &segment.label {
+        store::SegmentLabel::Taxiway(name) => ground::SegmentLabel::Taxiway { name: name.clone() },
+        store::SegmentLabel::Apron(name) => ground::SegmentLabel::Apron { name: name.clone() },
+        store::SegmentLabel::Runway(runway) => {
+            let runway = resolve_runway_ref_destructured(aerodromes, &segment.aerodrome, runway)?;
             ground::SegmentLabel::RunwayPair([runway.runway.runway, runway.paired])
         }
     })
 }
 
+/// Resolves the actual segment from the label reference
+/// by selecting the segment most parallel to the given heading
+/// among those matching the label and containing the position within its width from centerline.
+fn resolve_closest_segment_by_label(
+    aerodromes: &AerodromeMap,
+    segment_ref: &store::SegmentRef,
+    position: Position<Vec2>,
+    heading: Heading,
+    object_name: &str,
+) -> Result<(Entity, ground::SegmentDirection), Error> {
+    let aerodrome = aerodromes.resolve(&segment_ref.aerodrome)?;
+
+    let label = match &segment_ref.label {
+        store::SegmentLabel::Taxiway(name) => ground::SegmentLabel::Taxiway { name: name.clone() },
+        store::SegmentLabel::Apron(name) => ground::SegmentLabel::Apron { name: name.clone() },
+        store::SegmentLabel::Runway(runway) => {
+            let runway =
+                resolve_runway_ref_destructured(aerodromes, &segment_ref.aerodrome, runway)?;
+            ground::SegmentLabel::RunwayPair([runway.runway.runway, runway.paired])
+        }
+    };
+
+    let possible_segments =
+        aerodrome.spawned_segments.get(&label).ok_or_else(|| Error::UnresolvedSegment {
+            variant:   (&segment_ref.label).into(),
+            value:     segment_ref.label.inner_name().to_owned(),
+            aerodrome: segment_ref.aerodrome.0.clone(),
+        })?;
+
+    let heading_dir = heading.into_dir2();
+
+    let closest = possible_segments
+        .iter()
+        .filter(|segment| {
+            math::point_line_segment_closest(
+                position,
+                segment.alpha_position,
+                segment.beta_position,
+            )
+            .distance_cmp(position)
+                < segment.width / 2.0
+        })
+        .map(|segment| {
+            let segment_heading =
+                (segment.beta_position - segment.alpha_position).0.normalize_or_zero();
+            (segment.entity, segment_heading.dot(*heading_dir))
+        })
+        .max_by_key(|&(_entity, dot)| OrderedFloat(dot.abs()));
+    match closest {
+        None => Err(Error::NotOnSegment {
+            object:    object_name.to_owned(),
+            variant:   (&segment_ref.label).into(),
+            value:     segment_ref.label.inner_name().to_owned(),
+            aerodrome: segment_ref.aerodrome.0.clone(),
+        }),
+        Some((segment_entity, dot)) => {
+            if dot >= 0.0 {
+                Ok((segment_entity, ground::SegmentDirection::AlphaToBeta))
+            } else {
+                Ok((segment_entity, ground::SegmentDirection::BetaToAlpha))
+            }
+        }
+    }
+}
+
 fn resolve_runway_ref<'a>(
     aerodromes: &'a AerodromeMap,
-    store::RunwayRef { aerodrome_code, runway_name }: &store::RunwayRef,
+    runway: &store::RunwayRef,
 ) -> Result<&'a PairedSpawnedRunway, Error> {
-    let aerodrome = aerodromes.resolve(aerodrome_code)?;
+    resolve_runway_ref_destructured(aerodromes, &runway.aerodrome, &runway.runway_name)
+}
+
+fn resolve_runway_ref_destructured<'a>(
+    aerodromes: &'a AerodromeMap,
+    aerodrome_ref: &store::AerodromeRef,
+    runway_name: &str,
+) -> Result<&'a PairedSpawnedRunway, Error> {
+    let aerodrome = aerodromes.resolve(aerodrome_ref)?;
     let Some(runway) = aerodrome.runways.get(runway_name) else {
         return Err(Error::UnresolvedRunway {
-            aerodrome: aerodrome_code.clone(),
-            runway:    runway_name.clone(),
+            aerodrome: aerodrome_ref.0.clone(),
+            runway:    runway_name.to_string(),
         });
     };
     Ok(runway)
@@ -946,6 +1067,17 @@ pub enum Error {
     UnresolvedWaypoint(String),
     #[error("No route preset called {0:?}")]
     UnresolvedRoutePreset(String),
+    #[error("No {variant} called {value:?} in aerodrome {aerodrome:?}")]
+    UnresolvedSegment { variant: &'static str, value: String, aerodrome: String },
+    #[error(
+        "Object {object:?} is not near any {variant} named {value:?} in aerodrome {aerodrome:?}"
+    )]
+    NotOnSegment {
+        object:    String,
+        variant:   &'static str,
+        value:     String,
+        aerodrome: String,
+    },
     #[error("Non-finite value encountered at {0}")]
     NonFiniteFloat(&'static str),
     #[error(

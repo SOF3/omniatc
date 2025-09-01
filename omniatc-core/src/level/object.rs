@@ -174,6 +174,7 @@ pub struct OnGround {
 pub struct SetOnGroundCommand {
     pub segment:   Entity,
     pub direction: ground::SegmentDirection,
+    pub heading:   Option<Heading>,
 }
 
 impl EntityCommand for SetOnGroundCommand {
@@ -188,8 +189,15 @@ impl EntityCommand for SetOnGroundCommand {
         // force the altitude to be aerodrome elevation
         object.position = object.position.horizontal().with_altitude(elevation);
 
-        let Some(&Airborne { true_airspeed, .. }) = entity.log_get::<Airborne>() else { return };
-        let heading = true_airspeed.horizontal().heading();
+        let heading = match self.heading {
+            None => {
+                let Some(&Airborne { true_airspeed, .. }) = entity.log_get::<Airborne>() else {
+                    return;
+                };
+                true_airspeed.horizontal().heading()
+            }
+            Some(heading) => heading,
+        };
 
         entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {
             segment: self.segment,

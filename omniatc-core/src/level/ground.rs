@@ -1,3 +1,6 @@
+use std::hash::{Hash, Hasher};
+use std::mem;
+
 use bevy::app::{App, Plugin};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
@@ -150,6 +153,9 @@ pub enum SegmentLabel {
     /// The segment is part of a taxiway.
     Taxiway { name: String },
     /// The segment is part of a runway.
+    ///
+    /// `RunwayPair([r1, r2])` and `RunwayPair([r2, r1])` are considered equal
+    /// for equality and hashing.
     RunwayPair([Entity; 2]),
     /// The segment is the path leading into an apron.
     Apron { name: String },
@@ -179,6 +185,22 @@ impl PartialEq for SegmentLabel {
 }
 
 impl Eq for SegmentLabel {}
+
+impl Hash for SegmentLabel {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        mem::discriminant(self).hash(state);
+        match self {
+            SegmentLabel::RunwayPair(rwy) => {
+                let (r1, r2) = if rwy[0] < rwy[1] { (rwy[0], rwy[1]) } else { (rwy[1], rwy[0]) };
+                r1.hash(state);
+                r2.hash(state);
+            }
+            SegmentLabel::Taxiway { name } | SegmentLabel::Apron { name } => {
+                name.hash(state);
+            }
+        }
+    }
+}
 
 /// The intersection between segments.
 #[derive(Component)]
@@ -211,6 +233,8 @@ impl EntityCommand for SpawnSegment {
             });
         }
 
+        bevy::log::debug!("Segment entity {:?} spawned as {:?}", &self.label, entity.id());
+
         entity.insert((
             self.segment,
             Name::new(format!("GroundSegment {:?}", &self.label)),
@@ -228,6 +252,8 @@ impl EntityCommand for SpawnSegment {
                     .adjacency
                     .push(entity_id);
                 world.send_event(EndpointChangedEvent(endpoint));
+
+                bevy::log::debug!("Segment {entity_id:?} contains endpoint {endpoint:?}");
             }
         });
     }

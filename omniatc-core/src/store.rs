@@ -345,7 +345,9 @@ pub struct BaseAircraft {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Destination {
     /// Object can be handed over upon vacating a runway in the specific aerodrome.
-    Landing { aerodrome_code: String },
+    Landing { aerodrome: AerodromeRef },
+    /// Object can be handed over upon parking in a runway in the specific aerodrome.
+    Parking { aerodrome: AerodromeRef },
     /// Object can be handed over upon vacating any runway.
     VacateAnyRunway,
     // TODO: apron/taxiway arrival.
@@ -392,7 +394,7 @@ pub struct AirborneNavTarget {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GroundNavTarget {
-    pub velocity: nav::VelocityTarget,
+    pub segment: SegmentRef,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -557,12 +559,37 @@ pub enum RouteNode {
     },
 }
 
-/// References a runway, taxiway, or apron.
+/// References a runway, taxiway, or apron by label.
 #[derive(Clone, Serialize, Deserialize)]
-pub enum SegmentRef {
+pub struct SegmentRef {
+    /// Code of the aerodrome for the runway.
+    pub aerodrome: AerodromeRef,
+    /// The label of segments to be referenced.
+    pub label:     SegmentLabel,
+}
+
+/// Identifies a segment within an aerodrome.
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, strum::IntoStaticStr)]
+pub enum SegmentLabel {
+    /// Name of the taxiway.
     Taxiway(String),
+    /// Name of the apron.
     Apron(String),
-    Runway(RunwayRef),
+    /// Name of the runway (either direction).
+    Runway(String),
+}
+
+impl SegmentLabel {
+    /// Returns the name specified by the user to describe this label,
+    /// regardless of the type of segment.
+    #[must_use]
+    pub fn inner_name(&self) -> &str {
+        match self {
+            SegmentLabel::Taxiway(name)
+            | SegmentLabel::Apron(name)
+            | SegmentLabel::Runway(name) => name,
+        }
+    }
 }
 
 /// References a position.
@@ -580,13 +607,21 @@ pub enum WaypointRef {
     LocalizerStart(RunwayRef),
 }
 
+/// References an aerodrome by name.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AerodromeRef(pub String);
+
+impl From<&str> for AerodromeRef {
+    fn from(value: &str) -> Self { Self(value.to_owned()) }
+}
+
 /// References a runway.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RunwayRef {
     /// Code of the aerodrome for the runway.
-    pub aerodrome_code: String,
+    pub aerodrome:   AerodromeRef,
     /// Name of the runway.
-    pub runway_name:    String,
+    pub runway_name: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

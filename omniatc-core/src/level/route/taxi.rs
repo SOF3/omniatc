@@ -15,6 +15,9 @@ use super::{Node, NodeKind, Route, RunNodeResult, trigger};
 use crate::level::{ground, message, object, taxi};
 use crate::{EntityTryLog, WorldTryLog};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone)]
 pub struct TaxiNode {
     /// Taxi through `label`.
@@ -204,15 +207,15 @@ pub fn pathfind_through_subseq(
     let successors = |source_endpoint_id: Entity, label_offset: usize| {
         let source = get_or_fail!(world, failed, source_endpoint_id, ground::Endpoint);
         let successors = source.adjacency.iter().copied().filter_map(move |segment_id| {
-            if source_endpoint_id == initial_dest_endpoint_id && segment_id != initial_segment_id {
+            if source_endpoint_id == initial_dest_endpoint_id && segment_id == initial_segment_id {
                 // cannot turn back
                 return None;
             }
 
             let segment = get_or_fail!(world, failed, segment_id, ground::Segment);
             if source_endpoint_id == initial_dest_endpoint_id
-                && let Some(current_speed) = options.initial_speed
-                && segment.max_speed < current_speed
+                && let Some(initial_speed) = options.initial_speed
+                && segment.max_speed < initial_speed
             {
                 return None;
             }

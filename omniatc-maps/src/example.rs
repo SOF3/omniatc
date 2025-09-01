@@ -78,15 +78,15 @@ fn route_retry_18r() -> Vec<store::RouteNode> {
         },
         store::RouteNode::RunwayLanding {
             runway:          store::RunwayRef {
-                aerodrome_code: "MAIN".into(),
-                runway_name:    "18R".into(),
+                aerodrome:   "MAIN".into(),
+                runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
-    .into()
+    .into_iter()
+    .chain(route_taxi_runway_west_to_tango())
+    .collect()
 }
 
 fn route_dwind_18l() -> Vec<store::RouteNode> {
@@ -120,15 +120,15 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
         store::RouteNode::RunwayLanding {
             runway:          store::RunwayRef {
-                aerodrome_code: "MAIN".into(),
-                runway_name:    "18L".into(),
+                aerodrome:   "MAIN".into(),
+                runway_name: "18L".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("B".into()) },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
-    .into()
+    .into_iter()
+    .chain(route_taxi_runway_east_to_tango())
+    .collect()
 }
 
 fn route_dwind_18r() -> Vec<store::RouteNode> {
@@ -162,15 +162,15 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
         store::RouteNode::RunwayLanding {
             runway:          store::RunwayRef {
-                aerodrome_code: "MAIN".into(),
-                runway_name:    "18R".into(),
+                aerodrome:   "MAIN".into(),
+                runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
-    .into()
+    .into_iter()
+    .chain(route_taxi_runway_west_to_tango())
+    .collect()
 }
 
 fn route_polar_18l() -> Vec<store::RouteNode> {
@@ -198,15 +198,15 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
         store::RouteNode::RunwayLanding {
             runway:          store::RunwayRef {
-                aerodrome_code: "MAIN".into(),
-                runway_name:    "18L".into(),
+                aerodrome:   "MAIN".into(),
+                runway_name: "18L".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("B".into()) },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
     ]
-    .into()
+    .into_iter()
+    .chain(route_taxi_runway_east_to_tango())
+    .collect()
 }
 
 fn route_polar_18r() -> Vec<store::RouteNode> {
@@ -234,13 +234,49 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(180.), error: None },
         store::RouteNode::RunwayLanding {
             runway:          store::RunwayRef {
-                aerodrome_code: "MAIN".into(),
-                runway_name:    "18R".into(),
+                aerodrome:   "MAIN".into(),
+                runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
         },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("A".into()) },
-        store::RouteNode::Taxi { segment: store::SegmentRef::Taxiway("T".into()) },
+    ]
+    .into_iter()
+    .chain(route_taxi_runway_west_to_tango())
+    .collect()
+}
+
+fn route_taxi_runway_east_to_tango() -> Vec<store::RouteNode> {
+    [
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("B".into()),
+            },
+        },
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("T".into()),
+            },
+        },
+    ]
+    .into()
+}
+
+fn route_taxi_runway_west_to_tango() -> Vec<store::RouteNode> {
+    [
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("A".into()),
+            },
+        },
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("T".into()),
+            },
+        },
     ]
     .into()
 }
@@ -656,7 +692,7 @@ pub fn file() -> store::File {
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
                         name:         "ABC123".into(),
-                        dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
+                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
                         position:     Position::from_origin_nm(2., -14.),
                         altitude:     Position::from_amsl_feet(12000.),
                         ground_speed: Speed::from_knots(280.),
@@ -690,7 +726,7 @@ pub fn file() -> store::File {
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
                         name:         "DEF789".into(),
-                        dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
+                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
                         position:     Position::from_origin_nm(2., -18.),
                         altitude:     Position::from_amsl_feet(12000.),
                         ground_speed: Speed::from_knots(280.),
@@ -724,7 +760,7 @@ pub fn file() -> store::File {
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
                         name:         "ARC512".into(),
-                        dest:         store::Destination::Landing { aerodrome_code: "MAIN".into() },
+                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
                         position:     Position::from_origin_nm(8., 28.),
                         altitude:     Position::from_amsl_feet(7000.),
                         ground_speed: Speed::from_knots(220.),
@@ -796,6 +832,36 @@ pub fn file() -> store::File {
                         target_alignment: None,
                     })),
                     route:       store::Route { id: None, nodes: [].into() },
+                }),
+                store::Object::Plane(store::Plane {
+                    aircraft:    store::BaseAircraft {
+                        name:         "LND456".into(),
+                        dest:         store::Destination::Parking { aerodrome: "MAIN".into() },
+                        position:     Position::from_origin_nm(1., 0.),
+                        altitude:     Position::from_amsl_feet(300.),
+                        ground_speed: Speed::from_knots(140.),
+                        ground_dir:   Heading::SOUTH,
+                        vert_rate:    Speed::ZERO,
+                        weight:       1e5,
+                        wingspan:     Length::from_meters(50.),
+                    },
+                    control:     store::PlaneControl {
+                        heading:     Heading::SOUTH,
+                        yaw_speed:   AngularSpeed::ZERO,
+                        horiz_accel: Accel::ZERO,
+                    },
+                    taxi_limits: default_plane_taxi_limits(),
+                    nav_limits:  default_plane_nav_limits(),
+                    nav_target:  store::NavTarget::Ground(store::GroundNavTarget {
+                        segment: store::SegmentRef {
+                            aerodrome: "MAIN".into(),
+                            label:     store::SegmentLabel::Runway("36R".into()),
+                        },
+                    }),
+                    route:       store::Route {
+                        id:    None,
+                        nodes: route_taxi_runway_west_to_tango(),
+                    },
                 }),
             ]
             .into(),

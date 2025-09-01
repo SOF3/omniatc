@@ -6,6 +6,8 @@ use math::{Length, Position};
 pub enum Destination {
     /// Object can be handed over upon vacating a runway in the specific aerodrome.
     Landing { aerodrome: Entity },
+    /// Object can be handed over upon parking in an apron in the specific aerodrome.
+    Parking { aerodrome: Entity },
     /// Object can be handed over upon vacating any runway.
     VacateAnyRunway,
     // TODO: apron/taxiway arrival.

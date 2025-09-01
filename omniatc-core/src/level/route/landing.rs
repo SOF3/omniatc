@@ -315,7 +315,7 @@ fn set_landed(object: &mut EntityWorldMut, runway_entity: Entity) -> Result<(), 
 
     let object_id = object.id();
     object.world_scope(|world| {
-        object::SetOnGroundCommand { segment: segment_id, direction }
+        object::SetOnGroundCommand { segment: segment_id, direction, heading: None }
             .apply(world.entity_mut(object_id));
     });
 

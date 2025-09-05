@@ -144,15 +144,13 @@ impl EntityCommand for SetAirborneCommand {
     }
 }
 
+/// Marks that the object is on ground. Exclusive with [`Airborne`].
+///
+/// This component is updated by the taxi plugin during the Navigate phase.
 #[derive(Component)]
+#[require(TaxiStatus)]
 pub struct OnGround {
-    /// Current heading of the object.
-    ///
-    /// This field is assigned by the taxi plugin during the Aviate phase.
-    pub heading:      Heading,
     /// Current segment the object is on.
-    ///
-    /// This field is updated by the taxi plugin during the Navigate phase.
     pub segment:      Entity,
     /// Direction of motion on the segment.
     ///
@@ -164,10 +162,20 @@ pub struct OnGround {
     ///
     /// A negative value indicates that the object should reverse.
     ///
-    /// This field is assigned by the taxi plugin during the Navigate phase.
     /// The Aviate phase updates [`Object::ground_speed`] to attain this target speed subject to
     /// taxi limits.
     pub target_speed: Speed<f32>,
+}
+
+#[derive(Component)]
+/// This component is assigned by the taxi plugin during the Aviate phase.
+pub struct TaxiStatus {
+    /// Current heading of the object.
+    pub heading: Heading,
+}
+
+impl Default for TaxiStatus {
+    fn default() -> Self { Self { heading: Heading::NORTH } }
 }
 
 /// Sets an entity from airborne to ground.
@@ -199,12 +207,14 @@ impl EntityCommand for SetOnGroundCommand {
             Some(heading) => heading,
         };
 
-        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((OnGround {
-            segment: self.segment,
-            direction: self.direction,
-            heading,
-            target_speed: Speed::ZERO,
-        },));
+        entity.remove::<(Airborne, nav::VelocityTarget, nav::AllTargets)>().insert((
+            OnGround {
+                segment:      self.segment,
+                direction:    self.direction,
+                target_speed: Speed::ZERO,
+            },
+            TaxiStatus { heading },
+        ));
     }
 }
 
@@ -368,10 +378,10 @@ pub enum RefAltitudeType {
 }
 
 pub(super) fn rotate_ground_object_system(
-    mut query: Query<(&mut Rotation, &OnGround), Without<Airborne>>,
+    mut query: Query<(&mut Rotation, &TaxiStatus), Without<Airborne>>,
 ) {
-    query.iter_mut().for_each(|(mut rot, ground)| {
-        rot.0 = Quat::IDENTITY * ground.heading.into_rotation_quat();
+    query.iter_mut().for_each(|(mut rot, taxi_status)| {
+        rot.0 = Quat::IDENTITY * taxi_status.heading.into_rotation_quat();
     });
 }
 

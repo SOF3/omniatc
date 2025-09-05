@@ -253,7 +253,7 @@ impl EntityCommand for SpawnSegment {
                     .push(entity_id);
                 world.send_event(EndpointChangedEvent(endpoint));
 
-                bevy::log::debug!("Segment {entity_id:?} contains endpoint {endpoint:?}");
+                bevy::log::trace!("Segment {entity_id:?} contains endpoint {endpoint:?}");
             }
         });
     }

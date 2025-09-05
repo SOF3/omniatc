@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::iter;
 use std::time::Duration;
 
 use bevy::ecs::component::Component;
@@ -119,17 +118,14 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
     let route =
         object.get::<Route>().expect("run_as_current_node must be called from a route handler");
     let mut hold_short = false;
-    let subseq_labels: Vec<_> = iter::once(segment_label)
-        .chain(
-            route
-                .iter()
-                .map(|node| if let Node::Taxi(taxi) = node { Some(taxi) } else { None })
-                .while_some()
-                .map(|node| {
-                    hold_short = node.hold_short;
-                    &node.label
-                }),
-        )
+    let subseq_labels: Vec<_> = route
+        .iter()
+        .map(|node| if let Node::Taxi(taxi) = node { Some(taxi) } else { None })
+        .while_some()
+        .map(|node| {
+            hold_short = node.hold_short;
+            &node.label
+        })
         .collect();
     assert!(
         subseq_labels.len() >= 2,
@@ -143,26 +139,62 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
         return None;
     }
 
+    let mut return_hold_short = false;
     let mut next_segments: Vec<_> = target_endpoint
         .adjacency
         .iter()
         .copied()
         .filter(|&next_segment| next_segment != ground.segment)
         .filter_map(|next_segment_id| {
-            let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
-            let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
+            if next_segment_id == ground.segment {
+                return None;
+            }
 
-            pathfind_through_subseq(
-                world,
-                next_segment_id,
-                next_endpoint_id,
-                &subseq_labels,
-                if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
-                PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
-            )
-            .map(|path| (next_segment_id, path))
+            let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
+            let next_segment_label = world.log_get::<ground::SegmentLabel>(next_segment_id)?;
+            let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
+            let next_endpoint = world.log_get::<ground::Endpoint>(next_endpoint_id)?;
+
+            if [next_segment_label] == subseq_labels[..] {
+                // This segment already satisfies the subsequence requirement.
+                if hold_short {
+                    // Just hold short at the current endpoint.
+                    return_hold_short = true;
+                    None
+                } else {
+                    Some((
+                        next_segment_id,
+                        Path {
+                            endpoints: vec![next_endpoint_id],
+                            cost:      target_endpoint
+                                .position
+                                .distance_exact(next_endpoint.position),
+                        },
+                    ))
+                }
+            } else {
+                let mut subseq_labels = &subseq_labels[..];
+                if Some(next_segment_label) == subseq_labels.first().copied() {
+                    subseq_labels = &subseq_labels[1..];
+                }
+
+                pathfind_through_subseq(
+                    world,
+                    next_segment_id,
+                    next_endpoint_id,
+                    subseq_labels,
+                    if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
+                    PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
+                )
+                .map(|path| (next_segment_id, path))
+            }
         })
         .collect();
+
+    if return_hold_short {
+        return None;
+    }
+
     next_segments.sort_by_key(|(_, path)| OrderedFloat(path.cost.0));
 
     Some(PossiblePaths {
@@ -207,8 +239,8 @@ pub fn pathfind_through_subseq(
     let successors = |source_endpoint_id: Entity, label_offset: usize| {
         let source = get_or_fail!(world, failed, source_endpoint_id, ground::Endpoint);
         let successors = source.adjacency.iter().copied().filter_map(move |segment_id| {
-            if source_endpoint_id == initial_dest_endpoint_id && segment_id == initial_segment_id {
-                // cannot turn back
+            if segment_id == initial_segment_id {
+                // do not repeat the segment we came from.
                 return None;
             }
 
@@ -231,7 +263,7 @@ pub fn pathfind_through_subseq(
                 .expect("adjacency segment of endpoint must contain itself");
             let dest_endpoint = get_or_fail!(world, failed, dest_endpoint_id, ground::Endpoint);
             let distance = source.position.distance_exact(dest_endpoint.position);
-            let distance = OrderedFloat(distance.0);
+            let cost = OrderedFloat(distance.0);
 
             let label = get_or_fail!(world, failed, segment_id, ground::SegmentLabel);
             let next_label_offset =
@@ -241,7 +273,7 @@ pub fn pathfind_through_subseq(
                     label_offset
                 };
 
-            Some(((dest_endpoint_id, next_label_offset), distance))
+            Some(((dest_endpoint_id, next_label_offset), cost))
         });
         Some(successors)
     };
@@ -278,6 +310,7 @@ pub fn pathfind_through_subseq(
             }
         },
     )?;
+    bevy::log::debug!("found path with cost {:?}: {:?}", Length::new(cost.0), &nodes);
 
     Some(Path {
         endpoints: nodes.into_iter().map(|(endpoint_id, _)| endpoint_id).collect(),

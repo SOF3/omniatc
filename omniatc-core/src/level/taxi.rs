@@ -1,4 +1,14 @@
 //! Controls ground object movement.
+//!
+//! Levels of control:
+//! - Higher-level systems (e.g. [`route::TaxiNode`](crate::level::route::TaxiNode))
+//!   update the [`Target`] component to indicate the action for the next segment.
+//! - `target_path_system` updates [`object::OnGround`] to determine the state
+//!   "object should move along (which segment) at (what speed) in (which direction)"
+//!   to smoothly transition to the target segment as required by [`Target`].
+//! - `maintain_dir` executes the movement indicated by [`object::OnGround`]
+//!   to move along the centerline at the required speed and heading,
+//!   effecting its output on [`Object`] and [`object::TaxiStatus`].
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
@@ -30,11 +40,11 @@ const MIN_POSITIVE_SPEED: Speed<f32> = Speed::from_knots(2.);
 /// it is considered to be on the centerline,
 /// and it will head directly towards the target endpoint
 /// instead of pursuing the centerline.
-const NEGLIGIBLE_DEVIATION: Length<f32> = Length::from_meters(20.0);
+const NEGLIGIBLE_DEVIATION: Length<f32> = Length::from_meters(1.0);
 
 /// If the object is expected to diverge from the centerline beyond this distance,
 /// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
-const OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(10.0);
+const OVERSHOOT_TOLERANCE: Length<f32> = Length::from_meters(3.0);
 
 pub struct Plug;
 
@@ -79,7 +89,7 @@ pub struct Limits {
 
 fn maintain_dir(
     time: Res<Time<time::Virtual>>,
-    object_query: Query<(&mut Object, &mut object::OnGround, &Limits)>,
+    object_query: Query<(&mut Object, &object::OnGround, &mut object::TaxiStatus, &Limits)>,
     segment_query: Query<&ground::Segment>,
     endpoint_query: Query<&ground::Endpoint>,
 ) {
@@ -87,7 +97,7 @@ fn maintain_dir(
         return;
     }
 
-    for (mut object, mut ground, limits) in object_query {
+    for (mut object, ground, mut taxi_status, limits) in object_query {
         let Some(segment) = segment_query.log_get(ground.segment) else { continue };
         let (other_endpoint_entity, target_endpoint_entity) = match ground.direction {
             ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
@@ -101,12 +111,22 @@ fn maintain_dir(
         maintain_dir_for_object(
             &time,
             &mut object,
-            &mut ground,
+            ground,
+            &mut taxi_status,
             limits,
             other_endpoint.position,
             target_endpoint.position,
         );
     }
+}
+
+#[derive(Debug)]
+enum TurnTowards {
+    /// Turn towards the target endpoint.
+    TargetEndpoint,
+    /// Turn towards the segment centerline,
+    /// targeting the pure pursuit position based on time delta.
+    CenterLine,
 }
 
 /// Update the heading and speed of `object`
@@ -124,26 +144,20 @@ fn maintain_dir(
 fn maintain_dir_for_object(
     time: &Time<time::Virtual>,
     object: &mut Object,
-    ground: &mut object::OnGround,
+    ground: &object::OnGround,
+    taxi_status: &mut object::TaxiStatus,
     limits: &Limits,
     other_endpoint: Position<Vec2>,
     target_endpoint: Position<Vec2>,
 ) {
-    enum TurnTowards {
-        /// Turn towards the target endpoint.
-        TargetEndpoint,
-        /// Turn towards the segment centerline,
-        /// targeting the pure pursuit position based on time delta.
-        CenterLine,
-    }
-
     let reversed = ground.target_speed.is_negative();
 
     let current_speed =
-        object.ground_speed.horizontal().project_onto_dir(ground.heading.into_dir2());
+        object.ground_speed.horizontal().project_onto_dir(taxi_status.heading.into_dir2());
     let current_corrected_speed = if reversed { -current_speed } else { current_speed };
 
-    let current_heading = if reversed { ground.heading.opposite() } else { ground.heading };
+    let current_heading =
+        if reversed { taxi_status.heading.opposite() } else { taxi_status.heading };
 
     // In the following direction calculations, we ignore reversal by treating the backward
     // direction as the heading if reversal is desired.
@@ -156,6 +170,12 @@ fn maintain_dir_for_object(
     // The vector from the object to the closest point on the line, orthogonal to the line.
     let object_to_line_ortho = closest_point - object.position.horizontal();
 
+    // Whether the current heading is facing towards the centerline.
+    // Always true if the object is negligibly near the centerline.
+    let is_towards_centerline = object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION
+        || current_heading.into_dir2().dot(object_to_line_ortho.0) >= 0.0;
+
+    // Amount of turn required to face the target heading, signed.
     let turn_towards_target_dir = current_heading.closest_distance(target_heading);
 
     // Estimated change in orthogonal displacement of the object if we start turning towards
@@ -224,8 +244,8 @@ fn maintain_dir_for_object(
         let crossing_diverge =
             object_to_line_ortho.magnitude_cmp() < convergence_dist - OVERSHOOT_TOLERANCE;
         // diverging from centerline and will continue to diverge beyond threshold
-        let continue_diverge =
-            object_to_line_ortho.magnitude_cmp() > OVERSHOOT_TOLERANCE - convergence_dist;
+        let continue_diverge = !is_towards_centerline
+            && object_to_line_ortho.magnitude_cmp() > OVERSHOOT_TOLERANCE - convergence_dist;
 
         if crossing_diverge || continue_diverge {
             // In either case, the object will cross the centerline significantly
@@ -245,7 +265,7 @@ fn maintain_dir_for_object(
 
     let desired_velocity = new_speed * new_heading;
     object.ground_speed = desired_velocity.horizontally();
-    ground.heading = if reversed { new_heading.opposite() } else { new_heading };
+    taxi_status.heading = if reversed { new_heading.opposite() } else { new_heading };
 
     // TODO check for other objects on the segment.
     // Control speed such that the braking distance is shorter than the separation between objects.
@@ -299,15 +319,23 @@ pub struct TargetResolutionEvent {
 }
 
 fn target_path_system(
-    object_query: Query<(Entity, &Object, &Limits, Option<&mut Target>, &mut object::OnGround)>,
+    object_query: Query<(
+        Entity,
+        &Object,
+        &Limits,
+        Option<&mut Target>,
+        &mut object::OnGround,
+        &object::TaxiStatus,
+    )>,
     mut params: TargetPathParams<'_, '_>,
 ) {
-    for (object_id, object, limits, mut target, mut ground) in object_query {
+    for (object_id, object, limits, mut target, mut ground, taxi_status) in object_query {
         params.update_target_path_once(
             object_id,
             object,
             limits,
             &mut ground,
+            taxi_status,
             target.as_deref_mut(),
         );
     }
@@ -320,6 +348,7 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
+        taxi_status: &object::TaxiStatus,
         target: Option<&mut Target>,
     ) {
         let (action, resolution_mut) = match target {
@@ -330,7 +359,9 @@ impl TargetPathParams<'_, '_> {
         };
 
         let resolution = match action {
-            TargetAction::Taxi { options } => self.action_taxi(object, limits, ground, options),
+            TargetAction::Taxi { options } => {
+                self.action_taxi(object, limits, ground, taxi_status, options)
+            }
             TargetAction::HoldShort => self.action_hold_short(object, limits, ground),
         };
         if let Some(resolution_mut) = resolution_mut {
@@ -346,6 +377,7 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
+        taxi_status: &object::TaxiStatus,
         options: &[Entity],
     ) -> Option<TargetResolution> {
         if let Some(position) = options.iter().position(|&target| target == ground.segment) {
@@ -361,6 +393,7 @@ impl TargetPathParams<'_, '_> {
                 object,
                 limits,
                 ground,
+                taxi_status,
                 intersection_endpoint,
                 target_segment,
             ) {
@@ -413,6 +446,7 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
+        taxi_status: &object::TaxiStatus,
         intersect_endpoint: Entity,
         next_segment_id: Entity,
     ) -> TurnResult {
@@ -445,7 +479,7 @@ impl TargetPathParams<'_, '_> {
             return TurnResult::Error;
         };
         let next_segment_heading = (next_target_pos - intersect_pos).heading();
-        let abs_turn = ground.heading.closest_distance(next_segment_heading).abs();
+        let abs_turn = taxi_status.heading.closest_distance(next_segment_heading).abs();
 
         let intersection_width = try_log!(
             self.endpoint_width(intersect_endpoint),
@@ -494,8 +528,8 @@ impl TargetPathParams<'_, '_> {
 
         // We are slow enough to turn, but are we close enough to the intersection point yet?
 
-        // Estimated distance required to turn from ground.heading to next_segment_heading,
-        // measured parallel to ground.heading from the intersection center,
+        // Estimated distance required to turn from taxi_status.heading to next_segment_heading,
+        // measured parallel to taxi_status.heading from the intersection center,
         // is given by turn_radius * tan(abs_turn / 2).
         // (Consider the triangle between the intersection point, the turning center and starting
         // point)

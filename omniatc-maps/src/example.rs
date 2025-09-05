@@ -860,7 +860,7 @@ pub fn file() -> store::File {
                     }),
                     route:       store::Route {
                         id:    None,
-                        nodes: route_taxi_runway_west_to_tango(),
+                        nodes: route_taxi_runway_east_to_tango(),
                     },
                 }),
             ]

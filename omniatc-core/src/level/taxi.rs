@@ -318,6 +318,8 @@ pub struct TargetResolutionEvent {
     pub object: Entity,
 }
 
+/// Executes [`Target`] actions to determine if
+/// the object should accelerate, decelerate or switch to another segment.
 fn target_path_system(
     object_query: Query<(
         Entity,
@@ -372,23 +374,27 @@ impl TargetPathParams<'_, '_> {
         }
     }
 
+    /// Attempt to turn to one of the options,
+    /// or hold before the end of the current segment if all are currently unavailable.
+    ///
+    /// `segment_options` must be a slice of segment entities.
     fn action_taxi(
         &self,
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
         taxi_status: &object::TaxiStatus,
-        options: &[Entity],
+        segment_options: &[Entity],
     ) -> Option<TargetResolution> {
-        if let Some(position) = options.iter().position(|&target| target == ground.segment) {
+        if let Some(position) = segment_options.iter().position(|&target| target == ground.segment)
+        {
             return Some(TargetResolution::Completed(position));
         }
 
         let current_segment = self.segment_query.log_get(ground.segment)?;
 
         let intersection_endpoint = current_segment.by_direction(ground.direction).1;
-        for (option_index, &target_segment) in options.iter().enumerate() {
-            #[expect(clippy::match_same_arms)] // different explanations
+        for (option_index, &target_segment) in segment_options.iter().enumerate() {
             match self.turn_to_segment(
                 object,
                 limits,
@@ -396,12 +402,8 @@ impl TargetPathParams<'_, '_> {
                 taxi_status,
                 intersection_endpoint,
                 target_segment,
-            ) {
-                TurnResult::Error => {
-                    // Error has been logged, just return.
-                    return None;
-                }
-                TurnResult::TooFast | TurnResult::TooNarrow => {}
+            )? {
+                TurnResult::TooFast | TurnResult::TooNarrow | TurnResult::Occupied => {}
                 TurnResult::Later => {
                     // We can turn to the target segment later,
                     // no need to fall through to the next target yet.
@@ -420,6 +422,7 @@ impl TargetPathParams<'_, '_> {
         }
     }
 
+    /// Hold before the end of the current segment.
     fn action_hold_short(
         &self,
         object: &Object,
@@ -441,6 +444,21 @@ impl TargetPathParams<'_, '_> {
         }
     }
 
+    /// Attempt to turn to `next_segment_id` as the next segment.
+    ///
+    /// Returns `TooNarrow` if the segment is too narrow for the object.
+    ///
+    /// Attempt to decelerate such that the object is slow enough
+    /// to turn to the next heading within the size of the intersection,
+    /// i.e. the object starts turning upon entering intersection width
+    /// and completely turns to the next heading upon exit.
+    /// This speed must also be within the speed limit of the next segment.
+    ///
+    /// Returns `TooFast` if the braking distance to slow down to the required speed
+    /// would exceed the overshoot tolerance beyond entering the intersection.
+    ///
+    /// Returns `Later` if the object may turn to the next segment later,
+    /// but should not commence the turn yet.
     fn turn_to_segment(
         &self,
         object: &Object,
@@ -449,51 +467,40 @@ impl TargetPathParams<'_, '_> {
         taxi_status: &object::TaxiStatus,
         intersect_endpoint: Entity,
         next_segment_id: Entity,
-    ) -> TurnResult {
+    ) -> Option<TurnResult> {
         let linear_speed = object.ground_speed.horizontal().magnitude_exact();
 
-        let Some(&ground::Endpoint { position: intersect_pos, .. }) =
-            self.endpoint_query.log_get(intersect_endpoint)
-        else {
-            return TurnResult::Error;
-        };
+        let &ground::Endpoint { position: intersect_pos, .. } =
+            self.endpoint_query.log_get(intersect_endpoint)?;
 
-        let Some(current_segment) = self.segment_query.log_get(ground.segment) else {
-            return TurnResult::Error;
-        };
-        let Some(next_segment) = self.segment_query.log_get(next_segment_id) else {
-            return TurnResult::Error;
-        };
+        let current_segment = self.segment_query.log_get(ground.segment)?;
+        let next_segment = self.segment_query.log_get(next_segment_id)?;
         if next_segment.width < limits.width {
-            return TurnResult::TooNarrow;
+            return Some(TurnResult::TooNarrow);
         }
 
         let next_target_endpoint = try_log!(
             next_segment.other_endpoint(intersect_endpoint),
             expect "adjacent segment {next_segment_id:?} must back-reference endpoint {intersect_endpoint:?}"
-            or return TurnResult::Error
+            or return None
         );
-        let Some(&ground::Endpoint { position: next_target_pos, .. }) =
-            self.endpoint_query.log_get(next_target_endpoint)
-        else {
-            return TurnResult::Error;
-        };
+        let &ground::Endpoint { position: next_target_pos, .. } =
+            self.endpoint_query.log_get(next_target_endpoint)?;
         let next_segment_heading = (next_target_pos - intersect_pos).heading();
         let abs_turn = taxi_status.heading.closest_distance(next_segment_heading).abs();
 
         let intersection_width = try_log!(
             self.endpoint_width(intersect_endpoint),
             expect "endpoint {intersect_endpoint:?} adjacency list must not be empty"
-            or return TurnResult::Error
+            or return None
         );
 
-        // linear_speed = turn_radius * limits.turn_rate
-        // turn_sagitta = turn_radius * (1.0 - abs_turn.cos())
-        // thus, the max speed for turn_sagitta <= intersection_width is
-        // linear_speed / limits.turn_rate * (1.0 - abs_turn.cos()) <= intersection_width
-        // i.e. linear_speed <= intersection_width * limits.turn_rate / (1.0 - abs_turn.cos())
-        let max_turn_speed =
-            intersection_width.radius_to_arc(limits.turn_rate) / (1.0 - abs_turn.cos());
+        // Expect `intersection_width * 0.5 / turn_radius >= tan(abs_turn / 2)`
+        // such that the turn fits exactly within the intersection circle.
+        // Since `turn_speed = turn_radius * turn_rate`, we have
+        // `turn_speed <= turn_rate * intersection_width * 0.5 / tan(abs_turn / 2)`.
+        let max_turn_speed = (intersection_width * 0.5).radius_to_arc(limits.turn_rate)
+            / (abs_turn * 0.5).acute_signed_tan().abs();
 
         let object_dist =
             object.position.horizontal().distance_exact(intersect_pos) - intersection_width;
@@ -508,22 +515,22 @@ impl TargetPathParams<'_, '_> {
                 // We can continue at the current speed on the original segment
                 // until decel_distance from the intersection threshold.
                 ground.target_speed = current_segment.max_speed;
-                return TurnResult::Later;
+                return Some(TurnResult::Later);
             }
 
             // How much extra distance behind the threshold before we are slow enough to turn?
             let deficit = decel_distance - object_dist;
-            if deficit > intersection_width {
+            if deficit > OVERSHOOT_TOLERANCE {
                 // Even if we start braking now, we are already past the intersection
                 // by the time we are slow enough to turn,
                 // so just skip this turn.
-                return TurnResult::TooFast;
+                return Some(TurnResult::TooFast);
             }
 
             // We are too fast to turn, so we have to reduce speed.
             // We still haven't accepted nor rejected this segment yet.
             ground.target_speed = max_turn_speed;
-            return TurnResult::Later;
+            return Some(TurnResult::Later);
         }
 
         // We are slow enough to turn, but are we close enough to the intersection point yet?
@@ -540,16 +547,17 @@ impl TargetPathParams<'_, '_> {
             // We can continue on the original segment until turn_distance from the intersection
             // point.
             ground.target_speed = current_segment.max_speed;
-            return TurnResult::Later;
+            return Some(TurnResult::Later);
         }
 
         ground.segment = next_segment_id;
         ground.target_speed = next_segment.max_speed;
         ground.direction =
             next_segment.direction_from(intersect_endpoint).expect("checked in other_endpoint");
-        TurnResult::Completed
+        Some(TurnResult::Completed)
     }
 
+    /// Decelerate to stop before the width of the endpoint intersection.
     fn hold_before_endpoint(
         &self,
         object: &Object,
@@ -602,13 +610,14 @@ impl TargetPathParams<'_, '_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TurnResult {
-    /// A [`try_log`]ed error occurred, just return.
-    Error,
     /// Unable to turn because the object is too fast
     /// to complete turning within the endpoint width.
     TooFast,
     /// Unable to turn because the next segment is too narrow for the object.
     TooNarrow,
+    /// Another object is blocking the intersection,
+    /// within the feasible braking distance.
+    Occupied,
     /// The object can turn to the next segment,
     /// but it is not yet close enough to the intersection point.
     Later,

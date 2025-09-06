@@ -77,7 +77,7 @@ fn setup_layout_system(
     margins.left += resp.rect.width();
 }
 
-const FAST_FORWARD_SPEED: f32 = 60.;
+const FAST_FORWARD_SPEED: f32 = 25.;
 
 #[derive(SystemParam)]
 struct WriteTimeParams<'w, 's> {

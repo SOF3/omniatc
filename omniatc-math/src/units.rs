@@ -553,6 +553,8 @@ impl Length<f32> {
     /// parameter).
     ///
     /// Given a parameter in rad/s^n for some n, this returns a distance quantity in nm/s^n.
+    ///
+    /// Mathematically, this simply *multiplies* the two values together.
     #[must_use]
     pub fn radius_to_arc<Dt>(
         self,
@@ -567,6 +569,8 @@ impl<Dt> Quantity<f32, LengthBase, Dt, PowOne> {
     /// (the parameter).
     ///
     /// The receiver and parameter must have the same temporal dimensoin.
+    ///
+    /// Mathematically, this simply *divides* the receiver by the parameter.
     #[must_use]
     pub fn arc_to_radius(self, angular: Quantity<f32, AngleBase, Dt, PowOne>) -> Length<f32> {
         Length::new(self.0 / angular.0)

@@ -35,6 +35,7 @@ pub struct TaxiNode {
 impl NodeKind for TaxiNode {
     fn run_as_current_node(&self, world: &mut World, entity: Entity) -> RunNodeResult {
         let mut object = world.entity_mut(entity);
+
         if let Some(mut target) = object.get_mut::<taxi::Target>() {
             if let Some(taxi::TargetResolution::Inoperable) = target.resolution {
                 message::SendExpiring {
@@ -47,8 +48,6 @@ impl NodeKind for TaxiNode {
                 return RunNodeResult::NodeDone;
             }
 
-            // Secondary completion basically means we need to recompute
-            // since an unideal segment is selected..
             target.resolution = None;
 
             let next_segments = recompute_action(object.world(), object.as_readonly());
@@ -107,6 +106,7 @@ pub struct PossiblePath {
     pub length:         Length<f32>,
 }
 
+/// Performs pathfinding to determine the priority of next segments to go to.
 fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
     let taxi_limits = object.log_get::<taxi::Limits>()?;
     let ground = object.log_get::<object::OnGround>()?;
@@ -128,12 +128,11 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
         })
         .collect();
     assert!(
-        subseq_labels.len() >= 2,
-        "subseq_labels is a chain of segment_label and route nodes containing at least the \
-         current executing TaxiNode"
+        !subseq_labels.is_empty(),
+        "subseq_labels is must contain at least the label from the current executing TaxiNode"
     );
 
-    if subseq_labels[1] == segment_label {
+    if subseq_labels[0] == segment_label {
         // The current node requests the current segment label,
         // so this node is already completed.
         return None;

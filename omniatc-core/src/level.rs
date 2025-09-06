@@ -11,6 +11,7 @@ use strum::IntoEnumIterator;
 
 pub mod aerodrome;
 pub mod comm;
+pub mod dest;
 pub mod ground;
 pub mod message;
 pub mod nav;
@@ -19,6 +20,7 @@ pub mod object;
 pub mod plane;
 pub mod route;
 pub mod runway;
+pub mod score;
 pub mod taxi;
 pub mod wake;
 pub mod waypoint;
@@ -46,6 +48,7 @@ where
         }
 
         app.add_plugins(message::Plug);
+        app.add_plugins(score::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug::<M>::default());
         app.add_plugins(plane::Plug);
@@ -57,6 +60,7 @@ where
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);
         app.add_plugins(taxi::Plug);
+        app.add_plugins(dest::Plug);
         app.add_plugins(wake::Plug::<M>::default());
         app.add_plugins(wind::Plug::<M>::default());
     }

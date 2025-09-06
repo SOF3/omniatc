@@ -1,7 +1,7 @@
 use bevy::math::Vec2;
 use math::{Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Length, Position, Speed};
 use omniatc::level::route::WaypointProximity;
-use omniatc::level::{nav, taxi};
+use omniatc::level::{nav, score, taxi};
 use omniatc::store;
 
 pub fn default_plane_taxi_limits() -> taxi::Limits {
@@ -295,6 +295,7 @@ pub fn file() -> store::File {
                 .collect(),
         },
         level: store::Level {
+            stats:         store::Stats::default(),
             environment:   store::Environment {
                 heightmap:  store::HeatMap2 {
                     aligned: store::AlignedHeatMap2::constant(Position::from_amsl_feet(0.)),
@@ -691,15 +692,16 @@ pub fn file() -> store::File {
             objects:       [
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
-                        name:         "ABC123".into(),
-                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
-                        position:     Position::from_origin_nm(2., -14.),
-                        altitude:     Position::from_amsl_feet(12000.),
-                        ground_speed: Speed::from_knots(280.),
-                        ground_dir:   Heading::from_degrees(250.),
-                        vert_rate:    Speed::ZERO,
-                        weight:       1e5,
-                        wingspan:     Length::from_meters(50.),
+                        name:             "ABC123".into(),
+                        dest:             store::Destination::Landing { aerodrome: "MAIN".into() },
+                        completion_score: score::Unit(10),
+                        position:         Position::from_origin_nm(2., -14.),
+                        altitude:         Position::from_amsl_feet(12000.),
+                        ground_speed:     Speed::from_knots(280.),
+                        ground_dir:       Heading::from_degrees(250.),
+                        vert_rate:        Speed::ZERO,
+                        weight:           1e5,
+                        wingspan:         Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
@@ -725,15 +727,16 @@ pub fn file() -> store::File {
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
-                        name:         "DEF789".into(),
-                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
-                        position:     Position::from_origin_nm(2., -18.),
-                        altitude:     Position::from_amsl_feet(12000.),
-                        ground_speed: Speed::from_knots(280.),
-                        ground_dir:   Heading::from_degrees(250.),
-                        vert_rate:    Speed::ZERO,
-                        weight:       1e5,
-                        wingspan:     Length::from_meters(50.),
+                        name:             "DEF789".into(),
+                        dest:             store::Destination::Landing { aerodrome: "MAIN".into() },
+                        completion_score: score::Unit(10),
+                        position:         Position::from_origin_nm(2., -18.),
+                        altitude:         Position::from_amsl_feet(12000.),
+                        ground_speed:     Speed::from_knots(280.),
+                        ground_dir:       Heading::from_degrees(250.),
+                        vert_rate:        Speed::ZERO,
+                        weight:           1e5,
+                        wingspan:         Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(80.),
@@ -759,15 +762,16 @@ pub fn file() -> store::File {
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
-                        name:         "ARC512".into(),
-                        dest:         store::Destination::Landing { aerodrome: "MAIN".into() },
-                        position:     Position::from_origin_nm(8., 28.),
-                        altitude:     Position::from_amsl_feet(7000.),
-                        ground_speed: Speed::from_knots(220.),
-                        ground_dir:   Heading::from_degrees(250.),
-                        vert_rate:    Speed::ZERO,
-                        weight:       1e5,
-                        wingspan:     Length::from_meters(50.),
+                        name:             "ARC512".into(),
+                        dest:             store::Destination::Landing { aerodrome: "MAIN".into() },
+                        completion_score: score::Unit(10),
+                        position:         Position::from_origin_nm(8., 28.),
+                        altitude:         Position::from_amsl_feet(7000.),
+                        ground_speed:     Speed::from_knots(220.),
+                        ground_dir:       Heading::from_degrees(250.),
+                        vert_rate:        Speed::ZERO,
+                        weight:           1e5,
+                        wingspan:         Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::from_degrees(200.),
@@ -793,21 +797,22 @@ pub fn file() -> store::File {
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
-                        name:         "ADE127".into(),
-                        weight:       1e5,
-                        wingspan:     Length::from_meters(50.),
-                        dest:         store::Destination::ReachWaypoint {
+                        name:             "ADE127".into(),
+                        weight:           1e5,
+                        wingspan:         Length::from_meters(50.),
+                        dest:             store::Destination::Departure {
                             min_altitude:       Some(Position::from_amsl_feet(18000.)),
                             waypoint_proximity: Some((
                                 store::WaypointRef::Named("EXITS".into()),
                                 Length::from_nm(1.),
                             )),
                         },
-                        position:     Position::from_origin_nm(10., -1.),
-                        altitude:     Position::from_amsl_feet(8000.),
-                        ground_speed: Speed::from_knots(250.),
-                        ground_dir:   Heading::EAST,
-                        vert_rate:    Speed::ZERO,
+                        completion_score: score::Unit(1),
+                        position:         Position::from_origin_nm(10., -1.),
+                        altitude:         Position::from_amsl_feet(8000.),
+                        ground_speed:     Speed::from_knots(250.),
+                        ground_dir:       Heading::EAST,
+                        vert_rate:        Speed::ZERO,
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::EAST,
@@ -835,15 +840,16 @@ pub fn file() -> store::File {
                 }),
                 store::Object::Plane(store::Plane {
                     aircraft:    store::BaseAircraft {
-                        name:         "LND456".into(),
-                        dest:         store::Destination::Parking { aerodrome: "MAIN".into() },
-                        position:     Position::from_origin_nm(1., 0.),
-                        altitude:     Position::from_amsl_feet(300.),
-                        ground_speed: Speed::from_knots(140.),
-                        ground_dir:   Heading::SOUTH,
-                        vert_rate:    Speed::ZERO,
-                        weight:       1e5,
-                        wingspan:     Length::from_meters(50.),
+                        name:             "LND456".into(),
+                        dest:             store::Destination::Parking { aerodrome: "MAIN".into() },
+                        completion_score: score::Unit(5),
+                        position:         Position::from_origin_nm(1., 0.),
+                        altitude:         Position::from_amsl_feet(300.),
+                        ground_speed:     Speed::from_knots(140.),
+                        ground_dir:       Heading::SOUTH,
+                        vert_rate:        Speed::ZERO,
+                        weight:           1e5,
+                        wingspan:         Length::from_meters(50.),
                     },
                     control:     store::PlaneControl {
                         heading:     Heading::SOUTH,

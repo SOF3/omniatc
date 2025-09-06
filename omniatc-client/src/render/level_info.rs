@@ -7,7 +7,7 @@ use bevy::diagnostic::{
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Local, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
@@ -17,7 +17,7 @@ use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use egui_extras::{Column, TableBuilder};
 use math::{Angle, Heading};
-use omniatc::level::object;
+use omniatc::level::{object, score};
 use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
 
@@ -37,14 +37,31 @@ impl Plugin for Plug {
     }
 }
 
+trait WriteParams {
+    fn title(&self) -> String;
+
+    fn default_open() -> bool;
+
+    fn write(&mut self, ui: &mut egui::Ui);
+
+    fn display(&mut self, ui: &mut egui::Ui) {
+        egui::CollapsingHeader::new(self.title())
+            .default_open(Self::default_open())
+            .show(ui, |ui| self.write(ui));
+    }
+}
+
 fn setup_layout_system(
     mut contexts: EguiContexts,
     mut margins: ResMut<EguiUsedMargins>,
-    mut write_cameras: WriteCameras,
     mut config_editor_opened: ResMut<config_editor::Opened>,
-    diagnostics: Res<DiagnosticsStore>,
-    write_time_params: WriteTimeParams,
-    write_object_params: WriteObjectParams,
+    mut write_params: ParamSet<(
+        WriteScoreParams,
+        WriteTimeParams,
+        WriteCameraParams,
+        WriteObjectParams,
+        WriteDiagnosticsParams,
+    )>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -58,17 +75,11 @@ fn setup_layout_system(
             ui.heading("Level info");
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                egui::CollapsingHeader::new("Time")
-                    .default_open(true)
-                    .show(ui, |ui| write_time(ui, write_time_params));
-
-                ui.collapsing("Camera", |ui| write_cameras.write(ui));
-
-                egui::CollapsingHeader::new("Objects")
-                    .default_open(true)
-                    .show(ui, |ui| write_objects(ui, write_object_params));
-
-                ui.collapsing("Diagnostics", |ui| write_diagnostics(ui, &diagnostics));
+                write_params.p0().display(ui);
+                write_params.p1().display(ui);
+                write_params.p2().display(ui);
+                write_params.p3().display(ui);
+                write_params.p4().display(ui);
             });
 
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
@@ -77,7 +88,21 @@ fn setup_layout_system(
     margins.left += resp.rect.width();
 }
 
-const FAST_FORWARD_SPEED: f32 = 25.;
+#[derive(SystemParam)]
+struct WriteScoreParams<'w> {
+    score: Res<'w, score::Scores>,
+}
+
+impl WriteParams for WriteScoreParams<'_> {
+    fn title(&self) -> String { format!("Score: {}", self.score.total.0) }
+
+    fn default_open() -> bool { true }
+
+    fn write(&mut self, ui: &mut egui::Ui) {
+        ui.label(format!("Arrivals completed: {}", self.score.num_arrivals));
+        ui.label(format!("Departures completed: {}", self.score.num_departures));
+    }
+}
 
 #[derive(SystemParam)]
 struct WriteTimeParams<'w, 's> {
@@ -87,50 +112,61 @@ struct WriteTimeParams<'w, 's> {
     paused:        Local<'s, bool>,
 }
 
-fn write_time(ui: &mut egui::Ui, mut params: WriteTimeParams) {
-    let elapsed = params.time.elapsed().as_secs();
+impl WriteParams for WriteTimeParams<'_, '_> {
+    fn title(&self) -> String { "Time".into() }
 
-    ui.label(format!(
-        "Time: {hours}:{minutes:02}:{seconds:02}",
-        hours = elapsed / 3600,
-        minutes = (elapsed / 60) % 60,
-        seconds = elapsed % 60
-    ));
+    fn default_open() -> bool { true }
 
-    if params.hotkeys.toggle_pause {
-        *params.paused = !*params.paused;
-    }
+    fn write(&mut self, ui: &mut egui::Ui) {
+        // NOTE: do not allow values that are too high to avoid significant simulation instability.
+        const FAST_FORWARD_SPEED: f32 = 25.;
 
-    let desired_speed = ui
-        .horizontal(|ui| {
-            let regular_speed = params.regular_speed.get_or_insert(1.);
-            ui.add(egui::Slider::new(regular_speed, 0. ..=20.).prefix("Game speed: ").suffix("x"));
+        let elapsed = self.time.elapsed().as_secs();
 
-            if params.hotkeys.fast_forward {
-                ui.label(format!("{FAST_FORWARD_SPEED}x"));
-                FAST_FORWARD_SPEED
-            } else if *params.paused {
-                ui.label("Paused");
-                0.0
+        ui.label(format!(
+            "Time: {hours}:{minutes:02}:{seconds:02}",
+            hours = elapsed / 3600,
+            minutes = (elapsed / 60) % 60,
+            seconds = elapsed % 60
+        ));
+
+        if self.hotkeys.toggle_pause {
+            *self.paused = !*self.paused;
+        }
+
+        let desired_speed = ui
+            .horizontal(|ui| {
+                let regular_speed = self.regular_speed.get_or_insert(1.);
+                ui.add(
+                    egui::Slider::new(regular_speed, 0. ..=20.).prefix("Game speed: ").suffix("x"),
+                );
+
+                if self.hotkeys.fast_forward {
+                    ui.label(format!("{FAST_FORWARD_SPEED}x"));
+                    FAST_FORWARD_SPEED
+                } else if *self.paused {
+                    ui.label("Paused");
+                    0.0
+                } else {
+                    *regular_speed
+                }
+            })
+            .inner;
+
+        #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
+        if self.time.relative_speed() != desired_speed {
+            self.time.set_relative_speed(desired_speed);
+            if desired_speed > 0. {
+                self.time.unpause();
             } else {
-                *regular_speed
+                self.time.pause();
             }
-        })
-        .inner;
-
-    #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
-    if params.time.relative_speed() != desired_speed {
-        params.time.set_relative_speed(desired_speed);
-        if desired_speed > 0. {
-            params.time.unpause();
-        } else {
-            params.time.pause();
         }
     }
 }
 
 #[derive(SystemParam)]
-struct WriteCameras<'w, 's> {
+struct WriteCameraParams<'w, 's> {
     camera_query: Query<
         'w,
         's,
@@ -146,7 +182,11 @@ fn measure_delta(v: f32, f: impl FnOnce(&mut f32)) -> Option<f32> {
     Some(copy - v).filter(|&v| v != 0.0)
 }
 
-impl WriteCameras<'_, '_> {
+impl WriteParams for WriteCameraParams<'_, '_> {
+    fn title(&self) -> String { "Camera".into() }
+
+    fn default_open() -> bool { false }
+
     fn write(&mut self, ui: &mut egui::Ui) {
         let mut cameras: Vec<_> = self.camera_query.iter_mut().collect();
         cameras.sort_by_key(|(camera, _, _)| match camera.logical_viewport_rect() {
@@ -154,7 +194,9 @@ impl WriteCameras<'_, '_> {
             None => (OrderedFloat::nan(), OrderedFloat::nan()),
         });
         for (i, (camera, mut tf, global_tf)) in cameras.into_iter().enumerate() {
-            ui.heading(format!("Camera #{}", i + 1));
+            if i > 0 {
+                ui.separator();
+            }
 
             ui.label(format!(
                 "Center: ({:.1}, {:.1})",
@@ -211,87 +253,96 @@ struct WriteObjectParams<'w, 's> {
     selected_object: ResMut<'w, object_info::CurrentObject>,
 }
 
-fn write_objects(ui: &mut egui::Ui, mut params: WriteObjectParams) {
-    let mut select_first = false;
-    ui.horizontal(|ui| {
-        ui.label("Search");
+impl WriteParams for WriteObjectParams<'_, '_> {
+    fn title(&self) -> String { format!("Objects ({})", self.object_query.iter().len()) }
 
-        let search_resp = ui.add(
-            egui::TextEdit::singleline(&mut *params.search_str)
-                .hint_text("'/' to focus, Enter to select first match"),
-        );
-        if search_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            select_first = true;
-        }
-        if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Slash)) {
-            params.search_str.clear();
-        }
-        if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            search_resp.surrender_focus();
-        }
-        if params.hotkeys.search {
-            search_resp.request_focus();
-        }
-    });
+    fn default_open() -> bool { true }
 
-    if params.hotkeys.deselect {
-        params.selected_object.0 = None;
-    }
+    fn write(&mut self, ui: &mut egui::Ui) {
+        let mut select_first = false;
+        ui.horizontal(|ui| {
+            ui.label("Search");
 
-    let columns: Vec<_> = ObjectTableColumn::iter().collect();
-    let mut objects: Vec<_> = params
-        .object_query
-        .iter()
-        .filter(|object| {
-            if params.search_str.is_empty() {
-                true
-            } else {
-                object.display.name.to_lowercase().contains(&params.search_str.to_lowercase())
+            let search_resp = ui.add(
+                egui::TextEdit::singleline(&mut *self.search_str)
+                    .hint_text("'/' to focus, Enter to select first match"),
+            );
+            if search_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                select_first = true;
             }
-        })
-        .collect();
-    let rows_changed = params.last_rows.replace(objects.len()) != Some(objects.len());
+            if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Slash)) {
+                self.search_str.clear();
+            }
+            if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                search_resp.surrender_focus();
+            }
+            if self.hotkeys.search {
+                search_resp.request_focus();
+            }
+        });
 
-    TableBuilder::new(ui)
-        .columns(Column::auto().resizable(true).auto_size_this_frame(rows_changed), columns.len())
-        .header(20., |mut header| {
-            for (column_id, column) in columns.iter().enumerate() {
-                header.col(|ui| {
-                    let mut clicked = false;
-                    ui.horizontal(|ui| {
-                        clicked |= ui.small(column.header()).clicked();
-                        if params.sort_key.0 == column_id {
-                            clicked |=
-                                ui.label(if params.sort_key.1 { "v" } else { "^" }).clicked();
+        if self.hotkeys.deselect {
+            self.selected_object.0 = None;
+        }
+
+        let columns: Vec<_> = ObjectTableColumn::iter().collect();
+        let mut objects: Vec<_> = self
+            .object_query
+            .iter()
+            .filter(|object| {
+                if self.search_str.is_empty() {
+                    true
+                } else {
+                    object.display.name.to_lowercase().contains(&self.search_str.to_lowercase())
+                }
+            })
+            .collect();
+        let rows_changed = self.last_rows.replace(objects.len()) != Some(objects.len());
+
+        TableBuilder::new(ui)
+            .columns(
+                Column::auto().resizable(true).auto_size_this_frame(rows_changed),
+                columns.len(),
+            )
+            .header(20., |mut header| {
+                for (column_id, column) in columns.iter().enumerate() {
+                    header.col(|ui| {
+                        let mut clicked = false;
+                        ui.horizontal(|ui| {
+                            clicked |= ui.small(column.header()).clicked();
+                            if self.sort_key.0 == column_id {
+                                clicked |=
+                                    ui.label(if self.sort_key.1 { "v" } else { "^" }).clicked();
+                            }
+                        });
+                        if clicked {
+                            if self.sort_key.0 == column_id {
+                                self.sort_key.1 = !self.sort_key.1;
+                            } else {
+                                *self.sort_key = (column_id, false);
+                            }
                         }
                     });
-                    if clicked {
-                        if params.sort_key.0 == column_id {
-                            params.sort_key.1 = !params.sort_key.1;
-                        } else {
-                            *params.sort_key = (column_id, false);
-                        }
+                }
+            })
+            .body(|body| {
+                columns[self.sort_key.0].sort(&mut objects[..], self.sort_key.1);
+
+                if select_first && let Some(first) = objects.first() {
+                    self.selected_object.0 = Some(first.entity);
+                }
+
+                body.rows(20., objects.len(), |mut row| {
+                    let object = &objects[row.index()];
+                    let is_selected = self.selected_object.0 == Some(object.entity);
+                    row.set_selected(is_selected);
+
+                    for column in &columns {
+                        row.col(|ui| column.cell_value(ui, object));
                     }
                 });
-            }
-        })
-        .body(|body| {
-            columns[params.sort_key.0].sort(&mut objects[..], params.sort_key.1);
-
-            if select_first && let Some(first) = objects.first() {
-                params.selected_object.0 = Some(first.entity);
-            }
-
-            body.rows(20., objects.len(), |mut row| {
-                let object = &objects[row.index()];
-                let is_selected = params.selected_object.0 == Some(object.entity);
-                row.set_selected(is_selected);
-
-                for column in &columns {
-                    row.col(|ui| column.cell_value(ui, object));
-                }
             });
-        });
+    }
 }
 
 #[derive(strum::EnumIter)]
@@ -301,6 +352,19 @@ enum ObjectTableColumn {
     GroundSpeed,
     VerticalRate,
     Heading,
+}
+
+#[derive(PartialEq, Eq)]
+struct ConditionalReverse<T>(bool, T);
+
+impl<T: Ord> PartialOrd for ConditionalReverse<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl<T: Ord> Ord for ConditionalReverse<T> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        if self.0 { other.1.cmp(&self.1) } else { self.1.cmp(&other.1) }
+    }
 }
 
 impl ObjectTableColumn {
@@ -357,29 +421,29 @@ impl ObjectTableColumn {
     }
 }
 
-#[derive(PartialEq, Eq)]
-struct ConditionalReverse<T>(bool, T);
-
-impl<T: Ord> PartialOrd for ConditionalReverse<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { Some(self.cmp(other)) }
+#[derive(SystemParam)]
+struct WriteDiagnosticsParams<'w> {
+    diagnostics: Res<'w, DiagnosticsStore>,
 }
 
-impl<T: Ord> Ord for ConditionalReverse<T> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        if self.0 { other.1.cmp(&self.1) } else { self.1.cmp(&other.1) }
-    }
-}
+impl WriteParams for WriteDiagnosticsParams<'_> {
+    fn title(&self) -> String { "Diagnostics".into() }
 
-fn write_diagnostics(ui: &mut egui::Ui, diagnostics: &DiagnosticsStore) {
-    if let Some(fps) =
-        diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(Diagnostic::smoothed)
-    {
-        ui.label(format!("FPS: {fps}"));
-    }
+    fn default_open() -> bool { false }
 
-    if let Some(entities) =
-        diagnostics.get(&EntityCountDiagnosticsPlugin::ENTITY_COUNT).and_then(Diagnostic::value)
-    {
-        ui.label(format!("Entities: {entities}"));
+    fn write(&mut self, ui: &mut egui::Ui) {
+        if let Some(fps) =
+            self.diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(Diagnostic::smoothed)
+        {
+            ui.label(format!("FPS: {fps}"));
+        }
+
+        if let Some(entities) = self
+            .diagnostics
+            .get(&EntityCountDiagnosticsPlugin::ENTITY_COUNT)
+            .and_then(Diagnostic::value)
+        {
+            ui.label(format!("Entities: {entities}"));
+        }
     }
 }

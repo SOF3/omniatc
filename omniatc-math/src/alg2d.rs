@@ -75,6 +75,30 @@ pub fn point_line_segment_closest(
     line_start + line_dir * line_t.clamp(0.0, 1.0)
 }
 
+/// Returns the shortest distance between two line segments.
+///
+/// The result is the vector between the two closest points on each segment.
+/// from segment 0 to segment 1.
+///
+/// An exactly zero vector is guaranteed when the two segments intersect.
+#[must_use]
+pub fn segment_segment_distance(
+    start_0: Position<Vec2>,
+    dir_0: Length<Vec2>,
+    start_1: Position<Vec2>,
+    dir_1: Length<Vec2>,
+) -> Length<Vec2> {
+    let (t0, t1) = line_intersect(start_0.get(), dir_0.0, start_1.get(), dir_1.0);
+    if (0.0..=1.0).contains(&t0) && (0.0..=1.0).contains(&t1) {
+        // Always return exact zero to avoid floating point precision issues.
+        Length::ZERO
+    } else {
+        let p0 = start_0 + dir_0 * t0.clamp(0.0, 1.0);
+        let p1 = start_1 + dir_1 * t1.clamp(0.0, 1.0);
+        p1 - p0
+    }
+}
+
 /// Returns the two points on the circle at `center` with radius `radius`
 /// such that the tangent of the circle at each point intersects with `outside`.
 ///
@@ -115,3 +139,11 @@ pub fn find_circle_tangent_towards(
         Some(center + radials[1])
     }
 }
+
+/// Rotate a vector 90 degrees clockwise.
+#[must_use]
+pub fn rotate_clockwise(v: Vec2) -> Vec2 { Vec2 { x: v.y, y: -v.x } }
+
+/// Rotate a vector 90 degrees counterclockwise.
+#[must_use]
+pub fn rotate_counterclockwise(v: Vec2) -> Vec2 { Vec2 { x: -v.y, y: v.x } }

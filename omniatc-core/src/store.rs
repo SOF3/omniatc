@@ -9,7 +9,7 @@ use math::{Accel, Angle, AngularSpeed, Heading, Length, Position, Speed};
 use serde::{Deserialize, Serialize};
 
 use crate::level::route::WaypointProximity;
-use crate::level::{nav, taxi};
+use crate::level::{nav, score, taxi};
 
 pub mod load;
 
@@ -53,8 +53,22 @@ pub struct Level {
     pub aerodromes:    Vec<Aerodrome>,
     pub waypoints:     Vec<Waypoint>,
     pub route_presets: Vec<RoutePreset>,
+
+    // The following fields are only populated for scenarios and savefiles.
     #[serde(default)]
-    pub objects:       Vec<Object>,
+    pub stats:   Stats,
+    #[serde(default)]
+    pub objects: Vec<Object>,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct Stats {
+    /// Current score.
+    pub score:          score::Unit,
+    /// Total number of arrivals completed.
+    pub num_arrivals:   u32,
+    /// Total number of departures completed.
+    pub num_departures: u32,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -328,17 +342,18 @@ pub struct Plane {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BaseAircraft {
-    pub name:         String,
-    pub dest:         Destination,
-    pub position:     Position<Vec2>,
-    pub altitude:     Position<f32>,
+    pub name:             String,
+    pub dest:             Destination,
+    pub completion_score: score::Unit,
+    pub position:         Position<Vec2>,
+    pub altitude:         Position<f32>,
     /// Speed of ground projection displacement.
-    pub ground_speed: Speed<f32>,
+    pub ground_speed:     Speed<f32>,
     /// Direction of ground projection displacement.
-    pub ground_dir:   Heading,
-    pub vert_rate:    Speed<f32>,
-    pub weight:       f32,
-    pub wingspan:     Length<f32>,
+    pub ground_dir:       Heading,
+    pub vert_rate:        Speed<f32>,
+    pub weight:           f32,
+    pub wingspan:         Length<f32>,
 }
 
 /// Condition for the completion of control of an object.
@@ -355,7 +370,7 @@ pub enum Destination {
     ///
     /// Either condition is set to `None` upon completion.
     /// The control of the object is completed when both are `None`.
-    ReachWaypoint {
+    Departure {
         min_altitude:       Option<Position<f32>>,
         waypoint_proximity: Option<(WaypointRef, Length<f32>)>,
     },

@@ -690,6 +690,29 @@ where
     pub fn rotate_right_angle_clockwise(self) -> Self {
         Self(Vec2::new(self.0.y, -self.0.x), PhantomData)
     }
+
+    #[must_use]
+    pub fn dot(self, other: impl Dot2) -> f32 { other.dot2(self.0) }
+}
+
+pub trait Dot2 {
+    fn dot2(self, vec: Vec2) -> f32;
+}
+
+impl Dot2 for Vec2 {
+    fn dot2(self, vec: Vec2) -> f32 { self.dot(vec) }
+}
+
+impl Dot2 for Dir2 {
+    fn dot2(self, vec: Vec2) -> f32 { self.dot(vec) }
+}
+
+impl Dot2 for Heading {
+    fn dot2(self, vec: Vec2) -> f32 { self.into_dir2().dot(vec) }
+}
+
+impl<Dt> Dot2 for Quantity<Vec2, LengthBase, Dt, PowOne> {
+    fn dot2(self, vec: Vec2) -> f32 { self.0.dot(vec) }
 }
 
 impl<Dt, Pow> From<(Quantity<f32, LengthBase, Dt, Pow>, Quantity<f32, LengthBase, Dt, Pow>)>

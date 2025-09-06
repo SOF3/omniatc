@@ -9,6 +9,12 @@
 //! - `maintain_dir` executes the movement indicated by [`object::OnGround`]
 //!   to move along the centerline at the required speed and heading,
 //!   effecting its output on [`Object`] and [`object::TaxiStatus`].
+//!
+//! `maintain_dir` reduces the speed only when the object is expected to diverge
+//! from the centerline beyond the overshoot tolerance.
+//! Otherwise, `maintain_dir` always tries to attain the target speed,
+//! and it is the responsibility of `target_path_system` to reduce the target speed
+//! when approaching an intersection or holding short.
 
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
@@ -89,7 +95,7 @@ pub struct Limits {
 
 fn maintain_dir(
     time: Res<Time<time::Virtual>>,
-    object_query: Query<(&mut Object, &object::OnGround, &mut object::TaxiStatus, &Limits)>,
+    object_query: Query<(Entity, &mut Object, &object::OnGround, &mut object::TaxiStatus, &Limits)>,
     segment_query: Query<&ground::Segment>,
     endpoint_query: Query<&ground::Endpoint>,
 ) {
@@ -97,7 +103,7 @@ fn maintain_dir(
         return;
     }
 
-    for (mut object, ground, mut taxi_status, limits) in object_query {
+    for (object_id, mut object, ground, mut taxi_status, limits) in object_query {
         let Some(segment) = segment_query.log_get(ground.segment) else { continue };
         let (other_endpoint_entity, target_endpoint_entity) = match ground.direction {
             ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
@@ -110,12 +116,12 @@ fn maintain_dir(
 
         maintain_dir_for_object(
             &time,
+            object_id,
             &mut object,
             ground,
             &mut taxi_status,
             limits,
-            other_endpoint.position,
-            target_endpoint.position,
+            [other_endpoint, target_endpoint].map(|e| e.position),
         );
     }
 }
@@ -124,9 +130,11 @@ fn maintain_dir(
 enum TurnTowards {
     /// Turn towards the target endpoint.
     TargetEndpoint,
+    /// Turn towards the start endpoint.
+    StartEndpoint,
     /// Turn towards the segment centerline,
     /// targeting the pure pursuit position based on time delta.
-    CenterLine,
+    Centerline,
 }
 
 /// Update the heading and speed of `object`
@@ -143,12 +151,12 @@ enum TurnTowards {
 ///   (This process is only relevant for initial reading and final writing)
 fn maintain_dir_for_object(
     time: &Time<time::Virtual>,
+    object_id: Entity,
     object: &mut Object,
     ground: &object::OnGround,
     taxi_status: &mut object::TaxiStatus,
     limits: &Limits,
-    other_endpoint: Position<Vec2>,
-    target_endpoint: Position<Vec2>,
+    [start_endpoint, target_endpoint]: [Position<Vec2>; 2],
 ) {
     let reversed = ground.target_speed.is_negative();
 
@@ -162,13 +170,23 @@ fn maintain_dir_for_object(
     // In the following direction calculations, we ignore reversal by treating the backward
     // direction as the heading if reversal is desired.
 
-    let target_heading = (target_endpoint - other_endpoint).heading();
+    let target_heading = (target_endpoint - start_endpoint).heading();
 
     // Point-line distance from object.position to the line other_endpoint..target_endpoint.
     let closest_point =
-        point_line_closest(object.position.horizontal(), other_endpoint, target_endpoint);
+        point_line_closest(object.position.horizontal(), start_endpoint, target_endpoint);
     // The vector from the object to the closest point on the line, orthogonal to the line.
     let object_to_line_ortho = closest_point - object.position.horizontal();
+
+    let is_ahead_segment =
+        (closest_point - target_endpoint).dot(start_endpoint - target_endpoint) <= 0.0;
+    if is_ahead_segment {
+        bevy::log::warn!("Object {object_id:?} overshot segment, need recovery");
+        // TODO recover to the nearest segment
+    }
+
+    let is_behind_segment =
+        (closest_point - start_endpoint).dot(target_endpoint - start_endpoint) <= 0.0;
 
     // Whether the current heading is facing towards the centerline.
     // Always true if the object is negligibly near the centerline.
@@ -178,8 +196,8 @@ fn maintain_dir_for_object(
     // Amount of turn required to face the target heading, signed.
     let turn_towards_target_dir = current_heading.closest_distance(target_heading);
 
-    // Estimated change in orthogonal displacement of the object if we start turning towards
-    // the desired eventual heading now, derived from
+    // Estimated change in orthogonal displacement of the object
+    // if we start turning towards the segment heading now, derived from
     // speed * int_0^{heading_deviation / turn_rate} sin(heading_deviation - turn_rate * t) dt.
     // This value always is positive as long as the ground speed is in the direction of the target
     // speed.
@@ -191,10 +209,12 @@ fn maintain_dir_for_object(
     let direct_heading = (target_endpoint - object.position.horizontal()).heading();
 
     let turn_towards = if object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION {
+        // Do not overcorrect if the deviation from the centerline is negligible.
         TurnTowards::TargetEndpoint
     } else if direct_heading.is_between(current_heading, object_to_line_ortho.heading()) {
-        // We are facing away from the target and not moving towards the line
-        TurnTowards::CenterLine
+        // We have non-negligible deviation, facing away from the target and not moving towards the line,
+        // need to turn towards the centerline first.
+        TurnTowards::Centerline
     } else {
         // The current heading will end up somewhere on the centerline before the target endpoint,
         // but we might be able to converge towards the centerline earlier.
@@ -206,15 +226,20 @@ fn maintain_dir_for_object(
             // This condition is always false if the object is not moving in the target speed
             // direction.
             TurnTowards::TargetEndpoint
+        } else if is_behind_segment {
+            // behind segment start, turn towards segment start directly since
+            // there is no "centerline" to pursue.
+            TurnTowards::StartEndpoint
         } else {
             // Otherwise, turn towards the centerline to align closer first.
-            TurnTowards::CenterLine
+            TurnTowards::Centerline
         }
     };
 
     let desired_heading = match turn_towards {
         TurnTowards::TargetEndpoint => target_heading,
-        TurnTowards::CenterLine => {
+        TurnTowards::StartEndpoint => (start_endpoint - object.position.horizontal()).heading(),
+        TurnTowards::Centerline => {
             // If we are very close to the centerline,
             // we only want to turn to a point on the centerline
             // such that it would not overshoot the centerline
@@ -321,6 +346,7 @@ pub struct TargetResolutionEvent {
 /// Executes [`Target`] actions to determine if
 /// the object should accelerate, decelerate or switch to another segment.
 fn target_path_system(
+    time: Res<Time<time::Virtual>>,
     object_query: Query<(
         Entity,
         &Object,
@@ -331,6 +357,10 @@ fn target_path_system(
     )>,
     mut params: TargetPathParams<'_, '_>,
 ) {
+    if time.is_paused() {
+        return;
+    }
+
     for (object_id, object, limits, mut target, mut ground, taxi_status) in object_query {
         params.update_target_path_once(
             object_id,

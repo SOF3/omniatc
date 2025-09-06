@@ -138,60 +138,47 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
         return None;
     }
 
-    let mut return_hold_short = false;
-    let mut next_segments: Vec<_> = target_endpoint
-        .adjacency
-        .iter()
-        .copied()
-        .filter(|&next_segment| next_segment != ground.segment)
-        .filter_map(|next_segment_id| {
-            if next_segment_id == ground.segment {
+    let mut next_segments = Vec::new();
+    for &next_segment_id in &target_endpoint.adjacency {
+        if next_segment_id == ground.segment {
+            continue;
+        }
+
+        let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
+        let next_segment_label = world.log_get::<ground::SegmentLabel>(next_segment_id)?;
+        let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
+        let next_endpoint = world.log_get::<ground::Endpoint>(next_endpoint_id)?;
+
+        if [next_segment_label] == subseq_labels[..] {
+            // This segment already satisfies the subsequence requirement.
+            if hold_short {
+                // Just hold short at the current endpoint.
                 return None;
             }
-
-            let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
-            let next_segment_label = world.log_get::<ground::SegmentLabel>(next_segment_id)?;
-            let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
-            let next_endpoint = world.log_get::<ground::Endpoint>(next_endpoint_id)?;
-
-            if [next_segment_label] == subseq_labels[..] {
-                // This segment already satisfies the subsequence requirement.
-                if hold_short {
-                    // Just hold short at the current endpoint.
-                    return_hold_short = true;
-                    None
-                } else {
-                    Some((
-                        next_segment_id,
-                        Path {
-                            endpoints: vec![next_endpoint_id],
-                            cost:      target_endpoint
-                                .position
-                                .distance_exact(next_endpoint.position),
-                        },
-                    ))
-                }
-            } else {
-                let mut subseq_labels = &subseq_labels[..];
-                if Some(next_segment_label) == subseq_labels.first().copied() {
-                    subseq_labels = &subseq_labels[1..];
-                }
-
-                pathfind_through_subseq(
-                    world,
-                    next_segment_id,
-                    next_endpoint_id,
-                    subseq_labels,
-                    if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
-                    PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
-                )
-                .map(|path| (next_segment_id, path))
+            next_segments.push((
+                next_segment_id,
+                Path {
+                    endpoints: vec![next_endpoint_id],
+                    cost:      target_endpoint.position.distance_exact(next_endpoint.position),
+                },
+            ));
+        } else {
+            let mut subseq_labels = &subseq_labels[..];
+            if Some(next_segment_label) == subseq_labels.first().copied() {
+                subseq_labels = &subseq_labels[1..];
             }
-        })
-        .collect();
 
-    if return_hold_short {
-        return None;
+            if let Some(path) = pathfind_through_subseq(
+                world,
+                next_segment_id,
+                next_endpoint_id,
+                subseq_labels,
+                if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
+                PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
+            ) {
+                next_segments.push((next_segment_id, path));
+            }
+        }
     }
 
     next_segments.sort_by_key(|(_, path)| OrderedFloat(path.cost.0));

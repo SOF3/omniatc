@@ -86,7 +86,7 @@ struct Conf {
     #[config(default = 5.0, min = 0.0, max = 10.0)]
     strip_thickness:     f32,
     /// Color of runway strip display.
-    #[config(default = Color::WHITE)]
+    #[config(default = Color::srgb(0.5, 0.5, 0.5))]
     strip_color:         Color,
     /// Size of glidepath points, in screen coordinates.
     #[config(default = 3.0, min = 0.0, max = 5.0)]

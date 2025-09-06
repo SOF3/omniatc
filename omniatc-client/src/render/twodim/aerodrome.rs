@@ -108,6 +108,7 @@ struct Conf {
 #[config(expose(read))]
 struct SegmentTypeConf {
     /// Color of the segments.
+    #[config(default = Color::srgb(0.7, 0.8, 0.3))]
     color:             Color,
     /// Minimum zoom level (in maximum distance per pixel) to display segment labels.
     #[config(default = Length::from_meters(15.0), min = Length::ZERO, max = Length::from_meters(500.), unit = LengthUnit::Meters)]

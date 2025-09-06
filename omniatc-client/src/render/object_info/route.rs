@@ -6,7 +6,7 @@ use itertools::Itertools;
 use omniatc::QueryTryLog;
 use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::route::{self, Route};
-use omniatc::level::runway::Runway;
+use omniatc::level::runway::RunwayOf;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, taxi};
 
@@ -28,7 +28,7 @@ pub struct WriteRouteParams<'w, 's> {
     waypoint_query:         Query<'w, 's, &'static Waypoint>,
     waypoint_presets_query: Query<'w, 's, &'static route::WaypointPresetList>,
     preset_query:           Query<'w, 's, &'static route::Preset>,
-    runway_query:           Query<'w, 's, (&'static Runway, &'static Waypoint)>,
+    runway_query:           Query<'w, 's, (&'static Waypoint, &'static RunwayOf)>,
     aerodrome_query:        Query<'w, 's, &'static Aerodrome>,
     segment_query:          Query<'w, 's, &'static ground::SegmentLabel>,
     commands:               Commands<'w, 's>,
@@ -217,18 +217,30 @@ fn write_route_node(
             }
         }
         route::Node::AlignRunway(node) => {
-            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
-            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
+            let Some((waypoint, &RunwayOf(aerodrome_id))) =
+                params.runway_query.log_get(node.runway)
+            else {
+                return;
+            };
+            let Some(aerodrome) = params.aerodrome_query.log_get(aerodrome_id) else { return };
             ui.label(format!("Align with ILS {} of {}", &waypoint.name, &aerodrome.name));
         }
         route::Node::ShortFinal(node) => {
-            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
-            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
+            let Some((waypoint, &RunwayOf(aerodrome_id))) =
+                params.runway_query.log_get(node.runway)
+            else {
+                return;
+            };
+            let Some(aerodrome) = params.aerodrome_query.log_get(aerodrome_id) else { return };
             ui.label(format!("Short final to ILS {} of {}", &waypoint.name, &aerodrome.name));
         }
         route::Node::VisualLanding(node) => {
-            let Some((runway, waypoint)) = params.runway_query.log_get(node.runway) else { return };
-            let Some(aerodrome) = params.aerodrome_query.log_get(runway.aerodrome) else { return };
+            let Some((waypoint, &RunwayOf(aerodrome_id))) =
+                params.runway_query.log_get(node.runway)
+            else {
+                return;
+            };
+            let Some(aerodrome) = params.aerodrome_query.log_get(aerodrome_id) else { return };
             ui.label(format!(
                 "Visual short final to runway {} of {}",
                 &waypoint.name, &aerodrome.name

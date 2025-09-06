@@ -355,7 +355,7 @@ pub enum Destination {
     ///
     /// Either condition is set to `None` upon completion.
     /// The control of the object is completed when both are `None`.
-    ReachWaypoint {
+    Departure {
         min_altitude:       Option<Position<f32>>,
         waypoint_proximity: Option<(WaypointRef, Length<f32>)>,
     },

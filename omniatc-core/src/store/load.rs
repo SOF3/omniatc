@@ -15,6 +15,7 @@ use math::sweep::LineSweeper;
 use math::{Angle, Heading, Length, Position, SEA_ALTITUDE, Speed, sweep};
 use ordered_float::OrderedFloat;
 
+use crate::level::dest::Destination;
 use crate::level::navaid::{self, Navaid};
 use crate::level::route::{self, Route};
 use crate::level::runway::Runway;
@@ -221,13 +222,12 @@ fn spawn_runway(
         (start_pos + runway.touchdown_displacement * heading).with_altitude(aerodrome.elevation);
 
     runway::SpawnCommand {
-        waypoint: Waypoint {
+        waypoint:  Waypoint {
             name:         runway.name.clone(),
             display_type: waypoint::DisplayType::Runway,
             position:     touchdown_position,
         },
-        runway:   Runway {
-            aerodrome:      aerodrome_entity,
+        runway:    Runway {
             landing_length: (end_pos - start_pos).normalize_to_magnitude(
                 start_pos.distance_exact(end_pos) - runway.touchdown_displacement,
             ),
@@ -236,6 +236,7 @@ fn spawn_runway(
             display_end:    end_pos.with_altitude(aerodrome.elevation),
             width:          runway_width,
         },
+        aerodrome: aerodrome_entity,
     }
     .apply(world.entity_mut(runway_entity));
 
@@ -733,14 +734,14 @@ fn spawn_plane(
     let destination = match plane.aircraft.dest {
         store::Destination::Landing { ref aerodrome } => {
             let aerodrome = aerodromes.resolve(aerodrome)?;
-            object::Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
+            Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
         }
         store::Destination::Parking { ref aerodrome } => {
             let aerodrome = aerodromes.resolve(aerodrome)?;
-            object::Destination::Parking { aerodrome: aerodrome.aerodrome_entity }
+            Destination::Parking { aerodrome: aerodrome.aerodrome_entity }
         }
-        store::Destination::VacateAnyRunway => object::Destination::VacateAnyRunway,
-        store::Destination::ReachWaypoint { min_altitude, ref waypoint_proximity } => {
+        store::Destination::VacateAnyRunway => Destination::VacateAnyRunway,
+        store::Destination::Departure { min_altitude, ref waypoint_proximity } => {
             let waypoint_proximity = waypoint_proximity
                 .as_ref()
                 .map(|&(ref waypoint, dist)| {
@@ -748,7 +749,7 @@ fn spawn_plane(
                     Ok((waypoint, dist))
                 })
                 .transpose()?;
-            object::Destination::ReachWaypoint { min_altitude, waypoint_proximity }
+            Destination::Departure { min_altitude, waypoint_proximity }
         }
     };
 

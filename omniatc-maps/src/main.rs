@@ -16,10 +16,10 @@ mod example;
 fn main() -> Result<()> {
     let maps_dir = Path::new("assets/maps");
 
-    if let Err(err) = fs::create_dir(maps_dir) {
-        if err.kind() != io::ErrorKind::AlreadyExists {
-            Err(err).context("mkdir maps")?;
-        }
+    if let Err(err) = fs::create_dir(maps_dir)
+        && err.kind() != io::ErrorKind::AlreadyExists
+    {
+        Err(err).context("mkdir maps")?;
     }
 
     ciborium::into_writer(

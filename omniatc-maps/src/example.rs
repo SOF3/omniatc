@@ -796,7 +796,7 @@ pub fn file() -> store::File {
                         name:         "ADE127".into(),
                         weight:       1e5,
                         wingspan:     Length::from_meters(50.),
-                        dest:         store::Destination::ReachWaypoint {
+                        dest:         store::Destination::Departure {
                             min_altitude:       Some(Position::from_amsl_feet(18000.)),
                             waypoint_proximity: Some((
                                 store::WaypointRef::Named("EXITS".into()),

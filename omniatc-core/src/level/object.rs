@@ -20,12 +20,10 @@ use math::{
     solve_expected_ground_speed,
 };
 
+use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
 use crate::try_log::EntityWorldMutExt;
-
-mod dest;
-pub use dest::Destination;
 
 #[cfg(test)]
 mod tests;
@@ -120,6 +118,12 @@ impl EntityCommand for SpawnCommand {
 /// Sent when a plane entity is spawned.
 #[derive(Event)]
 pub struct SpawnEvent(pub Entity);
+
+pub struct DespawnCommand;
+
+impl EntityCommand for DespawnCommand {
+    fn apply(self, entity: EntityWorldMut) { entity.despawn(); }
+}
 
 /// Sets an entity as airborne.
 pub struct SetAirborneCommand;

@@ -18,6 +18,8 @@ impl Plugin for Plug {
 }
 
 /// The aerodrome owning a segment.
+///
+/// Component on aerodrome entities.
 #[derive(Component)]
 #[relationship_target(relationship = SegmentOf, linked_spawn)]
 pub struct AerodromeSegments(Vec<Entity>);
@@ -32,7 +34,9 @@ impl AerodromeSegments {
 #[relationship(relationship_target = AerodromeSegments)]
 pub struct SegmentOf(pub Entity);
 
-/// The aerodrome owning a endpoint.
+/// The endpoints owned by an aerodrome.
+///
+/// Component on aerodrome entities.
 #[derive(Component)]
 #[relationship_target(relationship = EndpointOf, linked_spawn)]
 pub struct AerodromeEndpoints(Vec<Entity>);
@@ -55,6 +59,8 @@ pub struct SegmentOfRunway(pub [Entity; 2]);
 
 /// The segments owned by a runway.
 ///
+/// Component on runway entities.
+///
 /// This is not a relationship component because there are two owner runways for each segment.
 #[derive(Component, Default)]
 pub struct RunwaySegments(pub Vec<Entity>);
@@ -62,9 +68,9 @@ pub struct RunwaySegments(pub Vec<Entity>);
 /// A segment of a ground path to taxi on.
 ///
 /// # Component topology
-/// - is always a child entity of an [aerodrome](super::aerodrome) entity.
+/// - is always a [`SegmentOf`] of an [aerodrome](super::aerodrome) entity.
 /// - always has a [`SegmentLabel`] component.
-/// - is referenced by [`RunwaySegmentList`] from a runway entity if it belongs to a runway.
+/// - is referenced by [`RunwaySegments`] from a runway entity if it belongs to a runway.
 #[derive(Component)]
 pub struct Segment {
     /// An [`Endpoint`] entity.

@@ -11,6 +11,7 @@ use strum::IntoEnumIterator;
 
 pub mod aerodrome;
 pub mod comm;
+pub mod dest;
 pub mod ground;
 pub mod message;
 pub mod nav;
@@ -19,6 +20,7 @@ pub mod object;
 pub mod plane;
 pub mod route;
 pub mod runway;
+pub mod score;
 pub mod taxi;
 pub mod wake;
 pub mod waypoint;

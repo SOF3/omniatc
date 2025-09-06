@@ -671,6 +671,8 @@ where
     }
 
     /// Returns the vector component projected along `dir`.
+    ///
+    /// The result is shorter than or equal to the receiver.
     #[must_use]
     pub fn project_onto_dir(self, dir: Dir2) -> Quantity<f32, LengthBase, Dt, Pow> {
         Quantity(self.0.dot(*dir), PhantomData)

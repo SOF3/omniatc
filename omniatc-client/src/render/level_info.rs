@@ -119,7 +119,7 @@ impl WriteParams for WriteTimeParams<'_, '_> {
 
     fn write(&mut self, ui: &mut egui::Ui) {
         // NOTE: do not allow values that are too high to avoid significant simulation instability.
-        const FAST_FORWARD_SPEED: f32 = 25.;
+        const FAST_FORWARD_SPEED: f32 = 25.0;
 
         let elapsed = self.time.elapsed().as_secs();
 
@@ -136,10 +136,15 @@ impl WriteParams for WriteTimeParams<'_, '_> {
 
         let desired_speed = ui
             .horizontal(|ui| {
-                let regular_speed = self.regular_speed.get_or_insert(1.);
+                let regular_speed = self.regular_speed.get_or_insert(1.0);
+
                 ui.add(
                     egui::Slider::new(regular_speed, 0. ..=20.).prefix("Game speed: ").suffix("x"),
                 );
+
+                if self.hotkeys.reset_speed {
+                    *regular_speed = 1.0;
+                }
 
                 if self.hotkeys.fast_forward {
                     ui.label(format!("{FAST_FORWARD_SPEED}x"));
@@ -174,6 +179,7 @@ struct WriteCameraParams<'w, 's> {
         With<twodim::camera::Layout>,
     >,
     cursor:       Res<'w, input::CurrentCursorCamera>,
+    hotkeys:      Res<'w, input::Hotkeys>,
 }
 
 fn measure_delta(v: f32, f: impl FnOnce(&mut f32)) -> Option<f32> {
@@ -212,6 +218,9 @@ impl WriteParams for WriteCameraParams<'_, '_> {
                             .text("Direction (up)")
                             .suffix('\u{b0}'),
                     );
+                    if self.hotkeys.north {
+                        *degrees = 0.;
+                    }
                 },
             );
             if let Some(degrees_delta) = degrees_delta {

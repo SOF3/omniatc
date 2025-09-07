@@ -77,7 +77,7 @@ pub fn point_line_segment_closest(
 
 /// Returns the shortest distance between two line segments.
 ///
-/// The result is the vector between the two closest points on each segment.
+/// The result is the vector between the two closest points on each segment
 /// from segment 0 to segment 1.
 ///
 /// An exactly zero vector is guaranteed when the two segments intersect.

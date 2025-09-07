@@ -31,9 +31,6 @@ impl Plugin for Plug {
 /// with the [`waypoint::Visual`] component for final approach.
 #[derive(Component)]
 pub struct Runway {
-    /// The aerodrome that this runway belongs to.
-    pub aerodrome: Entity,
-
     /// Usable runway length for landings.
     ///
     /// Only used to determine landing feasibility.
@@ -59,16 +56,35 @@ pub struct Runway {
     pub glide_descent: Angle,
 }
 
+/// List of runway entities that belong to this aerodrome.
+///
+/// Component on aerodrome entities.
+#[derive(Component)]
+#[relationship_target(relationship = RunwayOf, linked_spawn)]
+pub struct AerodromeRunways(Vec<Entity>);
+
+impl AsRef<[Entity]> for AerodromeRunways {
+    fn as_ref(&self) -> &[Entity] { &self.0 }
+}
+
+/// Component on a runway entity referencing the aerodrome entity it belongs to.
+#[derive(Component)]
+#[relationship(relationship_target = AerodromeRunways)]
+pub struct RunwayOf(pub Entity);
+
 /// Runway conditions due to environmental factors.
 #[derive(Component, Clone)]
 pub struct Condition {
     /// A multiplier to the base braking rate of an object.
+    ///
+    /// This value may decrease to a value between 0 and 1 when it is wet.
     pub friction_factor: f32,
 }
 
 pub struct SpawnCommand {
-    pub runway:   Runway,
-    pub waypoint: Waypoint,
+    pub runway:    Runway,
+    pub waypoint:  Waypoint,
+    pub aerodrome: Entity,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -79,7 +95,7 @@ impl EntityCommand for SpawnCommand {
             waypoint::SpawnCommand { waypoint: self.waypoint }.apply(world.entity_mut(entity_id));
         });
 
-        entity.insert((self.runway, Condition { friction_factor: 1. }));
+        entity.insert((self.runway, Condition { friction_factor: 1. }, RunwayOf(self.aerodrome)));
         entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
 }

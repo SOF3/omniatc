@@ -306,13 +306,13 @@ struct Conf {
     #[config(default = 1.05)]
     scroll_step_line:      f32,
     /// Zoom speed based on vertical scroll per pixel.
-    #[config(default = 1.007)]
+    #[config(default = 1.001)]
     scroll_step_pixel:     f32,
     /// Rotation speed based on horizontal scroll per line.
-    #[config(default = Angle::from_degrees(6.0))]
+    #[config(default = Angle::from_degrees(4.0))]
     rotation_step_line:    Angle,
     /// Rotation speed based on horizontal scroll per pixel.
-    #[config(default = Angle::from_degrees(1.0))]
+    #[config(default = Angle::from_degrees(0.1))]
     rotation_step_pixel:   Angle,
     /// Direction to move camera when dragging with right button.
     camera_drag_direction: CameraDragDirection,

@@ -131,6 +131,8 @@ pub struct Hotkeys {
     pub deselect:        bool,
     pub fast_forward:    bool,
     pub toggle_pause:    bool,
+    pub reset_speed:     bool,
+    pub north:           bool,
     pub pick_vector:     bool,
     pub set_speed:       bool,
     pub inc_speed:       bool,
@@ -161,6 +163,8 @@ impl Hotkeys {
             this.deselect = conf.level_control.deselect.clicked(state);
             this.fast_forward = conf.level_control.fast_forward.down(state);
             this.toggle_pause = conf.level_control.toggle_pause.clicked(state);
+            this.reset_speed = conf.level_control.reset_speed.clicked(state);
+            this.north = conf.level_control.north.clicked(state);
             this.pick_vector = conf.picking.pick_vector.down(state);
             this.set_speed = conf.object_control.speed.set.clicked(state);
             this.inc_speed = conf.object_control.speed.inc.clicked_or_repeated(state);
@@ -194,6 +198,10 @@ struct LevelControlConf {
     fast_forward: KeySet,
     #[config(default = KeySet::from(egui::Key::Space).shift(false))]
     toggle_pause: KeySet,
+    #[config(default = KeySet::from(egui::Key::Num1))]
+    reset_speed:  KeySet,
+    #[config(default = KeySet::from(egui::Key::N))]
+    north:        KeySet,
 }
 
 #[derive(Config)]

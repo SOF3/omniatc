@@ -32,7 +32,7 @@ impl Position<Vec2> {
     pub const ORIGIN: Self = Self(Length::new(Vec2::new(0., 0.)));
 
     #[must_use]
-    pub fn from_origin_nm(x: f32, y: f32) -> Self { Position(Length::new(Vec2 { x, y })) }
+    pub const fn from_origin_nm(x: f32, y: f32) -> Self { Position(Length::new(Vec2 { x, y })) }
 
     #[must_use]
     pub fn midpoint(self, other: Self) -> Self {

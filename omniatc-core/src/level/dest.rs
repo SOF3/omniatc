@@ -13,6 +13,9 @@ use crate::level::waypoint::Waypoint;
 use crate::level::{ground, object, runway, score, taxi};
 use crate::{QueryTryLog, try_log};
 
+/// Speed below which an object is considered to be stationary.
+const MOVING_THRESHOLD: Speed<f32> = Speed::from_meter_per_sec(0.1);
+
 pub struct Plug;
 
 impl Plugin for Plug {
@@ -162,7 +165,7 @@ fn detect_runway_vacation(
             Dir2::new(rotate_clockwise(runway.landing_length.0)),
             expect "runway landing length should be nonzero" or return None
         );
-        if closest.project_onto_dir(ortho_dir) > runway.width {
+        if closest.project_onto_dir(ortho_dir).abs() < runway.width * 0.5 {
             return Some(DetectResult::Incomplete);
         }
     }
@@ -178,7 +181,7 @@ fn detect_apron_stop(
         return Some(DetectResult::Incomplete);
     };
 
-    if object.object.ground_speed.magnitude_cmp() > Speed::from_meter_per_sec(0.1) {
+    if object.object.ground_speed.magnitude_cmp() > MOVING_THRESHOLD {
         return Some(DetectResult::Incomplete);
     }
 

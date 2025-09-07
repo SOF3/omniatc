@@ -281,6 +281,59 @@ fn route_taxi_runway_west_to_tango() -> Vec<store::RouteNode> {
     .into()
 }
 
+const RIGHT_RUNWAY_OFFSET: Length<f32> = Length::from_nm(1.0);
+const RUNWAY_LENGTH: Length<f32> = Length::from_meters(3000.0);
+const RUNWAY_WIDTH: Length<f32> = Length::from_meters(100.0);
+const TAXIWAY_WIDTH: Length<f32> = Length::from_meters(80.0);
+const FIRST_TAXIWAY_OFFSET: Length<f32> = Length::from_meters(200.0);
+const SECOND_TAXIWAY_OFFSET: Length<f32> = Length::from_meters(350.0);
+const HORIZONTAL_TAXIWAY_OFFSET: Length<f32> = Length::from_meters(1100.0);
+const RAPID_EXIT_TAXIWAY_ANGLE: Angle = Angle::from_degrees(60.0);
+const APRON_LENGTH: Length<f32> = Length::from_meters(150.0);
+const APRON_INTERVAL: Length<f32> = Length::from_meters(120.0);
+const TOP_LEFT_ORIGIN: Position<Vec2> = Position::from_origin_nm(0.0, 0.0);
+const TOP_RIGHT_ORIGIN: Position<Vec2> =
+    Position::from_origin_nm(RIGHT_RUNWAY_OFFSET.into_nm(), 0.0);
+const BOTTOM_LEFT_ORIGIN: Position<Vec2> = Position::from_origin_nm(0.0, -RUNWAY_LENGTH.into_nm());
+const BOTTOM_RIGHT_ORIGIN: Position<Vec2> =
+    Position::from_origin_nm(RIGHT_RUNWAY_OFFSET.into_nm(), -RUNWAY_LENGTH.into_nm());
+
+fn rapid_exit_taxiways() -> impl Iterator<Item = store::Taxiway> {
+    let exits = [
+        (Length::from_meters(0.0), Angle::ZERO),
+        (Length::from_meters(200.0), Angle::ZERO),
+        (Length::from_meters(800.0), RAPID_EXIT_TAXIWAY_ANGLE),
+        (Length::from_meters(1250.0), RAPID_EXIT_TAXIWAY_ANGLE),
+    ];
+    [
+        ("A", TOP_LEFT_ORIGIN, Heading::SOUTH, Heading::EAST, -1.0),
+        ("B", TOP_RIGHT_ORIGIN, Heading::SOUTH, Heading::WEST, 1.0),
+    ]
+    .into_iter()
+    .flat_map(move |(prefix, origin, runway_dir, runway_to_taxiway, angle_dir)| {
+        let rev_exits = exits
+            .into_iter()
+            .rev()
+            .map(|(offset, angle)| (Length::from_meters(3000.0) - offset, -angle));
+        exits.into_iter().chain(rev_exits).enumerate().map(move |(index, (offset, angle))| {
+            let runway_endpoint = origin + offset * runway_dir;
+            let taxiway_endpoint = runway_endpoint
+                + FIRST_TAXIWAY_OFFSET * (runway_to_taxiway + angle * angle_dir) / angle.cos();
+            store::Taxiway {
+                name:      format!("{prefix}{}", index + 1),
+                endpoints: [
+                    runway_endpoint,
+                    taxiway_endpoint,
+                    taxiway_endpoint
+                        + (SECOND_TAXIWAY_OFFSET - FIRST_TAXIWAY_OFFSET) * runway_to_taxiway,
+                ]
+                .into(),
+                width:     TAXIWAY_WIDTH,
+            }
+        })
+    })
+}
+
 /// A simple map featuring different mechanisms for testing.
 pub fn file() -> store::File {
     store::File {
@@ -324,191 +377,130 @@ pub fn file() -> store::File {
                         store::Taxiway {
                             name:      "A".into(),
                             endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., 0.)),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -3000.)),
+                                TOP_LEFT_ORIGIN
+                                    + Length::from_components(FIRST_TAXIWAY_OFFSET, Length::ZERO),
+                                BOTTOM_LEFT_ORIGIN
+                                    + Length::from_components(FIRST_TAXIWAY_OFFSET, Length::ZERO),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "A1".into(),
-                            endpoints: [
-                                Position::from_origin_nm(0., 0.),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., 0.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "A2".into(),
-                            endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -1000.)),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -600.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "A3".into(),
-                            endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -2000.)),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -2400.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "A4".into(),
-                            endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -3000.)),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -3000.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                         store::Taxiway {
                             name:      "B".into(),
                             endpoints: [
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., 0.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -3000.)),
+                                TOP_RIGHT_ORIGIN
+                                    + Length::from_components(-FIRST_TAXIWAY_OFFSET, Length::ZERO),
+                                BOTTOM_RIGHT_ORIGIN
+                                    + Length::from_components(-FIRST_TAXIWAY_OFFSET, Length::ZERO),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "B1".into(),
-                            endpoints: [
-                                Position::from_origin_nm(1., 0.),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., 0.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "B2".into(),
-                            endpoints: [
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -1000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -600.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "B3".into(),
-                            endpoints: [
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -2000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -2400.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
-                        },
-                        store::Taxiway {
-                            name:      "B4".into(),
-                            endpoints: [
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(0., -3000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -3000.)),
-                            ]
-                            .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                         store::Taxiway {
                             name:      "J".into(),
                             endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(350., -1000.)),
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(350., -2000.)),
+                                TOP_LEFT_ORIGIN
+                                    + Length::from_components(SECOND_TAXIWAY_OFFSET, Length::ZERO),
+                                BOTTOM_LEFT_ORIGIN
+                                    + Length::from_components(SECOND_TAXIWAY_OFFSET, Length::ZERO),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                         store::Taxiway {
                             name:      "K".into(),
                             endpoints: [
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-350., -1000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-350., -2000.)),
+                                TOP_RIGHT_ORIGIN
+                                    + Length::from_components(-SECOND_TAXIWAY_OFFSET, Length::ZERO),
+                                BOTTOM_RIGHT_ORIGIN
+                                    + Length::from_components(-SECOND_TAXIWAY_OFFSET, Length::ZERO),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                         store::Taxiway {
                             name:      "T".into(),
                             endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -1000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -1000.)),
+                                TOP_LEFT_ORIGIN
+                                    + Length::from_components(
+                                        FIRST_TAXIWAY_OFFSET,
+                                        -HORIZONTAL_TAXIWAY_OFFSET,
+                                    ),
+                                TOP_RIGHT_ORIGIN
+                                    + Length::from_components(
+                                        -FIRST_TAXIWAY_OFFSET,
+                                        -HORIZONTAL_TAXIWAY_OFFSET,
+                                    ),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                         store::Taxiway {
                             name:      "U".into(),
                             endpoints: [
-                                Position::from_origin_nm(0., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(200., -2000.)),
-                                Position::from_origin_nm(1., 0.)
-                                    + Length::vec2_from_meters(Vec2::new(-200., -2000.)),
+                                BOTTOM_LEFT_ORIGIN
+                                    + Length::from_components(
+                                        FIRST_TAXIWAY_OFFSET,
+                                        HORIZONTAL_TAXIWAY_OFFSET,
+                                    ),
+                                BOTTOM_RIGHT_ORIGIN
+                                    + Length::from_components(
+                                        -FIRST_TAXIWAY_OFFSET,
+                                        HORIZONTAL_TAXIWAY_OFFSET,
+                                    ),
                             ]
                             .into(),
-                            width:     Length::from_meters(80.),
+                            width:     TAXIWAY_WIDTH,
                         },
                     ]
-                    .into(),
+                    .into_iter()
+                    .chain(rapid_exit_taxiways())
+                    .collect(),
                     aprons:      [
-                        ('N', Heading::NORTH, Length::from_meters(-800.)),
-                        ('S', Heading::SOUTH, Length::from_meters(-1200.)),
-                        ('N', Heading::NORTH, Length::from_meters(-1800.)),
-                        ('S', Heading::SOUTH, Length::from_meters(-2200.)),
+                        ('N', Heading::NORTH, -HORIZONTAL_TAXIWAY_OFFSET + APRON_LENGTH),
+                        ('S', Heading::SOUTH, -HORIZONTAL_TAXIWAY_OFFSET - APRON_LENGTH),
+                        (
+                            'N',
+                            Heading::NORTH,
+                            -RUNWAY_LENGTH + HORIZONTAL_TAXIWAY_OFFSET + APRON_LENGTH,
+                        ),
+                        (
+                            'S',
+                            Heading::SOUTH,
+                            -RUNWAY_LENGTH + HORIZONTAL_TAXIWAY_OFFSET - APRON_LENGTH,
+                        ),
                     ]
                     .into_iter()
-                    .enumerate()
-                    .flat_map(|(row, (prefix, heading, y))| {
-                        (-2..=2)
+                    .flat_map(|(prefix, heading, y)| {
+                        (-3..=3)
                             .map(move |x_offset: i16| {
-                                let x = Length::from_meters(200.) * f32::from(x_offset);
+                                let x = APRON_INTERVAL * f32::from(x_offset);
                                 (
                                     prefix,
                                     heading,
-                                    Position::from_origin_nm(0.5, 0.) + Length::from((x, y)),
+                                    TOP_LEFT_ORIGIN.lerp(TOP_RIGHT_ORIGIN, 0.5)
+                                        + Length::from((x, y)),
                                 )
                             })
-                            .enumerate()
-                            .map(move |(index, (prefix, heading, position))| store::Apron {
-                                name: format!("{prefix}{:02}", row * 5 + index + 1),
-                                position,
-                                forward_heading: heading,
-                                width: Length::from_meters(80.),
+                            .map(move |(prefix, heading, position)| {
+                                move |index| store::Apron {
+                                    name: format!("{prefix}{index:02}"),
+                                    position,
+                                    forward_heading: heading,
+                                    width: TAXIWAY_WIDTH,
+                                }
                             })
                     })
+                    .enumerate()
+                    .map(|(index, f)| f(index + 1))
                     .collect(),
-                    taxi_speed:  Speed::from_knots(25.0),
+                    taxi_speed:  Speed::from_knots(30.0),
                     apron_speed: Speed::from_meter_per_sec(5.0),
                 },
                 runways:        [
                     store::RunwayPair {
-                        width:          Length::from_meters(100.),
-                        forward_start:  Position::from_origin_nm(0., 0.),
+                        width:          RUNWAY_WIDTH,
+                        forward_start:  TOP_LEFT_ORIGIN,
                         forward:        store::Runway {
                             name:                   "18R".into(),
                             touchdown_displacement: Length::from_meters(160.),
@@ -525,8 +517,7 @@ pub fn file() -> store::File {
                                 decision_height:  Length::from_feet(100.),
                             }),
                         },
-                        backward_start: Position::from_origin_nm(0., 0.)
-                            + Length::vec2_from_meters(Vec2::new(0., -3000.)),
+                        backward_start: BOTTOM_LEFT_ORIGIN,
                         backward:       store::Runway {
                             name:                   "36L".into(),
                             touchdown_displacement: Length::from_meters(160.),
@@ -545,8 +536,8 @@ pub fn file() -> store::File {
                         },
                     },
                     store::RunwayPair {
-                        width:          Length::from_meters(100.),
-                        forward_start:  Position::from_origin_nm(1., 0.),
+                        width:          RUNWAY_WIDTH,
+                        forward_start:  TOP_RIGHT_ORIGIN,
                         forward:        store::Runway {
                             name:                   "18L".into(),
                             touchdown_displacement: Length::from_meters(160.),
@@ -563,8 +554,7 @@ pub fn file() -> store::File {
                                 decision_height:  Length::from_feet(100.),
                             }),
                         },
-                        backward_start: Position::from_origin_nm(1., 0.)
-                            + Length::vec2_from_meters(Vec2::new(0., -3000.)),
+                        backward_start: BOTTOM_RIGHT_ORIGIN,
                         backward:       store::Runway {
                             name:                   "36R".into(),
                             touchdown_displacement: Length::from_meters(160.),

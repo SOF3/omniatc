@@ -621,6 +621,14 @@ where
     pub fn y(self) -> Quantity<f32, LengthBase, Dt, Pow> { Quantity(self.0.y, PhantomData) }
 
     #[must_use]
+    pub const fn from_components(
+        x: Quantity<f32, LengthBase, Dt, Pow>,
+        y: Quantity<f32, LengthBase, Dt, Pow>,
+    ) -> Self {
+        Self(Vec2 { x: x.0, y: y.0 }, PhantomData)
+    }
+
+    #[must_use]
     pub fn with_x(self, x: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
         Self(self.0.with_x(x.0), PhantomData)
     }

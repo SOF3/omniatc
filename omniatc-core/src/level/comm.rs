@@ -7,6 +7,7 @@ use math::Speed;
 
 use super::{SystemSets, nav, route};
 use crate::EntityMutTryLog;
+use crate::level::ground;
 
 pub struct Plug;
 
@@ -43,6 +44,8 @@ pub enum Instruction {
     SetWaypoint(SetWaypoint),
     SetSpeed(SetSpeed),
     SetAltitude(SetAltitude),
+    ClearRoute(ClearRoute),
+    AppendSegment(AppendSegment),
 }
 
 pub struct SetHeading {
@@ -101,4 +104,35 @@ pub struct SetAltitude {
 
 impl InstructionKind for SetAltitude {
     fn process(&self, mut entity: EntityCommands) { entity.insert(self.target.clone()); }
+}
+
+pub struct ClearRoute;
+
+impl InstructionKind for ClearRoute {
+    fn process(&self, mut entity: EntityCommands) { entity.queue(route::ClearAllNodes); }
+}
+
+pub struct AppendSegment {
+    pub segment:    ground::SegmentLabel,
+    pub hold_short: bool,
+}
+
+impl InstructionKind for AppendSegment {
+    fn process(&self, mut entity: EntityCommands) {
+        let label = self.segment.clone();
+        let hold_short = self.hold_short;
+        entity.queue(move |mut entity: EntityWorldMut| {
+            entity.insert_if_new(route::Route::default());
+            let mut route = entity.get_mut::<route::Route>().expect("just inserted");
+            if let Some(route::Node::Taxi(route::TaxiNode {
+                label: _,
+                hold_short: hold_short @ true,
+            })) = route.last_mut()
+            {
+                *hold_short = false;
+            }
+            route.push(route::Node::Taxi(route::TaxiNode { label, hold_short }));
+        });
+        entity.queue(route::RunCurrentNode);
+    }
 }

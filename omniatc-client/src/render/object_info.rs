@@ -1,5 +1,6 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::EventReader;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -29,6 +30,30 @@ impl Plugin for Plug {
                 .after(UpdateSystemSets::Input)
                 .in_set(super::twodim::object::SetColorThemeSystemSet::UserInteract),
         );
+
+        app.add_systems(
+            app::Update,
+            cleanup_despawned_selected_object_system.before(CurrentObjectSelectorSystemSet),
+        );
+    }
+}
+
+fn cleanup_despawned_selected_object_system(
+    mut despawn_events: EventReader<object::DespawnEvent>,
+    mut current_object: ResMut<CurrentObject>,
+    mut current_hovered_object: ResMut<CurrentHoveredObject>,
+) {
+    for event in despawn_events.read() {
+        if let Some(current) = current_object.0
+            && current == event.0
+        {
+            current_object.0 = None;
+        }
+        if let Some(current) = current_hovered_object.0
+            && current == event.0
+        {
+            current_hovered_object.0 = None;
+        }
     }
 }
 

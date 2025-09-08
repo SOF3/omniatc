@@ -14,11 +14,14 @@ use bevy::input::mouse::MouseButton;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
-use math::{Angle, Length, Position};
-use omniatc::QueryTryLog;
+use math::{Angle, Length, Position, Squared, point_segment_closest};
 use omniatc::level::object::Object;
+use omniatc::level::route::{
+    self, ClosurePathfindContext, PathfindMode, PathfindOptions, Route, pathfind_through_subseq,
+};
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, nav, object, plane};
+use omniatc::level::{comm, ground, nav, object, plane, taxi};
+use omniatc::{QueryTryLog, try_log, try_log_return};
 use ordered_float::OrderedFloat;
 
 use super::object::preview;
@@ -69,7 +72,7 @@ pub(super) fn input_system(
     mut params: ParamSet<(
         DetermineMode,
         SelectObjectParams,
-        SetHeadingParams,
+        SetNavTargetParams,
         CleanupPreviewParams,
     )>,
 ) {
@@ -85,12 +88,9 @@ pub(super) fn input_system(
         let mode = determine_mode.determine();
         match mode {
             Mode::SelectObject => params.p1().run(cursor_camera_value.world_pos, camera_tf),
-            Mode::CommitHeading => {
-                params.p2().run(cursor_camera_value.world_pos, camera_tf, true);
-            }
-            Mode::PreviewHeading => {
-                is_preview = true;
-                params.p2().run(cursor_camera_value.world_pos, camera_tf, false);
+            Mode::SetRoute(set_route) => {
+                params.p2().run(cursor_camera_value.world_pos, camera_tf, set_route);
+                is_preview = !set_route.commit;
             }
         }
     }
@@ -98,32 +98,62 @@ pub(super) fn input_system(
     params.p3().run(is_preview);
 }
 
+#[derive(Clone, Copy, Default)]
+enum PickRouteKey {
+    #[default]
+    None,
+    Reset,
+    Append,
+}
+
 #[derive(SystemParam)]
 pub(super) struct DetermineMode<'w, 's> {
     current_cursor_camera: Res<'w, input::CurrentCursorCamera>,
     camera_query:          Query<'w, 's, &'static GlobalTransform, With<Camera2d>>,
     margins:               Res<'w, EguiUsedMargins>,
-    was_setting_heading:   Local<'s, bool>,
+    prev_pick_key:         Local<'s, PickRouteKey>,
     hotkeys:               Res<'w, input::Hotkeys>,
 }
 
 impl DetermineMode<'_, '_> {
     fn determine(&mut self) -> Mode {
-        if self.hotkeys.pick_vector {
-            *self.was_setting_heading = true;
-            Mode::PreviewHeading
-        } else if *self.was_setting_heading {
-            Mode::CommitHeading
+        let pick_key = if self.hotkeys.pick_route {
+            PickRouteKey::Reset
+        } else if self.hotkeys.append_route {
+            PickRouteKey::Append
         } else {
-            Mode::SelectObject
+            PickRouteKey::None
+        };
+
+        match (mem::replace(&mut *self.prev_pick_key, pick_key), pick_key) {
+            // not picking at all
+            (PickRouteKey::None, PickRouteKey::None) => Mode::SelectObject,
+            // start/continue preview without append
+            (_, PickRouteKey::Reset) => Mode::SetRoute(SetRoute { commit: false, append: false }),
+            // start/continue preview with append
+            (_, PickRouteKey::Append) => Mode::SetRoute(SetRoute { commit: false, append: true }),
+            // stop picking, no append opted
+            (PickRouteKey::Reset, PickRouteKey::None) => {
+                Mode::SetRoute(SetRoute { commit: true, append: false })
+            }
+            // stop picking, had append opted
+            (PickRouteKey::Append, PickRouteKey::None) => {
+                Mode::SetRoute(SetRoute { commit: true, append: true })
+            }
         }
     }
 }
 
+#[derive(Clone, Copy)]
 enum Mode {
     SelectObject,
-    CommitHeading,
-    PreviewHeading,
+    SetRoute(SetRoute),
+}
+
+#[derive(Clone, Copy)]
+struct SetRoute {
+    commit: bool,
+    append: bool,
 }
 
 #[derive(SystemParam)]
@@ -163,67 +193,147 @@ impl SelectObjectParams<'_, '_> {
 
 #[derive(QueryData)]
 #[query_data(mutable)]
-struct SetHeadingObjectQuery {
-    object:           &'static Object,
-    plane:            Option<&'static plane::Control>,
-    preview_override: Option<&'static mut preview::TargetOverride>,
+struct SetNavTargetObjectQuery {
+    object:                    &'static Object,
+    ground:                    Option<&'static object::OnGround>,
+    plane:                     Option<&'static plane::Control>,
+    airborne_preview_override: Option<&'static mut preview::AirborneTargetOverride>,
+    ground_preview_override:   Option<&'static mut preview::GroundTargetOverride>,
+    route:                     Option<&'static Route>,
 }
 
 #[derive(SystemParam)]
-pub(super) struct SetHeadingParams<'w, 's> {
+pub(super) struct SetNavTargetParams<'w, 's> {
     waypoint_query: Query<'w, 's, (Entity, &'static Waypoint)>,
-    object_query:   Query<'w, 's, SetHeadingObjectQuery>,
+    segment_query:  Query<'w, 's, (Entity, &'static ground::Segment)>,
+    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+    object_query:   Query<'w, 's, SetNavTargetObjectQuery>,
     conf:           ReadConfig<'w, 's, Conf>,
-    instr_writer:   EventWriter<'w, comm::InstructionEvent>,
     current_object: Res<'w, object_info::CurrentObject>,
-    buttons:        Res<'w, ButtonInput<KeyCode>>,
-    commands:       Commands<'w, 's>,
-    margins:        Res<'w, EguiUsedMargins>,
+    propose:        ProposeParams<'w, 's>,
 }
 
-impl SetHeadingParams<'_, '_> {
-    fn run(&mut self, cursor_world_pos: Position<Vec2>, camera_tf: GlobalTransform, commit: bool) {
+fn find_closest_waypoint(
+    waypoint_query: Query<(Entity, &'static Waypoint)>,
+    cursor_world_pos: Position<Vec2>,
+    click_tolerance: Length<f32>,
+) -> Option<(Entity, Squared<Length<f32>>)> {
+    waypoint_query
+        .iter()
+        .map(|(entity, waypoint)| {
+            let waypoint_pos = waypoint.position.horizontal();
+            (entity, waypoint_pos.distance_squared(cursor_world_pos))
+        })
+        .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
+        .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0))
+}
+
+fn find_closest_segment(
+    segment_query: Query<(Entity, &ground::Segment)>,
+    endpoint_query: Query<&ground::Endpoint>,
+    cursor_world_pos: Position<Vec2>,
+    click_tolerance: Length<f32>,
+) -> Option<(Entity, Squared<Length<f32>>)> {
+    segment_query
+        .iter()
+        .filter_map(|(entity, segment)| {
+            let alpha = try_log!(endpoint_query.get(segment.alpha), expect "segment must reference valid alpha endpoint {:?}"( segment.alpha) or return None);
+            let beta = try_log!(endpoint_query.get(segment.beta), expect "segment must reference valid beta endpoint {:?}"( segment.beta) or return None);
+            let closest = point_segment_closest(cursor_world_pos, alpha.position, beta.position);
+            Some((entity, closest.distance_squared(cursor_world_pos)))
+        })
+        .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
+        .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0))
+}
+
+impl SetNavTargetParams<'_, '_> {
+    fn run(
+        &mut self,
+        cursor_world_pos: Position<Vec2>,
+        camera_tf: GlobalTransform,
+        set_route: SetRoute,
+    ) {
         let conf = self.conf.read();
 
         let click_tolerance = Length::new(camera_tf.scale().x) * conf.waypoint_select_tolerance;
 
-        let closest_waypoint = self
-            .waypoint_query
-            .iter()
-            .map(|(entity, waypoint)| {
-                let waypoint_pos = waypoint.position.horizontal();
-                (entity, waypoint_pos.distance_squared(cursor_world_pos))
-            })
-            .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
-            .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0))
-            .map(|(result, _)| result);
+        if let Some(object) = self.current_object.0 {
+            let mut object_data = try_log_return!(
+                self.object_query.get_mut(object),
+                expect "object selected by cursor"
+            );
 
-        if let Some(waypoint) = closest_waypoint {
-            if let Some(object) = self.current_object.0 {
-                self.propose_set_waypoint(object, waypoint, commit);
+            if let Some(ground) = object_data.ground {
+                // Object is on ground; click target must be a segment
+                let closest_segment = find_closest_segment(
+                    self.segment_query,
+                    self.endpoint_query,
+                    cursor_world_pos,
+                    click_tolerance,
+                );
+                if let Some((segment, _)) = closest_segment {
+                    self.propose.propose_segment(
+                        object,
+                        segment,
+                        ground,
+                        object_data.route,
+                        object_data.ground_preview_override.as_deref_mut(),
+                        set_route,
+                    );
+                }
             } else {
-                // TODO show waypoint info?
+                // Object is airborne; click target may be a waypoint or just heading
+                if let Some((waypoint, _)) =
+                    find_closest_waypoint(self.waypoint_query, cursor_world_pos, click_tolerance)
+                {
+                    self.propose.propose_set_waypoint(object, waypoint, object_data, set_route);
+                } else {
+                    self.propose.propose_set_heading(
+                        object,
+                        cursor_world_pos,
+                        object_data,
+                        set_route,
+                    );
+                }
             }
         } else {
-            if let Some(object) = self.current_object.0 {
-                self.propose_set_heading(object, cursor_world_pos, commit);
-            }
+            // TODO should we show taxiway/waypoint info here?
         }
     }
+}
 
-    fn propose_set_waypoint(&mut self, object: Entity, waypoint: Entity, commit: bool) {
+#[derive(SystemParam)]
+struct ProposeParams<'w, 's> {
+    instr_writer:     EventWriter<'w, comm::InstructionEvent>,
+    commands:         Commands<'w, 's>,
+    margins:          Res<'w, EguiUsedMargins>,
+    buttons:          Res<'w, ButtonInput<KeyCode>>,
+    selected_segment: Local<'s, Option<Entity>>,
+    endpoint_query:   Query<'w, 's, &'static ground::Endpoint>,
+    segment_query:    Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
+    object_query:     Query<'w, 's, &'static taxi::Limits>,
+}
+
+impl ProposeParams<'_, '_> {
+    fn propose_set_waypoint(
+        &mut self,
+        object: Entity,
+        waypoint: Entity,
+        object_data: SetNavTargetObjectQueryItem,
+        // TODO support append?
+        SetRoute { commit, append: _ }: SetRoute,
+    ) {
         if commit {
             self.instr_writer.write(comm::InstructionEvent {
                 object,
                 body: comm::SetWaypoint { waypoint }.into(),
             });
         } else {
-            let Some(object_data) = self.object_query.log_get_mut(object) else { return };
-            let target_override_value = preview::TargetOverride {
-                target: preview::Target::Waypoint(waypoint),
-                cause:  preview::TargetOverrideCause::SetHeading,
+            let target_override_value = preview::AirborneTargetOverride {
+                target: preview::AirborneTarget::Waypoint(waypoint),
+                cause:  preview::TargetOverrideCause::SetRoute,
             };
-            if let Some(mut target_override) = object_data.preview_override {
+            if let Some(mut target_override) = object_data.airborne_preview_override {
                 *target_override = target_override_value;
             } else {
                 self.commands.entity(object).insert(target_override_value);
@@ -231,15 +341,20 @@ impl SetHeadingParams<'_, '_> {
         }
     }
 
-    fn propose_set_heading(&mut self, object: Entity, world_pos: Position<Vec2>, commit: bool) {
-        let Some(SetHeadingObjectQueryItem {
+    fn propose_set_heading(
+        &mut self,
+        object: Entity,
+        world_pos: Position<Vec2>,
+        SetNavTargetObjectQueryItem {
             object: &Object { position: object_pos, .. },
+            ground: _,
             plane,
-            preview_override,
-        }) = self.object_query.log_get_mut(object)
-        else {
-            return;
-        };
+            airborne_preview_override,
+            ground_preview_override: _,
+            route: _,
+        }: SetNavTargetObjectQueryItem,
+        SetRoute { commit, append: _ }: SetRoute, // TODO support append?
+    ) {
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
         let mut target = nav::YawTarget::Heading(target_heading);
@@ -259,14 +374,92 @@ impl SetHeadingParams<'_, '_> {
             self.instr_writer
                 .write(comm::InstructionEvent { object, body: comm::SetHeading { target }.into() });
         } else {
-            let target_override_value = preview::TargetOverride {
-                target: preview::Target::Yaw(target),
-                cause:  preview::TargetOverrideCause::SetHeading,
+            let target_override_value = preview::AirborneTargetOverride {
+                target: preview::AirborneTarget::Yaw(target),
+                cause:  preview::TargetOverrideCause::SetRoute,
             };
-            if let Some(mut target_override) = preview_override {
+            if let Some(mut target_override) = airborne_preview_override {
                 *target_override = target_override_value;
             } else {
                 self.commands.entity(object).insert(target_override_value);
+            }
+        }
+    }
+
+    fn propose_segment(
+        &mut self,
+        object: Entity,
+        picked_segment: Entity,
+        ground: &object::OnGround,
+        route: Option<&Route>,
+        preview_override: Option<&mut preview::GroundTargetOverride>,
+        SetRoute { commit, append }: SetRoute,
+    ) {
+        let Some(&taxi::Limits { width, .. }) = self.object_query.log_get(object) else { return };
+
+        let Some((segment, segment_label)) = self.segment_query.log_get(picked_segment) else {
+            return;
+        };
+        if segment.width < width {
+            // Segment too narrow for object
+
+            return;
+        }
+
+        if commit {
+            if !append {
+                self.instr_writer
+                    .write(comm::InstructionEvent { object, body: comm::ClearRoute.into() });
+            }
+            self.instr_writer.write(comm::InstructionEvent {
+                object,
+                body: comm::AppendSegment {
+                    segment:    segment_label.clone(),
+                    hold_short: !segment_label.is_apron(),
+                }
+                .into(),
+            });
+        } else {
+            let mut required_labels = Vec::new();
+            if append {
+                required_labels = route
+                    .into_iter()
+                    .flat_map(|route| {
+                        route.iter().filter_map(|node| match node {
+                            route::Node::Taxi(node) => Some(&node.label),
+                            _ => None,
+                        })
+                    })
+                    .collect();
+            }
+
+            let Some(current_ground_target_endpoint) =
+                ground.target_endpoint(|id| self.segment_query.log_get(id).map(|s| s.0))
+            else {
+                return;
+            };
+            let path = pathfind_through_subseq(
+                ClosurePathfindContext {
+                    endpoint_fn: |endpoint| self.endpoint_query.log_get(endpoint),
+                    segment_fn:  |segment| self.segment_query.log_get(segment),
+                },
+                ground.segment,
+                current_ground_target_endpoint,
+                &required_labels,
+                PathfindMode::Segment(picked_segment),
+                PathfindOptions { initial_speed: None, min_width: Some(width) },
+            );
+
+            if let Some(path) = path {
+                let target_override_value = preview::GroundTargetOverride {
+                    target: preview::GroundTarget::Endpoints(path.endpoints),
+                    cause:  preview::TargetOverrideCause::SetRoute,
+                };
+                if let Some(target_override) = preview_override {
+                    *target_override = target_override_value;
+                } else {
+                    self.commands.entity(object).insert(target_override_value);
+                }
             }
         }
     }
@@ -274,9 +467,10 @@ impl SetHeadingParams<'_, '_> {
 
 #[derive(SystemParam)]
 pub(super) struct CleanupPreviewParams<'w, 's> {
-    query:      Query<'w, 's, (Entity, &'static preview::TargetOverride)>,
-    need_rerun: Local<'s, bool>,
-    commands:   Commands<'w, 's>,
+    airborne_query: Query<'w, 's, (Entity, &'static preview::AirborneTargetOverride)>,
+    ground_query:   Query<'w, 's, (Entity, &'static preview::GroundTargetOverride)>,
+    need_rerun:     Local<'s, bool>,
+    commands:       Commands<'w, 's>,
 }
 
 impl CleanupPreviewParams<'_, '_> {
@@ -288,9 +482,14 @@ impl CleanupPreviewParams<'_, '_> {
         if !mem::replace(&mut self.need_rerun, false) {
             return;
         }
-        for (entity, comp) in self.query {
-            if comp.cause == preview::TargetOverrideCause::SetHeading {
-                self.commands.entity(entity).remove::<preview::TargetOverride>();
+        for (entity, comp) in self.airborne_query {
+            if comp.cause == preview::TargetOverrideCause::SetRoute {
+                self.commands.entity(entity).remove::<preview::AirborneTargetOverride>();
+            }
+        }
+        for (entity, comp) in self.ground_query {
+            if comp.cause == preview::TargetOverrideCause::SetRoute {
+                self.commands.entity(entity).remove::<preview::GroundTargetOverride>();
             }
         }
     }

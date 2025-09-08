@@ -167,6 +167,17 @@ pub enum SegmentLabel {
     Apron { name: String },
 }
 
+impl SegmentLabel {
+    #[must_use]
+    pub fn is_runway(&self) -> bool { matches!(self, SegmentLabel::RunwayPair(_)) }
+
+    #[must_use]
+    pub fn is_taxiway(&self) -> bool { matches!(self, SegmentLabel::Taxiway { .. }) }
+
+    #[must_use]
+    pub fn is_apron(&self) -> bool { matches!(self, SegmentLabel::Apron { .. }) }
+}
+
 impl AsRef<SegmentLabel> for SegmentLabel {
     fn as_ref(&self) -> &SegmentLabel { self }
 }
@@ -239,7 +250,7 @@ impl EntityCommand for SpawnSegment {
             });
         }
 
-        bevy::log::debug!("Segment entity {:?} spawned as {:?}", &self.label, entity.id());
+        bevy::log::trace!("Segment entity {:?} spawned as {:?}", &self.label, entity.id());
 
         entity.insert((
             self.segment,

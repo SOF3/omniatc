@@ -765,6 +765,7 @@ fn spawn_plane(
             .with_vertical(plane.aircraft.vert_rate),
         display: object::Display { name: plane.aircraft.name.clone() },
         destination,
+        completion_score: Some(plane.aircraft.completion_score),
     }
     .apply(world.entity_mut(plane_entity));
 
@@ -991,12 +992,8 @@ fn resolve_closest_segment_by_label(
     let closest = possible_segments
         .iter()
         .filter(|segment| {
-            math::point_line_segment_closest(
-                position,
-                segment.alpha_position,
-                segment.beta_position,
-            )
-            .distance_cmp(position)
+            math::point_segment_closest(position, segment.alpha_position, segment.beta_position)
+                .distance_cmp(position)
                 < segment.width / 2.0
         })
         .map(|segment| {

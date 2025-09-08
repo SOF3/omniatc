@@ -23,6 +23,7 @@ use math::{
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
+use crate::level::{dest, score};
 use crate::try_log::EntityWorldMutExt;
 
 #[cfg(test)]
@@ -41,6 +42,7 @@ where
     fn build(&self, app: &mut App) {
         app.init_config::<M, Conf>("core:object");
         app.add_event::<SpawnEvent>();
+        app.add_event::<DespawnEvent>();
         app.add_systems(
             app::Update,
             update_airborne_system
@@ -93,10 +95,11 @@ pub struct Airborne {
 }
 
 pub struct SpawnCommand {
-    pub position:     Position<Vec3>,
-    pub ground_speed: Speed<Vec3>,
-    pub display:      Display,
-    pub destination:  Destination,
+    pub position:         Position<Vec3>,
+    pub ground_speed:     Speed<Vec3>,
+    pub display:          Display,
+    pub destination:      Destination,
+    pub completion_score: Option<score::Unit>,
 }
 
 impl EntityCommand for SpawnCommand {
@@ -110,6 +113,10 @@ impl EntityCommand for SpawnCommand {
             Track { log: VecDeque::new(), timer: Timer::new(Duration::ZERO, TimerMode::Once) },
         ));
 
+        if let Some(score) = self.completion_score {
+            entity.insert(dest::CompletionScore { score });
+        }
+
         let entity_id = entity.id();
         entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
     }
@@ -122,8 +129,19 @@ pub struct SpawnEvent(pub Entity);
 pub struct DespawnCommand;
 
 impl EntityCommand for DespawnCommand {
-    fn apply(self, entity: EntityWorldMut) { entity.despawn(); }
+    fn apply(self, mut entity: EntityWorldMut) {
+        let entity_id = entity.id();
+        entity.world_scope(|world| world.send_event(DespawnEvent(entity_id)));
+        entity.despawn();
+    }
 }
+
+/// Sent when a plane entity is despawned.
+///
+/// By the time this event is received, the entity is already removed from the world,
+/// so it is invalid to query for its components.
+#[derive(Event)]
+pub struct DespawnEvent(pub Entity);
 
 /// Sets an entity as airborne.
 pub struct SetAirborneCommand;
@@ -169,6 +187,19 @@ pub struct OnGround {
     /// The Aviate phase updates [`Object::ground_speed`] to attain this target speed subject to
     /// taxi limits.
     pub target_speed: Speed<f32>,
+}
+
+impl OnGround {
+    pub fn target_endpoint<'a>(
+        &self,
+        segment_query: impl FnOnce(Entity) -> Option<&'a ground::Segment>,
+    ) -> Option<Entity> {
+        let segment = segment_query(self.segment)?;
+        Some(match self.direction {
+            ground::SegmentDirection::AlphaToBeta => segment.beta,
+            ground::SegmentDirection::BetaToAlpha => segment.alpha,
+        })
+    }
 }
 
 #[derive(Component)]
@@ -425,6 +456,6 @@ pub struct Conf {
     #[config(default = 1024)]
     pub max_track_log: usize,
     /// Duration between two points in an object track log.
-    #[config(default = Duration::from_secs(1))]
+    #[config(default = Duration::from_secs(10))]
     pub track_density: Duration,
 }

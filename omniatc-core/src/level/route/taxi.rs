@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::iter;
 use std::time::Duration;
 
 use bevy::ecs::component::Component;
@@ -19,7 +20,7 @@ mod tests;
 
 #[derive(Clone)]
 pub struct TaxiNode {
-    /// Taxi through `label`.
+    /// Taxi via `label`.
     ///
     /// When multiple contiguous `TaxiNode`s are planned,
     /// the shortest possible path satisfying all labels is used.
@@ -104,6 +105,12 @@ pub struct PossiblePath {
     pub next_endpoints: Vec<Entity>,
     /// The total length of the path.
     pub length:         Length<f32>,
+}
+
+impl PossiblePath {
+    pub fn endpoints(&self) -> impl Iterator<Item = Entity> + '_ {
+        iter::once(self.start_endpoint).chain(self.next_endpoints.iter().copied())
+    }
 }
 
 /// Performs pathfinding to determine the priority of next segments to go to.
@@ -196,12 +203,45 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
     })
 }
 
+/// World getters required for pathfinding.
+pub trait PathfindContext<'a>: Copy {
+    /// Returns the specified endpoint, or log the failure and return `None`.
+    fn endpoint(self, id: Entity) -> Option<&'a ground::Endpoint>;
+    /// Returns the specified segment, or log the failure and return `None`.
+    fn segment(self, id: Entity) -> Option<(&'a ground::Segment, &'a ground::SegmentLabel)>;
+}
+
+impl<'a> PathfindContext<'a> for &'a World {
+    fn endpoint(self, id: Entity) -> Option<&'a ground::Endpoint> { self.log_get(id) }
+    fn segment(self, id: Entity) -> Option<(&'a ground::Segment, &'a ground::SegmentLabel)> {
+        self.log_get(id).zip(self.log_get(id))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ClosurePathfindContext<EndpointFn, SegmentFn> {
+    pub endpoint_fn: EndpointFn,
+    pub segment_fn:  SegmentFn,
+}
+
+impl<'a, EndpointFn, SegmentFn> PathfindContext<'a>
+    for ClosurePathfindContext<EndpointFn, SegmentFn>
+where
+    EndpointFn: Fn(Entity) -> Option<&'a ground::Endpoint> + Copy,
+    SegmentFn: Fn(Entity) -> Option<(&'a ground::Segment, &'a ground::SegmentLabel)> + Copy,
+{
+    fn endpoint(self, id: Entity) -> Option<&'a ground::Endpoint> { (self.endpoint_fn)(id) }
+    fn segment(self, id: Entity) -> Option<(&'a ground::Segment, &'a ground::SegmentLabel)> {
+        (self.segment_fn)(id)
+    }
+}
+
 /// Finds the shortest path starting from `initial_segment_id` through `initial_dest_endpoint_id`,
 /// such that `subseq_labels` is an ordered subsequence of the labels of the segments in the path.
 ///
 /// Returns `None` if no valid path can be found.
-pub fn pathfind_through_subseq(
-    world: &World,
+pub fn pathfind_through_subseq<'a>(
+    ctx: impl PathfindContext<'a>,
     initial_segment_id: Entity,
     initial_dest_endpoint_id: Entity,
     subseq_labels: &[impl AsRef<ground::SegmentLabel>],
@@ -209,28 +249,35 @@ pub fn pathfind_through_subseq(
     options: PathfindOptions,
 ) -> Option<Path> {
     macro_rules! get_or_fail {
-        ($world:ident, $failed:ident, $entity:expr $(, $comp:ty)?) => {
-            match $world.log_get $(::<$comp>)? ($entity) {
+        ($ctx:ident, $failed:ident, $method:ident, $entity:expr) => {
+            match $ctx.$method($entity) {
                 Some(value) => value,
                 None => {
                     $failed.set(true);
                     return None;
                 }
             }
-        }
+        };
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    struct DijkstraVertex {
+        endpoint_id:          Entity,
+        label_offset:         usize,
+        matches_last_segment: bool,
     }
 
     let failed = &Cell::new(false);
 
     let successors = |source_endpoint_id: Entity, label_offset: usize| {
-        let source = get_or_fail!(world, failed, source_endpoint_id, ground::Endpoint);
+        let source = get_or_fail!(ctx, failed, endpoint, source_endpoint_id);
         let successors = source.adjacency.iter().copied().filter_map(move |segment_id| {
             if segment_id == initial_segment_id {
                 // do not repeat the segment we came from.
                 return None;
             }
 
-            let segment = get_or_fail!(world, failed, segment_id, ground::Segment);
+            let (segment, label) = get_or_fail!(ctx, failed, segment, segment_id);
             if source_endpoint_id == initial_dest_endpoint_id
                 && let Some(initial_speed) = options.initial_speed
                 && segment.max_speed < initial_speed
@@ -247,11 +294,10 @@ pub fn pathfind_through_subseq(
             let dest_endpoint_id = segment
                 .other_endpoint(source_endpoint_id)
                 .expect("adjacency segment of endpoint must contain itself");
-            let dest_endpoint = get_or_fail!(world, failed, dest_endpoint_id, ground::Endpoint);
+            let dest_endpoint = get_or_fail!(ctx, failed, endpoint, dest_endpoint_id);
             let distance = source.position.distance_exact(dest_endpoint.position);
             let cost = OrderedFloat(distance.0);
 
-            let label = get_or_fail!(world, failed, segment_id, ground::SegmentLabel);
             let next_label_offset =
                 if subseq_labels.get(label_offset).map(AsRef::as_ref) == Some(label) {
                     label_offset + 1
@@ -259,39 +305,51 @@ pub fn pathfind_through_subseq(
                     label_offset
                 };
 
-            Some(((dest_endpoint_id, next_label_offset), cost))
+            Some((
+                DijkstraVertex {
+                    endpoint_id:          dest_endpoint_id,
+                    label_offset:         next_label_offset,
+                    matches_last_segment: mode == PathfindMode::Segment(segment_id),
+                },
+                cost,
+            ))
         });
         Some(successors)
     };
 
     let (nodes, cost) = dijkstra(
-        &(initial_dest_endpoint_id, 0),
-        move |&(endpoint_id, required_labels)| {
-            successors(endpoint_id, required_labels).into_iter().flatten()
+        &DijkstraVertex {
+            endpoint_id:          initial_dest_endpoint_id,
+            label_offset:         0,
+            matches_last_segment: false,
         },
-        |&(endpoint_id, label_offset)| {
+        move |&vertex| successors(vertex.endpoint_id, vertex.label_offset).into_iter().flatten(),
+        |&vertex| {
             if failed.get() {
                 return false;
             }
 
             match mode {
                 PathfindMode::SegmentStart => {
-                    if label_offset == subseq_labels.len() - 1 {
-                        let endpoint = world
-                            .get::<ground::Endpoint>(endpoint_id)
+                    if vertex.label_offset == subseq_labels.len() - 1 {
+                        let endpoint = ctx
+                            .endpoint(vertex.endpoint_id)
                             .expect("successors only generates checked endpoints");
                         let last_label =
                             subseq_labels.last().expect("subseq_labels is non-empty").as_ref();
                         endpoint.adjacency.iter().any(|&segment_id| {
-                            world.log_get::<ground::SegmentLabel>(segment_id) == Some(last_label)
+                            ctx.segment(segment_id).is_some_and(|(_, label)| label == last_label)
                         })
                     } else {
                         false
                     }
                 }
-                PathfindMode::SegmentEnd => label_offset == subseq_labels.len(),
+                PathfindMode::SegmentEnd => vertex.label_offset == subseq_labels.len(),
                 PathfindMode::Endpoint(dest) => {
-                    label_offset == subseq_labels.len() && dest == endpoint_id
+                    vertex.label_offset == subseq_labels.len() && dest == vertex.endpoint_id
+                }
+                PathfindMode::Segment(_) => {
+                    vertex.label_offset == subseq_labels.len() && vertex.matches_last_segment
                 }
             }
         },
@@ -299,12 +357,13 @@ pub fn pathfind_through_subseq(
     bevy::log::debug!("found path with cost {:?}: {:?}", Length::new(cost.0), &nodes);
 
     Some(Path {
-        endpoints: nodes.into_iter().map(|(endpoint_id, _)| endpoint_id).collect(),
+        endpoints: nodes.into_iter().map(|vertex| vertex.endpoint_id).collect(),
         cost:      Length::new(cost.0),
     })
 }
 
 /// Destination mode for [`pathfind_through_subseq`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathfindMode {
     /// The path ends at the start of a segment with the last `subseq_labels` label.
     ///
@@ -352,6 +411,10 @@ pub enum PathfindMode {
     SegmentEnd,
     /// The path must end at this endpoint.
     Endpoint(Entity),
+    /// The path must end on this segment.
+    ///
+    /// This segment may be the only segment matching the last label in `subseq_labels`.
+    Segment(Entity),
 }
 
 /// Optional limits for [`pathfind_through_subseq`].

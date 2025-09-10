@@ -205,7 +205,7 @@ pub struct TargetGlide {
     pub max_pitch:       Angle,
     /// Lookahead time for pure pursuit.
     pub lookahead:       Duration,
-    /// Whether the aircraft should expedit climb/descent to intersect with the glidepath.
+    /// Whether the aircraft should expedite climb/descent to intersect with the glidepath.
     ///
     /// If false, the min/max pitch is further restricted by the standard climb/descent rate.
     /// If true, it is only restricted by the expedition rate (which would be the physical limit).

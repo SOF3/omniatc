@@ -42,7 +42,7 @@ pub enum WaypointRef {
     RunwayThreshold(RunwayRef),
     /// Extended runway centerline up to localizer range,
     /// used with [`RunwayThreshold`](WaypointRef::RunwayThreshold) to represent
-    /// ILS-established planes in [`TargetAlignment`].
+    /// ILS-established planes in [`TargetAlignment`](crate::TargetAlignment).
     ///
     /// For runways without a localizer, the centerline is extended up to visual range instead.
     LocalizerStart(RunwayRef),

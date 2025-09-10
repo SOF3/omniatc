@@ -66,7 +66,7 @@ fn align_runway(object: &mut EntityWorldMut, runway: Entity, expedite: bool) -> 
 ///
 /// Must be followed by [`ShortFinalNode`].
 /// Completes when distance from runway is less than
-/// [`nav::Limits::short_final_dist`].
+/// [`NavLimits::short_final_dist`](store::NavLimits::short_final_dist).
 #[derive(Clone, Copy)]
 pub struct AlignRunwayNode {
     /// The runway waypoint entity.

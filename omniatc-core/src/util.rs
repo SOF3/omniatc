@@ -29,7 +29,7 @@ impl Plugin for Plug {
     }
 }
 
-/// An expression that can be used for `$expr` in [`try_log!`].
+/// An expression that can be used for `$expr` in [`try_log!`](crate::try_log!).
 pub trait TryLog<T> {
     /// Returns the successful result as `Some`, or log the error with `must`.
     fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T>;

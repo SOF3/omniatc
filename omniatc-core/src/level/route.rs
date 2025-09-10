@@ -58,7 +58,7 @@ pub struct Id(pub Option<String>);
 
 /// Stores the flight plan of the object.
 ///
-/// Always manipulate through commands e.g. [`Push`], [`ClearAll`], etc.
+/// Always manipulate through commands e.g. [`PushNode`], [`ClearAllNodes`], etc.
 #[derive(Component, Default)]
 pub struct Route {
     current:    Option<Node>, // promoted to its own field to improve cache locality.

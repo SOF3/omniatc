@@ -60,6 +60,6 @@ pub enum WaypointProximity {
     /// The step is always completed when the proximity range is entered,
     /// allowing smooth transition when the next waypoint has the same heading.
     FlyBy,
-    /// Enter the horizontal [distance](Node::distance) range of the waypoint before turning to the next one.
+    /// Enter the horizontal distance range of the waypoint before turning to the next one.
     FlyOver,
 }

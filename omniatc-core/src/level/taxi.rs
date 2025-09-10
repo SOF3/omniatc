@@ -290,7 +290,7 @@ fn maintain_dir_for_object(
 pub struct Target {
     /// The step to execute.
     pub action:     TargetAction,
-    /// Updated by the taxi plugin during the [`SystemSets::Navigate`][SystemSets::Navigate]
+    /// Updated by the taxi plugin during the [`SystemSets::Navigate`]
     /// stage to indicate that this target has been resolved.
     ///
     /// `None` means the target is still pending.

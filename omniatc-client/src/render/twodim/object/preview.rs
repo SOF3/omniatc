@@ -616,7 +616,7 @@ impl DrawPresets<'_, '_> {
     }
 }
 
-/// Shared code for drawing route lines, used in [`DrawRoute`] and [`DrawPresets`].
+/// Shared code for drawing route lines, used in [`DrawMainRoute`] and [`DrawPresets`].
 #[derive(SystemParam)]
 struct DrawRouteOnce<'w, 's> {
     commands:       Commands<'w, 's>,

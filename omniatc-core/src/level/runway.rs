@@ -28,7 +28,7 @@ impl Plugin for Plug {
 /// The display type for a runway waypoint should be `DisplayType::Localizer`.
 ///
 /// Runway waypoints must have a child Navaid entity
-/// with the [`waypoint::Visual`] component for final approach.
+/// with the [`navaid::Visual`] component for final approach.
 #[derive(Component)]
 pub struct Runway {
     /// Usable runway length for landings.

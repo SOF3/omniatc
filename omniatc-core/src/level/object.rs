@@ -19,12 +19,15 @@ use math::{
     STANDARD_SEA_LEVEL_TEMPERATURE, Speed, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE, range_steps,
     solve_expected_ground_speed,
 };
+use store::Score;
 
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
-use crate::level::{dest, score};
+use crate::level::dest;
 use crate::try_log::EntityWorldMutExt;
+
+pub mod loader;
 
 #[cfg(test)]
 mod tests;
@@ -99,7 +102,7 @@ pub struct SpawnCommand {
     pub ground_speed:     Speed<Vec3>,
     pub display:          Display,
     pub destination:      Destination,
-    pub completion_score: Option<score::Unit>,
+    pub completion_score: Option<Score>,
 }
 
 impl EntityCommand for SpawnCommand {

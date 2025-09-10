@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::system::{Commands, NonSend, ResMut};
-use omniatc::store;
+use omniatc::load;
 use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 use serde::{Deserialize, Serialize};
 
@@ -115,8 +115,8 @@ fn load_last_level_system<S: Storage>(
                             scenario_loader::CurrentLoadOnImport,
                         >| match ret.get() {
                             Ok(data) => {
-                                let source = store::load::Source::Raw(Cow::Owned(data));
-                                commands.queue(store::load::Command {
+                                let source = load::Source::Raw(Cow::Owned(data));
+                                commands.queue(load::Command {
                                     source,
                                     on_error: Box::new(|_world, err| {
                                         bevy::log::error!("Error loading level: {err:?}");

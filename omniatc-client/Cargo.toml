@@ -20,6 +20,8 @@ rust-analyzer = []
 [dependencies]
 omniatc-core.workspace = true
 omniatc-math = { workspace = true, features = ["egui"] }
+omniatc-store.workspace = true
+
 bevy-inspector-egui = { version = "0.32.0", optional = true }
 anyhow = "1.0.97"
 async-lock = "3.4.0"

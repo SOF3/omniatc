@@ -157,7 +157,8 @@ impl NodeKind for ShortFinalNode {
             return RunNodeResult::PendingTrigger;
         }
 
-        let Some(&nav::Limits { short_final_speed, .. }) = object.log_get() else {
+        let Some(&nav::Limits(store::NavLimits { short_final_speed, .. })) = object.log_get()
+        else {
             return RunNodeResult::PendingTrigger;
         };
 
@@ -337,7 +338,7 @@ fn find_landing_state(
 ) -> Result<(), Option<LandingException>> {
     let &Object { position: object_position, ground_speed } =
         object.get().expect("entity must be an Object");
-    let limits = object.get::<taxi::Limits>().expect("entity must be a navigatable object").clone();
+    let limits = object.get::<taxi::Limits>().expect("entity must be a navigatable object");
     let Some(&Waypoint { position: runway_position, .. }) = runway.get() else { return Err(None) };
     let Some(&Runway { landing_length, width: runway_width, .. }) = runway.get() else {
         return Err(None);
@@ -375,7 +376,7 @@ fn find_landing_state(
         let remaining_runway_dist = projected_threshold_dist + landing_length.magnitude_exact();
 
         let required_landing_dist =
-            get_required_landing_dist(&limits, runway_condition, ground_speed.horizontal());
+            get_required_landing_dist(limits, runway_condition, ground_speed.horizontal());
 
         if remaining_runway_dist < required_landing_dist {
             return Err(Some(if projected_threshold_dist.is_positive() {

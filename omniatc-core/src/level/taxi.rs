@@ -16,6 +16,8 @@
 //! and it is the responsibility of `target_path_system` to reduce the target speed
 //! when approaching an intersection or holding short.
 
+use std::ops;
+
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -24,9 +26,8 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
-use math::{Accel, AngularSpeed, CanSqrt, Length, Position, Speed, point_line_closest};
+use math::{CanSqrt, Length, Position, Speed, point_line_closest};
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use super::object::Object;
@@ -70,35 +71,12 @@ impl Plugin for Plug {
     }
 }
 
-#[derive(Component, Clone, Serialize, Deserialize)]
-pub struct Limits {
-    /// Maximum acceleration on ground.
-    pub accel:        Accel<f32>,
-    /// Braking deceleration under optimal conditions.
-    /// Always positive.
-    pub base_braking: Accel<f32>,
+#[derive(Component)]
+pub struct Limits(pub store::TaxiLimits);
 
-    /// Maximum speed during taxi.
-    pub max_speed: Speed<f32>,
-    /// Fastest pushback/reversal speed.
-    ///
-    /// Should be negative if the object can reverse,
-    /// zero otherwise.
-    pub min_speed: Speed<f32>,
-
-    /// Maximum absolute rotation speed during taxi. Always positive.
-    pub turn_rate: AngularSpeed,
-
-    /// Minimum width of segments this object can taxi on.
-    ///
-    /// For planes, this is the wingspan.
-    /// For helicopters, this is the rotor diameter.
-    pub width:       Length<f32>,
-    /// The distance between two objects on the same segment
-    /// must be at least the sum of their half-lengths.
-    ///
-    /// This value could include extra padding to represent safety distance.
-    pub half_length: Length<f32>,
+impl ops::Deref for Limits {
+    type Target = store::TaxiLimits;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 fn maintain_dir(

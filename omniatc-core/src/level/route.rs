@@ -9,7 +9,6 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, World};
 use bevy::time::{self, Time};
 use math::{Heading, Length, Position, Speed};
-use serde::{Deserialize, Serialize};
 
 use crate::WorldTryLog;
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
@@ -22,6 +21,8 @@ pub use navigation::*;
 mod taxi;
 mod trigger;
 pub use taxi::*;
+
+pub mod loader;
 
 /// Horizontal distance before the point at which
 /// an object must start changing altitude at standard rate
@@ -510,18 +511,6 @@ pub enum Node {
 }
 
 pub fn node_vec(node: impl Into<Node>) -> Vec<Node> { Vec::from([node.into()]) }
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub enum WaypointProximity {
-    /// Turn to the next waypoint before arriving at the waypoint,
-    /// such that the position after the turn is exactly between the two waypoints.
-    ///
-    /// The step is always completed when the proximity range is entered,
-    /// allowing smooth transition when the next waypoint has the same heading.
-    FlyBy,
-    /// Enter the horizontal [distance](Node::distance) range of the waypoint before turning to the next one.
-    FlyOver,
-}
 
 #[derive(Component)]
 pub struct Preset {

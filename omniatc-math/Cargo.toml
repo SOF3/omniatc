@@ -19,7 +19,6 @@ precommit-checks = []
 rust-analyzer = []
 
 [dependencies]
-bevy_ecs = "0.16.1"
 bevy_math.workspace = true
 bevy_mod_config = { workspace = true, features = ["serde_json"] }
 egui = { version = "0.31.1", optional = true }

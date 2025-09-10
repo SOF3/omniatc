@@ -66,7 +66,7 @@ fn main() {
         #[cfg(feature = "inspect")]
         bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug::<ConfigManager>::default(),
-        omniatc::store::Plug,
+        omniatc::load::Plug,
         omniatc::util::Plug,
         input::Plug,
         render::Plug,

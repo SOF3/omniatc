@@ -56,6 +56,7 @@ use omniatc::level::route::{self, Route};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, plane};
 use omniatc::util::EnumScheduleConfig;
+use store::{NavLimits, YawTarget};
 
 use super::SetColorThemeSystemSet;
 use crate::render;
@@ -233,7 +234,7 @@ pub struct GroundTargetOverride {
 
 #[derive(Clone)]
 pub enum AirborneTarget {
-    Yaw(nav::YawTarget),
+    Yaw(YawTarget),
     Waypoint(Entity),
 }
 
@@ -288,7 +289,7 @@ impl DrawCurrent<'_, '_> {
         let Ok(DrawCurrentObjectItem {
             object: &Object { position: curr_pos, ground_speed: speed },
             vel_target: &nav::VelocityTarget { yaw: yaw_target, .. },
-            limits: &nav::Limits { max_yaw_speed, .. },
+            limits: &nav::Limits(NavLimits { max_yaw_speed, .. }),
             plane_control,
             target_waypoint,
             target_override,
@@ -407,17 +408,15 @@ impl DrawCurrent<'_, '_> {
 
     fn draw_turn_to_heading(
         &mut self,
-        yaw_target: nav::YawTarget,
+        yaw_target: YawTarget,
         curr_pos: Position<Vec2>,
         turn_radius: Length<f32>,
         curr_heading: Heading,
         material: &Handle<ColorMaterial>,
     ) {
         let (target_heading, direction) = match yaw_target {
-            nav::YawTarget::Heading(heading) => {
-                (heading, curr_heading.closer_direction_to(heading))
-            }
-            nav::YawTarget::TurnHeading { heading, direction, .. } => (heading, direction),
+            YawTarget::Heading(heading) => (heading, curr_heading.closer_direction_to(heading)),
+            YawTarget::TurnHeading { heading, direction, .. } => (heading, direction),
         };
         let turn_angle = curr_heading.distance(target_heading, direction);
 

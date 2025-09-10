@@ -4,6 +4,7 @@ use bevy::ecs::system::EntityCommands;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
 use math::Speed;
+use store::YawTarget;
 
 use super::{SystemSets, nav, route};
 use crate::EntityMutTryLog;
@@ -49,7 +50,7 @@ pub enum Instruction {
 }
 
 pub struct SetHeading {
-    pub target: nav::YawTarget,
+    pub target: YawTarget,
 }
 
 impl InstructionKind for SetHeading {

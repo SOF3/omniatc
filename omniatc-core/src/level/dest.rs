@@ -6,6 +6,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, ResMut, SystemParam};
 use bevy::math::Dir2;
 use math::{Length, Position, Speed, rotate_clockwise, segment_segment_distance};
+use store::Score;
 
 use crate::level::object::Object;
 use crate::level::runway::Runway;
@@ -49,7 +50,7 @@ pub enum Destination {
 #[derive(Component)]
 pub struct CompletionScore {
     /// Score delta for each completed arrival or departure.
-    pub score: score::Unit,
+    pub score: Score,
 }
 
 fn completion_system(
@@ -60,7 +61,7 @@ fn completion_system(
 ) {
     let mut arrivals = 0;
     let mut departures = 0;
-    let mut delta = score::Unit::default();
+    let mut delta = Score::default();
 
     for (object, mut dest, reward) in object_query {
         let result = match *dest {

@@ -1,6 +1,8 @@
 use bevy::app::{App, Plugin};
 use bevy::prelude::{Component, Entity, Event};
 
+pub mod loader;
+
 pub struct Plug;
 
 impl Plugin for Plug {

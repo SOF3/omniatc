@@ -1,5 +1,6 @@
 //! Controls machines for aerial navigation.
 
+use std::ops;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
@@ -8,9 +9,10 @@ use bevy::math::Vec2;
 use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{
-    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, CanSqrt, Frequency, Heading, Length,
-    Position, Speed, TurnDirection, line_circle_intersect, line_intersect,
+    Accel, Angle, CanSqrt, Frequency, Heading, Length, Position, Speed, line_circle_intersect,
+    line_intersect,
 };
+use store::{ClimbProfile, YawTarget};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
@@ -40,7 +42,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is removed when the plane is not airborne.
-#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Component)]
 #[require(navaid::ObjectUsageList)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -55,54 +57,12 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Limits {
-    /// Minimum horizontal indicated airspeed.
-    pub min_horiz_speed: Speed<f32>,
-    /// Max absolute yaw speed.
-    pub max_yaw_speed:   AngularSpeed,
+#[derive(Component)]
+pub struct Limits(pub store::NavLimits);
 
-    // Pitch/vertical rate limits.
-    /// Climb profile during expedited altitude increase.
-    ///
-    /// `exp_climb.vert_rate` may be negative during stall.
-    pub exp_climb:      ClimbProfile,
-    /// Climb profile during standard altitude increase.
-    pub std_climb:      ClimbProfile,
-    /// Climb profile during no altitude change intended.
-    ///
-    /// The `vert_rate` field is typically 0,
-    /// but could be changed during uncontrolled scenarios like engine failure.
-    pub level:          ClimbProfile,
-    /// Climb profile during standard altitude decrease.
-    pub std_descent:    ClimbProfile,
-    /// Climb profile during expedited altitude decrease.
-    pub exp_descent:    ClimbProfile,
-    /// Maximum absolute change rate for vertical rate acceleration.
-    pub max_vert_accel: Accel<f32>,
-
-    // Forward limits.
-    /// Absolute change rate for airborne horizontal acceleration. Always positive.
-    pub accel_change_rate: AccelRate<f32>, // ah yes we have d^3/dt^3 now...
-    /// Drag coefficient, in nm^-1.
-    ///
-    /// Acceleration is subtracted by `drag_coef * airspeed^2`.
-    /// Note that the dimension is inconsistent
-    /// since airspeed^2 is nm^2/h^2 but acceleration is nm/h/s.
-    ///
-    /// Simple formula to derive a reasonable drag coefficient:
-    /// `level.accel / (max cruise speed in kt)^2`.
-    pub drag_coef:         f32,
-
-    // Z axis rotation limits.
-    /// Max absolute rate of change of yaw speed.
-    pub max_yaw_accel: AngularAccel,
-
-    /// Distance from runway threshold at which the aircraft
-    /// must start reducing to `short_final_speed`.
-    pub short_final_dist:  Length<f32>,
-    /// The runway threshold crossing speed.
-    pub short_final_speed: Speed<f32>,
+impl ops::Deref for Limits {
+    type Target = store::NavLimits;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl Limits {
@@ -142,48 +102,6 @@ impl Limits {
         }
 
         field(&self.exp_climb)
-    }
-}
-
-/// Speed limitations during a certain climb rate.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct ClimbProfile {
-    /// Vertical rate for this climb profile.
-    /// A negative value indicates this is a descent profile.
-    pub vert_rate: Speed<f32>,
-    /// Standard horizontal acceleration rate when requested.
-    pub accel:     Accel<f32>,
-    /// Standard horizontal deceleration rate.
-    /// The value is negative.
-    pub decel:     Accel<f32>,
-}
-
-/// Target yaw change.
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum YawTarget {
-    /// Perform a left or right turn to the `Heading`, whichever is closer.
-    Heading(Heading),
-    /// Maintain turn towards `direction`
-    /// until the heading crosses `heading` for `remaining_crosses` times.
-    ///
-    /// Unlike other variants, this variant may be mutated by `apply_forces_system`.
-    /// `remaining_crosses` is decremented by 1 every time the plane heading crosses `heading`.
-    /// The entire variant becomes `Heading(heading)`
-    /// when `remaining_crosses == 0` and there is less than &pi;/2 turn towards `heading`.
-    TurnHeading {
-        heading:           Heading,
-        remaining_crosses: u8,
-        direction:         TurnDirection,
-    },
-}
-
-impl YawTarget {
-    /// The eventual target heading, regardless of direction.
-    #[must_use]
-    pub fn heading(self) -> Heading {
-        match self {
-            Self::Heading(heading) | Self::TurnHeading { heading, .. } => heading,
-        }
     }
 }
 

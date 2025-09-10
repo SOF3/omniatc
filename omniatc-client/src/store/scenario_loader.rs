@@ -8,7 +8,7 @@ use bevy::ecs::system::{Command, Commands, NonSend, Res, ResMut};
 use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
-use omniatc::store;
+use omniatc::load;
 use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 
 use super::{ScenarioMeta, Storage};
@@ -106,8 +106,8 @@ pub fn handle_loaded_scenario_system<S: Storage>(
 
                 if current_load_on_import.0.as_ref() == Some(&file.meta.id) {
                     current_load_on_import.0 = None;
-                    commands.queue(store::load::Command {
-                        source:   store::load::Source::Parsed(Box::new(file)),
+                    commands.queue(load::Command {
+                        source:   load::Source::Parsed(Box::new(file)),
                         on_error: Box::new(|_world, err| bevy::log::error!("Load error: {err}")),
                     });
                 }

@@ -4,6 +4,8 @@ use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity, EntityCommand, Event};
 use math::Position;
 
+pub mod loader;
+
 pub struct Plug;
 
 impl Plugin for Plug {

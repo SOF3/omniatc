@@ -6,6 +6,7 @@ use math::{Heading, TurnDirection};
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{comm, ground, nav, object, plane};
 use omniatc::{QueryTryLog, try_log_return};
+use store::YawTarget;
 
 use super::Writer;
 use crate::input;
@@ -89,11 +90,11 @@ fn show_yaw_target(
     let target = &nav_vel.yaw;
 
     let target_degrees = match target {
-        nav::YawTarget::Heading(heading) => {
+        YawTarget::Heading(heading) => {
             ui.label(format!("Target yaw: {:.0}\u{b0}", heading.degrees()));
             heading.degrees()
         }
-        nav::YawTarget::TurnHeading { heading, direction, remaining_crosses } => {
+        YawTarget::TurnHeading { heading, direction, remaining_crosses } => {
             let dir = match direction {
                 TurnDirection::CounterClockwise => "left",
                 TurnDirection::Clockwise => "right",
@@ -132,7 +133,7 @@ fn show_yaw_target(
         commands.send_event(comm::InstructionEvent {
             object,
             body: comm::SetHeading {
-                target: nav::YawTarget::Heading(Heading::from_degrees(slider_degrees)),
+                target: YawTarget::Heading(Heading::from_degrees(slider_degrees)),
             }
             .into(),
         });

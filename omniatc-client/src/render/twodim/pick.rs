@@ -20,9 +20,10 @@ use omniatc::level::route::{
     self, ClosurePathfindContext, PathfindMode, PathfindOptions, Route, pathfind_through_subseq,
 };
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, ground, nav, object, plane, taxi};
+use omniatc::level::{comm, ground, object, plane, taxi};
 use omniatc::{QueryTryLog, try_log, try_log_return};
 use ordered_float::OrderedFloat;
+use store::{TaxiLimits, YawTarget};
 
 use super::object::preview;
 use crate::render::object_info;
@@ -357,13 +358,13 @@ impl ProposeParams<'_, '_> {
     ) {
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
-        let mut target = nav::YawTarget::Heading(target_heading);
+        let mut target = YawTarget::Heading(target_heading);
         if !self.margins.keyboard_acquired
             && self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
             && let Some(plane) = plane
         {
             let reflex_dir = -plane.heading.closer_direction_to(target_heading);
-            target = nav::YawTarget::TurnHeading {
+            target = YawTarget::TurnHeading {
                 heading:           target_heading,
                 direction:         reflex_dir,
                 remaining_crosses: 0,
@@ -395,7 +396,10 @@ impl ProposeParams<'_, '_> {
         preview_override: Option<&mut preview::GroundTargetOverride>,
         SetRoute { commit, append }: SetRoute,
     ) {
-        let Some(&taxi::Limits { width, .. }) = self.object_query.log_get(object) else { return };
+        let Some(&taxi::Limits(TaxiLimits { width, .. })) = self.object_query.log_get(object)
+        else {
+            return;
+        };
 
         let Some((segment, segment_label)) = self.segment_query.log_get(picked_segment) else {
             return;

@@ -1,24 +1,27 @@
 [package]
-name = "omniatc-maps"
+name = "omniatc-store"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
-description = "Generate map files"
+description = "Schema of store files"
+
+[lib]
+name = "store"
 
 [features]
-default = ["dev"]
-dev = ["bevy/dynamic_linking"]
+default = []
 precommit-checks = []
 
 [dependencies]
 omniatc-math.workspace = true
-omniatc-store.workspace = true
+bevy_math.workspace = true
 
 anyhow = "1.0.95"
 bevy = { workspace = true }
 ciborium = "0.2.2"
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
+derive_more = { version = "2.0.1", features = ["add", "add_assign"] }

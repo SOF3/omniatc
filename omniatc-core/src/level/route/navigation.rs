@@ -2,10 +2,9 @@ use bevy::ecs::system::SystemState;
 use bevy::math::Vec2;
 use bevy::prelude::{Entity, World};
 use math::{Between, Length, Position, Speed};
+use store::WaypointProximity;
 
-use super::{
-    DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, WaypointProximity, trigger,
-};
+use super::{DesiredAltitude, HorizontalTarget, NodeKind, Route, RunNodeResult, trigger};
 use crate::level::nav;
 use crate::level::object::{self, Object};
 use crate::level::waypoint::Waypoint;

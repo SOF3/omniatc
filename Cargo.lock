@@ -3769,6 +3769,7 @@ dependencies = [
  "js-sys",
  "omniatc-core",
  "omniatc-math",
+ "omniatc-store",
  "ordered-float 5.0.0",
  "parking_lot",
  "rusqlite",
@@ -3792,6 +3793,7 @@ dependencies = [
  "enum-map",
  "itertools 0.14.0",
  "omniatc-math",
+ "omniatc-store",
  "ordered-float 5.0.0",
  "paste",
  "pathfinding",
@@ -3809,8 +3811,8 @@ dependencies = [
  "anyhow",
  "bevy",
  "ciborium",
- "omniatc-core",
  "omniatc-math",
+ "omniatc-store",
  "serde",
  "strum 0.26.3",
 ]
@@ -3819,7 +3821,6 @@ dependencies = [
 name = "omniatc-math"
 version = "0.0.0"
 dependencies = [
- "bevy_ecs",
  "bevy_math",
  "bevy_mod_config",
  "egui",
@@ -3829,6 +3830,20 @@ dependencies = [
  "serde",
  "strum 0.27.1",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "omniatc-store"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy_math",
+ "ciborium",
+ "derive_more 2.0.1",
+ "omniatc-math",
+ "serde",
+ "strum 0.26.3",
 ]
 
 [[package]]

@@ -21,6 +21,7 @@ rust-analyzer = []
 
 [dependencies]
 omniatc-math.workspace = true
+omniatc-store.workspace = true
 
 bevy_mod_config = { workspace = true, features = ["serde_json"] }
 ciborium = "0.2.2"

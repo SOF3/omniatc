@@ -9,6 +9,7 @@ use omniatc::level::route::{self, Route};
 use omniatc::level::runway::RunwayOf;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, taxi};
+use store::WaypointProximity;
 
 use super::{Writer, dir};
 use crate::input;
@@ -184,10 +185,8 @@ fn write_route_node(
         route::Node::DirectWaypoint(node) => {
             let Some(waypoint) = params.waypoint_query.log_get(node.waypoint) else { return };
             match node.proximity {
-                route::WaypointProximity::FlyBy => ui.label(format!("Fly by {}", &waypoint.name)),
-                route::WaypointProximity::FlyOver => {
-                    ui.label(format!("Fly over {}", &waypoint.name))
-                }
+                WaypointProximity::FlyBy => ui.label(format!("Fly by {}", &waypoint.name)),
+                WaypointProximity::FlyOver => ui.label(format!("Fly over {}", &waypoint.name)),
             };
 
             if let Some(altitude) = node.altitude {

@@ -18,7 +18,7 @@ use bevy::window::Window;
 use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
-use omniatc::{QueryTryLog, store};
+use omniatc::{QueryTryLog, load};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
@@ -82,7 +82,7 @@ fn setup_system(mut commands: Commands) {
 }
 
 fn consume_camera_advice(
-    mut advice: ResMut<store::CameraAdvice>,
+    mut advice: ResMut<load::CameraAdvice>,
     camera_query: Query<(&Camera, &mut Transform, &GlobalTransform)>,
 ) {
     let Some(store::Camera::TwoDimension(desired)) = &advice.0 else { return };

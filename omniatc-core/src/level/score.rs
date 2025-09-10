@@ -1,7 +1,9 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use serde::{Deserialize, Serialize};
+use store::Score;
+
+pub mod loader;
 
 pub struct Plug;
 
@@ -19,26 +21,10 @@ pub struct Writer;
 #[derive(Resource, Default)]
 pub struct Scores {
     /// Total score.
-    pub total: Unit,
+    pub total: Score,
 
     /// Number of arrivals completed.
     pub num_arrivals:   u32,
     /// Number of departures completed.
     pub num_departures: u32,
 }
-
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    derive_more::Add,
-    derive_more::AddAssign,
-    derive_more::Sub,
-    derive_more::SubAssign,
-)]
-pub struct Unit(pub i32);

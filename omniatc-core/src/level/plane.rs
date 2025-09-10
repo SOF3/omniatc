@@ -13,6 +13,7 @@ use bevy::math::Quat;
 use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{Accel, Angle, AngularSpeed, Heading, TurnDirection};
+use store::YawTarget;
 
 use super::object::Object;
 use super::{SystemSets, nav, object};
@@ -115,7 +116,7 @@ fn maintain_yaw(
     let mut set_yaw_target = None;
 
     let desired_yaw_speed = match target.yaw {
-        nav::YawTarget::Heading(target_heading) => {
+        YawTarget::Heading(target_heading) => {
             let dir = current_yaw.closer_direction_to(target_heading);
 
             // Test if the target heading is overshot when yaw speed reduces to 0
@@ -135,7 +136,7 @@ fn maintain_yaw(
                 }
             }
         }
-        nav::YawTarget::TurnHeading {
+        YawTarget::TurnHeading {
             heading: target_heading,
             ref mut remaining_crosses,
             direction,
@@ -171,7 +172,7 @@ fn maintain_yaw(
     }
 
     if let Some(target_yaw) = set_yaw_target {
-        target.yaw = nav::YawTarget::Heading(target_yaw);
+        target.yaw = YawTarget::Heading(target_yaw);
     }
 }
 

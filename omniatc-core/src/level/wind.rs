@@ -18,6 +18,8 @@ use math::{Position, Speed};
 use super::{SystemSets, object};
 use crate::util::RateLimit;
 
+pub mod loader;
+
 pub struct Plug<M>(PhantomData<M>);
 
 impl<M> Default for Plug<M> {

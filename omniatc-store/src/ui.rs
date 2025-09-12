@@ -4,16 +4,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::AxisDirection;
 
+/// State of UI.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Ui {
+    /// The camera state.
     pub camera: Camera,
 }
 
+/// State of a camera.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Camera {
+    /// Render the world with 2D view.
     TwoDimension(Camera2d),
 }
 
+/// State of a 2D camera.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Camera2d {
     /// Level position that the camera is centered in.

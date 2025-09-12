@@ -1,4 +1,4 @@
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 use math::{Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Length, Position, Speed};
 use store::{Score, WaypointProximity};
 

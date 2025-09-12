@@ -29,7 +29,7 @@ use strum::IntoEnumIterator;
 
 mod input;
 mod render;
-mod store;
+mod storage;
 mod util;
 
 type ConfigManager = (manager::Egui, manager::serde::json::Pretty);
@@ -70,7 +70,7 @@ fn main() {
         omniatc::util::Plug,
         input::Plug,
         render::Plug,
-        store::plugin(),
+        storage::plugin(),
         util::billboard::Plug,
         util::shapes::Plug,
     ));

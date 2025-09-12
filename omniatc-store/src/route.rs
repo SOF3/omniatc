@@ -3,12 +3,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::{RunwayRef, SegmentRef, WaypointRef};
 
+/// A sequence of highest-level actions to execute,
+/// describing the route to follow.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Route {
+    /// The name of the route currently executing, if any.
+    ///
+    /// Only affects UI.
     pub id:    Option<String>,
+    /// The sequence of actions to execute.
     pub nodes: Vec<RouteNode>,
 }
 
+/// A single action in a route.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RouteNode {
     /// Direct to a waypoint.
@@ -26,32 +33,52 @@ pub enum RouteNode {
     },
     /// Adjust throttle until the airspeed is reached.
     SetAirSpeed {
+        /// Target airspeed.
         goal:  Speed<f32>,
         /// If `Some`, this node blocks until the airspeed is within `goal` &pm; `error`.
         error: Option<Speed<f32>>,
     },
-    /// Pitch until the altitude is reached.
+    /// Start reaching for the target altitude.
     StartPitchToAltitude {
+        /// Target altitude.
         goal:     Position<f32>,
         /// If `Some`, this node blocks until the altitude is within `goal` &pm; `error`.
         error:    Option<Length<f32>>,
+        /// Whether to use maximum possible climb/descent rate.
         expedite: bool,
-        // TODO pressure altitude?
     },
+    /// Align with the ILS of a runway and land on it.
     RunwayLanding {
         /// Runway to land on.
         runway:          RunwayRef,
         /// Preset to switch to upon missed approach.
         goaround_preset: Option<String>,
     },
+    /// Taxi to a segment on the ground.
+    ///
+    /// If multiple `Taxi`/`HoldShort` steps are specified contiguously,
+    /// the shortest path satisfying all of them is chosen.
+    /// If this is the last `Taxi`/`HoldShort` step in a contiguous sequence,
+    /// the object stops at the end of the first segment
+    /// (a strip of taxiway between two intersection points)
+    /// matching the given segment reference.
     Taxi {
+        /// Segment to taxi to.
         segment: SegmentRef,
     },
+    /// Hold short of a segment on the ground.
+    ///
+    /// This step completes when the object is stopped at an intersection point
+    /// that adjoins a ground path matching the given segment reference.
+    /// The object stays clear of the intersection point
+    /// and does not enter the segment itself.
     HoldShort {
+        /// Segment to hold short of.
         segment: SegmentRef,
     },
 }
 
+/// How to handle proximity to a waypoint when navigating to it.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum WaypointProximity {
     /// Turn to the next waypoint before arriving at the waypoint,

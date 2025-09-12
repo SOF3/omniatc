@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Score;
 
+/// Game statistics.
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Stats {
     /// Current score.

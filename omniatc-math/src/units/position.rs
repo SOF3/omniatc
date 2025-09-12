@@ -119,7 +119,7 @@ impl<T: ops::SubAssign + NormedVectorSpace> Position<T> {
 }
 
 impl Position<f32> {
-    /// Inverse lerp function.
+    /// Inverse lerp function, a.k.a. "unlerp".
     #[must_use]
     pub fn ratio_between(self, start: Self, end: Self) -> f32 {
         self.0.ratio_between(start.0, end.0)

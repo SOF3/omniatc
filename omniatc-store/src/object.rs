@@ -9,21 +9,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AerodromeRef, Route, Score, SegmentRef, WaypointRef};
 
+/// An object in the world.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Object {
+    /// A [`Plane`].
     Plane(Plane),
 }
 
+/// A plane, characterized by its ability to fly, takeoff and land,
+/// limited to forward thrust only and subject to stall.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Plane {
+    /// Common attributes of the aircraft.
     pub aircraft:    BaseAircraft,
+    /// Control parameters of the plane.
     pub control:     PlaneControl,
+    /// Physical and performance limits of the plane affecting taxiing.
     pub taxi_limits: TaxiLimits,
+    /// Physical and performance limits of the plane affecting airborne navigation.
     pub nav_limits:  NavLimits,
+    /// Higher-level control mode.
     pub nav_target:  NavTarget,
+    /// Planned route.
     pub route:       Route,
 }
 
+/// Physical and performance limits of the plane affecting taxiing.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TaxiLimits {
     /// Maximum acceleration on ground.
@@ -55,6 +66,7 @@ pub struct TaxiLimits {
     pub half_length: Length<f32>,
 }
 
+/// Physical and performance limits of the plane affecting airborne navigation.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NavLimits {
     /// Minimum horizontal indicated airspeed.
@@ -118,19 +130,28 @@ pub struct ClimbProfile {
     pub decel:     Accel<f32>,
 }
 
+/// Common attributes of an aircraft.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BaseAircraft {
+    /// Name of the aircraft, used for visual display.
     pub name:             String,
+    /// The completion condition for the object.
     pub dest:             Destination,
+    /// Score awarded upon completion of control of the object.
     pub completion_score: Score,
+    /// Current position.
     pub position:         Position<Vec2>,
+    /// Current altitude.
     pub altitude:         Position<f32>,
-    /// Speed of ground projection displacement.
+    /// Current speed of ground projection displacement.
     pub ground_speed:     Speed<f32>,
-    /// Direction of ground projection displacement.
+    /// Current direction of ground projection displacement.
     pub ground_dir:       Heading,
+    /// Current change in altitude.
     pub vert_rate:        Speed<f32>,
+    /// Weight of the aircraft in kg, affecting wake turbulence.
     pub weight:           f32,
+    /// Wingspan of the aircraft, affecting wake turbulence.
     pub wingspan:         Length<f32>,
 }
 
@@ -138,9 +159,15 @@ pub struct BaseAircraft {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Destination {
     /// Object can be handed over upon vacating a runway in the specific aerodrome.
-    Landing { aerodrome: AerodromeRef },
+    Landing {
+        /// The object must land in this aerodrome.
+        aerodrome: AerodromeRef,
+    },
     /// Object can be handed over upon parking in a runway in the specific aerodrome.
-    Parking { aerodrome: AerodromeRef },
+    Parking {
+        /// The object must park in an apron in this aerodrome.
+        aerodrome: AerodromeRef,
+    },
     /// Object can be handed over upon vacating any runway.
     VacateAnyRunway,
     // TODO: apron/taxiway arrival.
@@ -149,24 +176,34 @@ pub enum Destination {
     /// Either condition is set to `None` upon completion.
     /// The control of the object is completed when both are `None`.
     Departure {
+        /// Minimum altitude to reach.
         min_altitude:       Option<Position<f32>>,
+        /// Target waypoint to have flown by.
         waypoint_proximity: Option<(WaypointRef, Length<f32>)>,
     },
 }
 
+/// Control parameters specific to planes.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlaneControl {
+    /// Forward thrust heading.
     pub heading:     Heading,
+    /// Current change in yaw.
     pub yaw_speed:   AngularSpeed,
+    /// Current thrust.
     pub horiz_accel: Accel<f32>,
 }
 
+/// Higher-level control target.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum NavTarget {
+    /// Airborne control target.
     Airborne(Box<AirborneNavTarget>),
+    /// Ground control target.
     Ground(GroundNavTarget),
 }
 
+/// Higher-level airborne control target.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AirborneNavTarget {
     /// Target yaw change.
@@ -179,12 +216,17 @@ pub struct AirborneNavTarget {
     /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
     pub expedite:    bool,
 
+    /// Configured to maintain an altitude.
     pub target_altitude:  Option<TargetAltitude>,
+    /// Configured to follow a glide path.
     pub target_glide:     Option<TargetGlide>,
+    /// Configured to fly towards a waypoint.
     pub target_waypoint:  Option<TargetWaypoint>,
+    /// Configured to align with a path between two waypoints.
     pub target_alignment: Option<TargetAlignment>,
 }
 
+/// Target altitude to maintain.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TargetAltitude {
     /// Altitude to move towards and maintain.
@@ -193,6 +235,7 @@ pub struct TargetAltitude {
     pub expedite: bool,
 }
 
+/// Target glide path to follow.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TargetGlide {
     /// Target waypoint to aim at.
@@ -212,12 +255,14 @@ pub struct TargetGlide {
     pub expedite:        bool,
 }
 
+/// Target waypoint to fly towards.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TargetWaypoint {
     /// Name of target waypoint.
     pub waypoint: WaypointRef,
 }
 
+/// Target path between two waypoints to align with.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TargetAlignment {
     /// Name of start waypoint.
@@ -232,8 +277,10 @@ pub struct TargetAlignment {
     pub activation_range: Length<f32>,
 }
 
+/// Higher-level ground control target.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GroundNavTarget {
+    /// The current segment the object is taxiing on.
     pub segment: SegmentRef,
 }
 
@@ -250,8 +297,11 @@ pub enum YawTarget {
     /// The entire variant becomes `Heading(heading)`
     /// when `remaining_crosses == 0` and there is less than &pi;/2 turn towards `heading`.
     TurnHeading {
+        /// The eventual heading to reach.
         heading:           Heading,
+        /// Number of times the heading must cross `heading` before completing the turn.
         remaining_crosses: u8,
+        /// Direction to turn.
         direction:         TurnDirection,
     },
 }

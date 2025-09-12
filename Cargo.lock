@@ -3809,7 +3809,7 @@ name = "omniatc-maps"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "bevy",
+ "bevy_math",
  "ciborium",
  "omniatc-math",
  "omniatc-store",
@@ -3837,7 +3837,6 @@ name = "omniatc-store"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "bevy",
  "bevy_math",
  "ciborium",
  "derive_more 2.0.1",

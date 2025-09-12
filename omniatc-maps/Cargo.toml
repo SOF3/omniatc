@@ -9,16 +9,18 @@ license.workspace = true
 description = "Generate map files"
 
 [features]
-default = ["dev"]
-dev = ["bevy/dynamic_linking"]
+default = []
+
+# For development only
 precommit-checks = []
+rust-analyzer = []
 
 [dependencies]
 omniatc-math.workspace = true
 omniatc-store.workspace = true
 
 anyhow = "1.0.95"
-bevy = { workspace = true }
+bevy_math.workspace = true
 ciborium = "0.2.2"
 serde.workspace = true
 strum = { version = "0.26.3", features = ["derive"] }

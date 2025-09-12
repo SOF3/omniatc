@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+/// Unit for game score.
+///
+/// This type is signed to allow representing negative score deltas.
 #[derive(
     Debug,
     Clone,

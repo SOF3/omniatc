@@ -34,18 +34,24 @@ pub use player::*;
 mod object;
 pub use object::*;
 
+mod object_type;
+pub use object_type::*;
+
 mod route;
 pub use route::*;
 
 mod ui;
 pub use ui::*;
 
+mod weighted;
+pub use weighted::*;
+
 /// Root structure for a .osav file.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct File {
     /// Metadata about the file.
     pub meta:  Meta,
-    /// Gameplay entities.
+    /// Immutable elements of the game world.
     pub level: Level,
     /// The starting UI state.
     pub ui:    Ui,

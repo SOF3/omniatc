@@ -4,11 +4,11 @@ use bevy::ecs::world::World;
 use bevy::math::bounding::Aabb3d;
 
 use crate::level::wind;
-use crate::load::LoadedEntity;
+use crate::load::StoredEntity;
 
 pub fn spawn(world: &mut World, winds: &[store::Wind]) {
     for wind in winds {
-        let entity = world.spawn((LoadedEntity, Name::new("Wind"))).id();
+        let entity = world.spawn((StoredEntity, Name::new("Wind"))).id();
         wind::SpawnCommand {
             bundle: wind::Comps {
                 vector:        wind::Vector { bottom: wind.bottom_speed, top: wind.top_speed },

@@ -57,7 +57,7 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Limits(pub store::NavLimits);
 
 impl ops::Deref for Limits {

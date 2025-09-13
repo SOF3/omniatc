@@ -9,20 +9,20 @@ use either::Either;
 use crate::level::aerodrome::loader::AerodromeMap;
 use crate::level::route;
 use crate::level::waypoint::loader::WaypointMap;
-use crate::load::{self, LoadedEntity};
+use crate::load::{self, StoredEntity};
 
-pub struct RoutePresetMap(HashMap<String, Entity>);
+pub struct RoutePresetMap(HashMap<store::RoutePresetRef, Entity>);
 
 impl RoutePresetMap {
     /// Resolves a route preset by name.
     ///
     /// # Errors
     /// If the route preset name does not exist.
-    pub fn resolve(&self, name: &str) -> Result<Entity, load::Error> {
+    pub fn resolve(&self, name: &store::RoutePresetRef) -> Result<Entity, load::Error> {
         self.0
             .get(name)
             .copied()
-            .ok_or_else(|| load::Error::UnresolvedRoutePreset(name.to_string()))
+            .ok_or_else(|| load::Error::UnresolvedRoutePreset(name.0.to_string()))
     }
 }
 
@@ -38,7 +38,7 @@ pub fn spawn_presets(
 ) -> Result<RoutePresetMap, load::Error> {
     let route_preset_entities: Vec<_> = presets
         .iter()
-        .map(|preset| world.spawn((LoadedEntity, Name::new(format!("Preset: {}", preset.id)))).id())
+        .map(|preset| world.spawn((StoredEntity, Name::new(format!("Preset: {}", preset.id)))).id())
         .collect();
     let route_preset_map = RoutePresetMap(
         presets

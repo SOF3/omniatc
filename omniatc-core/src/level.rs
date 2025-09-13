@@ -21,6 +21,7 @@ pub mod plane;
 pub mod route;
 pub mod runway;
 pub mod score;
+pub mod spawn;
 pub mod taxi;
 pub mod wake;
 pub mod waypoint;
@@ -63,6 +64,7 @@ where
         app.add_plugins(dest::Plug);
         app.add_plugins(wake::Plug::<M>::default());
         app.add_plugins(wind::Plug::<M>::default());
+        app.add_plugins(spawn::Plug);
     }
 }
 
@@ -85,6 +87,8 @@ pub enum SystemSets {
     ReconcileForRead,
     /// Systems simulating effects *on* the environment *from* controlled objects.
     AffectEnviron,
+    /// Systems for spawning new entities.
+    Spawn,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]

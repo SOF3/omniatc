@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use serde::{Deserialize, Serialize};
 
 /// References a runway, taxiway, or apron by label.
@@ -37,7 +39,7 @@ impl SegmentLabel {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum WaypointRef {
     /// A regular named waypoint.
-    Named(String),
+    Named(NamedWaypointRef),
     /// The threshold of a runway.
     RunwayThreshold(RunwayRef),
     /// Extended runway centerline up to localizer range,
@@ -48,12 +50,22 @@ pub enum WaypointRef {
     LocalizerStart(RunwayRef),
 }
 
+/// References a regular waypoint by name.
+///
+/// This disallows referencing runway thresholds or localizer starts.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct NamedWaypointRef(pub String);
+
+impl From<&str> for NamedWaypointRef {
+    fn from(value: &str) -> Self { Self(value.into()) }
+}
+
 /// References an aerodrome by name.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AerodromeRef(pub String);
 
 impl From<&str> for AerodromeRef {
-    fn from(value: &str) -> Self { Self(value.to_owned()) }
+    fn from(value: &str) -> Self { Self(value.into()) }
 }
 
 /// References a runway.
@@ -63,4 +75,32 @@ pub struct RunwayRef {
     pub aerodrome:   AerodromeRef,
     /// Name of the runway.
     pub runway_name: String,
+}
+
+macro_rules! newtype_str {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+        pub struct $name(pub String);
+
+        impl Borrow<str> for $name {
+            fn borrow(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self { Self(value.into()) }
+        }
+    }
+}
+
+newtype_str! {
+    /// References an object type by name.
+    ObjectTypeRef
+}
+
+newtype_str! {
+    /// References a route preset by its `ref_id`.
+    RoutePresetRef
 }

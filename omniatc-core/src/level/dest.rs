@@ -27,7 +27,7 @@ impl Plugin for Plug {
 
 /// Objective for the flight.
 /// Applied on objects that should be despawned upon reaching the goal.
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub enum Destination {
     /// Object can be handed over upon vacating a runway in the specific aerodrome.
     Landing { aerodrome: Entity },

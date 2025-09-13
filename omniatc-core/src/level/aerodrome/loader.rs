@@ -17,7 +17,7 @@ use crate::level::navaid::{self, Navaid};
 use crate::level::runway::{self, Runway};
 use crate::level::waypoint::{self, Waypoint};
 use crate::level::{aerodrome, ground};
-use crate::load::{self, LoadedEntity};
+use crate::load::{self, StoredEntity};
 
 /// Spawns the aerodromes declared in a store.
 ///
@@ -34,7 +34,7 @@ pub fn spawn(
             let aerodrome_id = u32::try_from(id).map_err(|_| load::Error::TooManyAerodromes)?;
             let aerodrome_entity = world
                 .spawn((
-                    LoadedEntity,
+                    StoredEntity,
                     Name::new(format!("Aerodrome: {}", aerodrome.code)),
                     Aerodrome {
                         id:   aerodrome_id,
@@ -235,6 +235,7 @@ pub struct SpawnedAerodrome {
 #[derive(Clone, Copy)]
 pub struct SpawnedRunway {
     pub runway:             Entity,
+    pub start_pos:          Position<Vec2>,
     pub localizer_waypoint: Entity,
 }
 
@@ -263,7 +264,7 @@ fn spawn_runway(
     aerodrome_entity: Entity,
 ) -> SpawnedRunway {
     let runway_entity = world
-        .spawn((LoadedEntity, Name::new(format!("Runway: {}/{}", aerodrome.code, runway.name))))
+        .spawn((StoredEntity, Name::new(format!("Runway: {}/{}", aerodrome.code, runway.name))))
         .id();
 
     let heading = Heading::from_vec2((end_pos - start_pos).0);
@@ -295,7 +296,7 @@ fn spawn_runway(
 
     let localizer_waypoint = world
         .spawn((
-            LoadedEntity,
+            StoredEntity,
             Name::new(format!("LocalizerWaypoint: {}/{}", aerodrome.code, runway.name)),
             runway::LocalizerWaypoint { runway_ref: runway_entity },
         ))
@@ -313,7 +314,7 @@ fn spawn_runway(
 
     world.entity_mut(runway_entity).insert(runway::LocalizerWaypointRef { localizer_waypoint });
 
-    SpawnedRunway { runway: runway_entity, localizer_waypoint }
+    SpawnedRunway { runway: runway_entity, start_pos, localizer_waypoint }
 }
 
 fn spawn_runway_navaids(

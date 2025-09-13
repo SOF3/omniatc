@@ -10,7 +10,7 @@ use math::{Angle, Length, SEA_ALTITUDE};
 use crate::level::aerodrome::loader::AerodromeMap;
 use crate::level::navaid::{self, Navaid};
 use crate::level::waypoint::{self, Waypoint};
-use crate::load::{self, LoadedEntity};
+use crate::load::{self, StoredEntity};
 
 /// Spawns named waypoints declared in a store into the world.
 pub fn spawn(world: &mut World, waypoints: &[store::Waypoint]) -> WaypointMap {
@@ -19,7 +19,7 @@ pub fn spawn(world: &mut World, waypoints: &[store::Waypoint]) -> WaypointMap {
             .iter()
             .map(|waypoint| {
                 let waypoint_entity = world
-                    .spawn((LoadedEntity, Name::new(format!("Waypoint: {}", waypoint.name))))
+                    .spawn((StoredEntity, Name::new(format!("Waypoint: {}", waypoint.name))))
                     .id();
                 waypoint::SpawnCommand {
                     waypoint: Waypoint {
@@ -80,7 +80,11 @@ impl WaypointMap {
     ///
     /// # Errors
     /// If the referenced waypoint or runway does not exist.
-    pub fn resolve(&self, name: &str) -> Result<Entity, load::Error> {
+    pub fn resolve(&self, name: &store::NamedWaypointRef) -> Result<Entity, load::Error> {
+        self.resolve_str(&name.0)
+    }
+
+    fn resolve_str(&self, name: &str) -> Result<Entity, load::Error> {
         self.0.get(name).copied().ok_or_else(|| load::Error::UnresolvedWaypoint(name.to_string()))
     }
 
@@ -94,7 +98,7 @@ impl WaypointMap {
         waypoint_ref: &store::WaypointRef,
     ) -> Result<Entity, load::Error> {
         match waypoint_ref {
-            store::WaypointRef::Named(name) => self.resolve(name),
+            store::WaypointRef::Named(name) => self.resolve_str(&name.0),
             store::WaypointRef::RunwayThreshold(runway_ref) => {
                 Ok(aerodromes.resolve_runway_ref(runway_ref)?.runway.runway)
             }

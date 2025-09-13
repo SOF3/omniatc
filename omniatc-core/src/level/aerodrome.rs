@@ -1,5 +1,6 @@
 use bevy::app::{App, Plugin};
 use bevy::prelude::{Component, Entity, Event};
+use math::Position;
 
 pub mod loader;
 
@@ -13,11 +14,13 @@ impl Plugin for Plug {
 #[derive(Component)]
 pub struct Aerodrome {
     /// Serial ID of the aerodrome, used to determine its color code.
-    pub id:   u32,
+    pub id:        u32,
     /// Identifier code of the aerodrome.
-    pub code: String,
+    pub code:      String,
     /// Display name of the aerodrome.
-    pub name: String,
+    pub name:      String,
+    /// Elevation of the aerodrome.
+    pub elevation: Position<f32>,
 }
 
 #[derive(Event)]

@@ -1,20 +1,22 @@
+use std::time::Duration;
+
 use bevy_math::Vec2;
 use math::{Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Length, Position, Speed};
-use store::{Score, WaypointProximity};
+use store::{Score, WaypointProximity, WeightedList};
 
-pub fn default_plane_taxi_limits() -> store::TaxiLimits {
+pub fn a359_taxi_limits() -> store::TaxiLimits {
     store::TaxiLimits {
         base_braking: Accel::from_knots_per_sec(3.0),
         accel:        Accel::from_knots_per_sec(5.0),
         max_speed:    Speed::from_knots(100.0),
         min_speed:    Speed::from_knots(-4.0),
         turn_rate:    AngularSpeed::from_degrees_per_sec(8.0),
-        width:        Length::from_meters(60.0),
+        width:        Length::from_meters(50.0),
         half_length:  Length::from_meters(70.0),
     }
 }
 
-pub fn default_plane_nav_limits() -> store::NavLimits {
+pub fn a359_nav_limits() -> store::NavLimits {
     store::NavLimits {
         min_horiz_speed:   Speed::from_knots(120.),
         max_yaw_speed:     AngularSpeed::from_degrees_per_sec(3.),
@@ -44,6 +46,7 @@ pub fn default_plane_nav_limits() -> store::NavLimits {
             accel:     Accel::from_knots_per_sec(1.8),
             decel:     Accel::from_knots_per_sec(-0.2),
         },
+        weight:            1e5,
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
         drag_coef:         3. / 500. / 500.,
         max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
@@ -365,6 +368,17 @@ pub fn file() -> store::File {
                 }]
                 .into(),
             },
+            object_types:  [(
+                "A359",
+                store::ObjectType {
+                    full_name:   "Airbus A350-900".into(),
+                    taxi_limits: a359_taxi_limits(),
+                    class:       store::ObjectClassSpec::Plane { nav_limits: a359_nav_limits() },
+                },
+            )]
+            .into_iter()
+            .map(|(k, v)| (store::ObjectTypeRef(k.into()), v))
+            .collect(),
             aerodromes:    [store::Aerodrome {
                 code:           "MAIN".into(),
                 full_name:      "Main Airport".into(),
@@ -607,6 +621,13 @@ pub fn file() -> store::File {
                     navaids:   [].into(),
                 },
                 store::Waypoint {
+                    name:      "OCEAN".into(),
+                    position:  Position::from_origin_nm(12., -20.),
+                    elevation: None,
+                    visual:    None,
+                    navaids:   [].into(),
+                },
+                store::Waypoint {
                     name:      "POLAR".into(),
                     position:  Position::from_origin_nm(8., 24.),
                     elevation: None,
@@ -667,7 +688,7 @@ pub fn file() -> store::File {
                         "RETRY".into(),
                     )),
                     id:      "RETRY18R".into(),
-                    ref_id:  Some("RETRY.RETRY18R".into()),
+                    ref_id:  Some(store::RoutePresetRef("RETRY.RETRY18R".into())),
                     title:   "Missed approach 18R".into(),
                     nodes:   route_retry_18r(),
                 }]
@@ -676,6 +697,44 @@ pub fn file() -> store::File {
             .into_iter()
             .flatten()
             .collect(),
+            spawn_sets:    [(
+                store::SpawnSet {
+                    route:    WeightedList::singleton(store::SpawnRoute {
+                        preset:      store::RoutePresetRef("DWIND18L DWIND".into()),
+                        destination: store::Destination::Landing { aerodrome: "MAIN".into() },
+                        score:       Score(10),
+                    }),
+                    gen_name: [
+                        (
+                            store::NameGenerator::Airline {
+                                prefix:          "ABC".into(),
+                                digits:          3,
+                                trailing_letter: None,
+                            },
+                            1.0,
+                        ),
+                        (
+                            store::NameGenerator::Airline {
+                                prefix:          "ADE".into(),
+                                digits:          3,
+                                trailing_letter: Some("XYZ".into()),
+                            },
+                            1.0,
+                        ),
+                    ]
+                    .into(),
+                    types:    [(store::ObjectTypeRef("A359".into()), 1.0)].into(),
+                    position: WeightedList::singleton(store::SpawnPosition::Airborne {
+                        waypoint: "OCEAN".into(),
+                        altitude: Position::from_amsl_feet(12000.0),
+                        speed:    Speed::from_knots(280.0),
+                        heading:  Heading::from_degrees(300.0),
+                    }),
+                },
+                1.0,
+            )]
+            .into(),
+            spawn_trigger: store::SpawnTrigger::Periodic { duration: Duration::from_secs(60) },
         },
         ui:    store::Ui {
             camera: store::Camera::TwoDimension(store::Camera2d {
@@ -698,16 +757,15 @@ pub fn file() -> store::File {
                     ground_speed:     Speed::from_knots(280.),
                     ground_dir:       Heading::from_degrees(250.),
                     vert_rate:        Speed::ZERO,
-                    weight:           1e5,
-                    wingspan:         Length::from_meters(50.),
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::from_degrees(80.),
                     yaw_speed:   AngularSpeed::ZERO,
                     horiz_accel: Accel::ZERO,
                 },
-                taxi_limits: default_plane_taxi_limits(),
-                nav_limits:  default_plane_nav_limits(),
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(280.),
@@ -733,16 +791,15 @@ pub fn file() -> store::File {
                     ground_speed:     Speed::from_knots(280.),
                     ground_dir:       Heading::from_degrees(250.),
                     vert_rate:        Speed::ZERO,
-                    weight:           1e5,
-                    wingspan:         Length::from_meters(50.),
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::from_degrees(80.),
                     yaw_speed:   AngularSpeed::ZERO,
                     horiz_accel: Accel::ZERO,
                 },
-                taxi_limits: default_plane_taxi_limits(),
-                nav_limits:  default_plane_nav_limits(),
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(280.),
@@ -768,16 +825,15 @@ pub fn file() -> store::File {
                     ground_speed:     Speed::from_knots(220.),
                     ground_dir:       Heading::from_degrees(250.),
                     vert_rate:        Speed::ZERO,
-                    weight:           1e5,
-                    wingspan:         Length::from_meters(50.),
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::from_degrees(200.),
                     yaw_speed:   AngularSpeed::ZERO,
                     horiz_accel: Accel::ZERO,
                 },
-                taxi_limits: default_plane_taxi_limits(),
-                nav_limits:  default_plane_nav_limits(),
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(220.),
@@ -796,8 +852,6 @@ pub fn file() -> store::File {
             store::Object::Plane(store::Plane {
                 aircraft:    store::BaseAircraft {
                     name:             "ADE127".into(),
-                    weight:           1e5,
-                    wingspan:         Length::from_meters(50.),
                     dest:             store::Destination::Departure {
                         min_altitude:       Some(Position::from_amsl_feet(18000.)),
                         waypoint_proximity: Some((
@@ -814,11 +868,12 @@ pub fn file() -> store::File {
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::EAST,
-                    yaw_speed:   default_plane_nav_limits().max_yaw_speed,
+                    yaw_speed:   a359_nav_limits().max_yaw_speed,
                     horiz_accel: Accel::ZERO,
                 },
-                taxi_limits: default_plane_taxi_limits(),
-                nav_limits:  default_plane_nav_limits(),
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::NORTH),
                     horiz_speed:      Speed::from_knots(250.),
@@ -846,16 +901,15 @@ pub fn file() -> store::File {
                     ground_speed:     Speed::from_knots(140.),
                     ground_dir:       Heading::SOUTH,
                     vert_rate:        Speed::ZERO,
-                    weight:           1e5,
-                    wingspan:         Length::from_meters(50.),
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::SOUTH,
                     yaw_speed:   AngularSpeed::ZERO,
                     horiz_accel: Accel::ZERO,
                 },
-                taxi_limits: default_plane_taxi_limits(),
-                nav_limits:  default_plane_nav_limits(),
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
                 nav_target:  store::NavTarget::Ground(store::GroundNavTarget {
                     segment: store::SegmentRef {
                         aerodrome: "MAIN".into(),

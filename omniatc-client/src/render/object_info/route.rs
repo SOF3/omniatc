@@ -135,6 +135,7 @@ fn write_route_options(
             },
         );
         if selection != current_selection {
+            // TODO move this to a comm::Instruction
             match selection {
                 Selection::None => {
                     commands.entity(object).queue(route::ClearAllNodes).remove::<route::Id>();

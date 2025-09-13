@@ -379,7 +379,7 @@ impl<T: Ord> Ord for ConditionalReverse<T> {
 impl ObjectTableColumn {
     fn header(&self) -> impl Into<egui::RichText> {
         match self {
-            Self::Name => "Object name",
+            Self::Name => "Callsign",
             Self::Altitude => "Altitude (ft)",
             Self::GroundSpeed => "Ground\nspeed (kt)",
             Self::VerticalRate => "Vert rate\n(fpm)",

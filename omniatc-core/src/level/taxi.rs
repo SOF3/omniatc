@@ -71,7 +71,7 @@ impl Plugin for Plug {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Limits(pub store::TaxiLimits);
 
 impl ops::Deref for Limits {

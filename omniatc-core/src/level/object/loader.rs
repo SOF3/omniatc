@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use bevy::ecs::entity::Entity;
 use bevy::ecs::name::Name;
 use bevy::ecs::system::EntityCommand;
 use bevy::ecs::world::{EntityWorldMut, World};
@@ -10,7 +13,48 @@ use crate::level::route::loader::RoutePresetMap;
 use crate::level::route::{self, Route};
 use crate::level::waypoint::loader::WaypointMap;
 use crate::level::{nav, object, plane, taxi, wake};
-use crate::load::{self, LoadedEntity};
+use crate::load::{self, StoredEntity};
+
+/// Spawns object types declared in a store into the world.
+pub fn spawn_types(
+    world: &mut World,
+    types: &HashMap<store::ObjectTypeRef, store::ObjectType>,
+) -> ObjectTypeMap {
+    let mut out = HashMap::new();
+    for (ref_id, ty) in types {
+        match &ty.class {
+            store::ObjectClassSpec::Plane { nav_limits } => {
+                let id = world
+                    .spawn((
+                        StoredEntity,
+                        Name::new(format!("Type: {}", ty.full_name)),
+                        object::types::Type::Plane {
+                            taxi: taxi::Limits(ty.taxi_limits.clone()),
+                            nav:  nav::Limits(nav_limits.clone()),
+                        },
+                    ))
+                    .id();
+                out.insert(ref_id.clone(), id);
+            }
+        }
+    }
+    ObjectTypeMap(out)
+}
+
+pub struct ObjectTypeMap(HashMap<store::ObjectTypeRef, Entity>);
+
+impl ObjectTypeMap {
+    /// Resolves an object type by reference.
+    ///
+    /// # Errors
+    /// If the object type reference does not exist.
+    pub fn resolve(&self, r: &store::ObjectTypeRef) -> load::Result<Entity> {
+        match self.0.get(r) {
+            Some(&entity) => Ok(entity),
+            None => Err(load::Error::UnresolvedObjectType(r.0.clone())),
+        }
+    }
+}
 
 /// Spawns objects declared in a store into the world.
 ///
@@ -42,29 +86,9 @@ fn spawn_plane(
     plane: &store::Plane,
 ) -> Result<(), load::Error> {
     let plane_entity =
-        world.spawn((LoadedEntity, Name::new(format!("Plane: {}", plane.aircraft.name)))).id();
+        world.spawn((StoredEntity, Name::new(format!("Plane: {}", plane.aircraft.name)))).id();
 
-    let destination = match plane.aircraft.dest {
-        store::Destination::Landing { ref aerodrome } => {
-            let aerodrome = aerodromes.resolve(aerodrome)?;
-            Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
-        }
-        store::Destination::Parking { ref aerodrome } => {
-            let aerodrome = aerodromes.resolve(aerodrome)?;
-            Destination::Parking { aerodrome: aerodrome.aerodrome_entity }
-        }
-        store::Destination::VacateAnyRunway => Destination::VacateAnyRunway,
-        store::Destination::Departure { min_altitude, ref waypoint_proximity } => {
-            let waypoint_proximity = waypoint_proximity
-                .as_ref()
-                .map(|&(ref waypoint, dist)| {
-                    let waypoint = waypoints.resolve_ref(aerodromes, waypoint)?;
-                    Ok((waypoint, dist))
-                })
-                .transpose()?;
-            Destination::Departure { min_altitude, waypoint_proximity }
-        }
-    };
+    let destination = resolve_destination(aerodromes, waypoints, &plane.aircraft.dest)?;
 
     object::SpawnCommand {
         position: plane.aircraft.position.with_altitude(plane.aircraft.altitude),
@@ -138,6 +162,38 @@ fn spawn_plane(
     Ok(())
 }
 
+/// Resolves a stored destination into a runtime destination.
+///
+/// # Errors
+/// If the stored destination references invalid aerodromes or waypoints.
+pub fn resolve_destination(
+    aerodromes: &AerodromeMap,
+    waypoints: &WaypointMap,
+    dest: &store::Destination,
+) -> load::Result<Destination> {
+    Ok(match *dest {
+        store::Destination::Landing { ref aerodrome } => {
+            let aerodrome = aerodromes.resolve(aerodrome)?;
+            Destination::Landing { aerodrome: aerodrome.aerodrome_entity }
+        }
+        store::Destination::Parking { ref aerodrome } => {
+            let aerodrome = aerodromes.resolve(aerodrome)?;
+            Destination::Parking { aerodrome: aerodrome.aerodrome_entity }
+        }
+        store::Destination::VacateAnyRunway => Destination::VacateAnyRunway,
+        store::Destination::Departure { min_altitude, ref waypoint_proximity } => {
+            let waypoint_proximity = waypoint_proximity
+                .as_ref()
+                .map(|&(ref waypoint, dist)| {
+                    let waypoint = waypoints.resolve_ref(aerodromes, waypoint)?;
+                    Ok((waypoint, dist))
+                })
+                .transpose()?;
+            Destination::Departure { min_altitude, waypoint_proximity }
+        }
+    })
+}
+
 fn insert_airborne_nav_targets(
     plane_entity: &mut EntityWorldMut,
     aerodromes: &AerodromeMap,
@@ -185,9 +241,18 @@ fn insert_airborne_nav_targets(
 const WAKE_FACTOR: f32 = 10.;
 
 fn insert_wake(mut plane_entity: EntityWorldMut, plane: &store::Plane) {
+    plane_entity.insert((
+        wake::Producer { base_intensity: compute_wake(&plane.taxi_limits, &plane.nav_limits) },
+        wake::Detector::default(),
+    ));
+}
+
+/// Computes the wake turbulence intensity for a plane based on its taxi and navigation limits.
+#[must_use]
+pub fn compute_wake(
+    taxi_limits: &store::TaxiLimits,
+    nav_limits: &store::NavLimits,
+) -> wake::Intensity {
     #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // nearest positive integer
-    let base_intensity = wake::Intensity(
-        (WAKE_FACTOR * plane.aircraft.weight / plane.aircraft.wingspan.into_nm()) as u32,
-    );
-    plane_entity.insert((wake::Producer { base_intensity }, wake::Detector::default()));
+    wake::Intensity((WAKE_FACTOR * nav_limits.weight / taxi_limits.width.into_nm()) as u32)
 }

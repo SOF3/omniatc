@@ -1160,20 +1160,24 @@ where
 }
 
 macro_rules! impl_schema_for_quantity {
-    ($name:ident<$t:ident>) => {
-        impl_schema_for_quantity!(@ty $name<$t>, $t, concat!(stringify!($name), "::", stringify!($t)));
+    ($name:ident<$t:ident>, $description:literal) => {
+        impl_schema_for_quantity!(@ty $name<$t>, $t, concat!(stringify!($name), "::", stringify!($t)), $description);
     };
-    ($name:ident) => {
-        impl_schema_for_quantity!(@ty $name, f32, stringify!($name));
+    ($name:ident, $description:literal) => {
+        impl_schema_for_quantity!(@ty $name, f32, stringify!($name), $description);
     };
-    (@ty $name:ty, $t:ident, $schema_name:expr) => {
+    (@ty $name:ty, $t:ident, $schema_name:expr, $description:literal) => {
         #[cfg(feature = "schema")]
-        impl schemars::JsonSchema for $name
-        {
+        impl schemars::JsonSchema for $name {
             fn schema_name() -> std::borrow::Cow<'static, str> { concat!($schema_name).into() }
 
             fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-                impl_schema_for_quantity!(@json_schema $t, generator)
+                let mut schema = impl_schema_for_quantity!(@json_schema $t, generator);
+                schema.as_object_mut().unwrap().insert(
+                    "description".to_string(),
+                    serde_json::Value::String($description.to_string()),
+                );
+                schema
             }
         }
     };
@@ -1188,22 +1192,22 @@ macro_rules! impl_schema_for_quantity {
     };
 }
 
-impl_schema_for_quantity!(Length<f32>);
-impl_schema_for_quantity!(Length<Vec2>);
-impl_schema_for_quantity!(Length<Vec3>);
-impl_schema_for_quantity!(Speed<f32>);
-impl_schema_for_quantity!(Speed<Vec2>);
-impl_schema_for_quantity!(Speed<Vec3>);
-impl_schema_for_quantity!(Accel<f32>);
-impl_schema_for_quantity!(Accel<Vec2>);
-impl_schema_for_quantity!(Accel<Vec3>);
-impl_schema_for_quantity!(AccelRate<f32>);
-impl_schema_for_quantity!(AccelRate<Vec2>);
-impl_schema_for_quantity!(AccelRate<Vec3>);
-impl_schema_for_quantity!(Angle);
-impl_schema_for_quantity!(AngularSpeed);
-impl_schema_for_quantity!(AngularAccel);
-impl_schema_for_quantity!(Frequency);
+impl_schema_for_quantity!(Length<f32>, "Length in nm");
+impl_schema_for_quantity!(Length<Vec2>, "2D length vector in nm");
+impl_schema_for_quantity!(Length<Vec3>, "3D length vector in nm");
+impl_schema_for_quantity!(Speed<f32>, "Speed in nm/s");
+impl_schema_for_quantity!(Speed<Vec2>, "2D speed vector in nm/s");
+impl_schema_for_quantity!(Speed<Vec3>, "3D speed vector in nm/s");
+impl_schema_for_quantity!(Accel<f32>, "Acceleration in nm/s\u{b2}");
+impl_schema_for_quantity!(Accel<Vec2>, "2D acceleration vector in nm/s\u{b2}");
+impl_schema_for_quantity!(Accel<Vec3>, "3D acceleration vector in nm/s\u{b2}");
+impl_schema_for_quantity!(AccelRate<f32>, "Acceleration rate in nm/s\u{b3}");
+impl_schema_for_quantity!(AccelRate<Vec2>, "2D acceleration rate vector in nm/s\u{b3}");
+impl_schema_for_quantity!(AccelRate<Vec3>, "3D acceleration rate vector in nm/s\u{b3}");
+impl_schema_for_quantity!(Angle, "Angle in radians");
+impl_schema_for_quantity!(AngularSpeed, "Angular speed in rad/s");
+impl_schema_for_quantity!(AngularAccel, "Angular acceleration in rad/s\u{b2}");
+impl_schema_for_quantity!(Frequency, "Frequency in Hz");
 
 bevy_mod_config::impl_scalar_config_field!(
     Length<f32>,

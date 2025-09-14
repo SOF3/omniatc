@@ -11,6 +11,7 @@ use crate::{
 
 /// A setup for spawning objects.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpawnSet {
     /// Reference to the route preset that spawned objects will follow.
     pub route:    WeightedList<SpawnRoute>,
@@ -24,6 +25,7 @@ pub struct SpawnSet {
 
 /// The route and destination for a spawned object.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpawnRoute {
     /// Reference to the route preset that spawned objects will follow.
     pub preset:      RoutePresetRef,
@@ -35,6 +37,7 @@ pub struct SpawnRoute {
 
 /// Rules for generating names for spawned objects.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NameGenerator {
     /// A regular airline-style name,
     /// with a prefix, a numeric part, and an optional trailing letter.
@@ -59,6 +62,7 @@ pub enum NameGenerator {
 
 /// An element of [`NameGenerator::Elements`].
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NameGeneratorElement {
     /// A fixed string of characters.
     Fixed(String),
@@ -118,6 +122,7 @@ impl NameGenerator {
 
 /// Position at which objects in a spawn set will be spawned.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpawnPosition {
     /// Objects created by this set will be spawned in a random occupied apron in the aerodrome.
     Aprons {
@@ -151,6 +156,7 @@ pub enum SpawnPosition {
 
 /// Determines when new objects may spawn.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpawnTrigger {
     /// Do not spawn any new objects.
     Disabled,

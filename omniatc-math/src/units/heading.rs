@@ -12,6 +12,7 @@ mod tests;
 
 /// An absolute directional bearing.
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Heading(
     Angle, // always -PI < heading <= PI
 );
@@ -252,6 +253,7 @@ impl ops::SubAssign<Angle> for Heading {
 
 /// The direction for yaw change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TurnDirection {
     /// A left, counter-clockwise turn generating negative yaw speed.
     CounterClockwise,

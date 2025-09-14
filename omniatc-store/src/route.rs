@@ -6,6 +6,7 @@ use crate::{RoutePresetRef, RunwayRef, SegmentRef, WaypointRef};
 /// A sequence of highest-level actions to execute,
 /// describing the route to follow.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Route {
     /// The name of the route currently executing, if any.
     ///
@@ -17,6 +18,7 @@ pub struct Route {
 
 /// A single action in a route.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RouteNode {
     /// Direct to a waypoint.
     DirectWaypoint {
@@ -80,6 +82,7 @@ pub enum RouteNode {
 
 /// How to handle proximity to a waypoint when navigating to it.
 #[derive(Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum WaypointProximity {
     /// Turn to the next waypoint before arriving at the waypoint,
     /// such that the position after the turn is exactly between the two waypoints.

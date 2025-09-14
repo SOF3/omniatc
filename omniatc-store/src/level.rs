@@ -17,6 +17,7 @@ pub use spawn::*;
 
 /// Contents of a map.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Level {
     /// Environmental features of the map.
     pub environment:   Environment,
@@ -36,6 +37,7 @@ pub struct Level {
 
 /// A waypoint in the airspace.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Waypoint {
     /// Display name of the waypoint.
     pub name:      String,
@@ -51,6 +53,7 @@ pub struct Waypoint {
 
 /// A navigation aid provided at a waypoint.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Navaid {
     /// Type of navaid.
     #[serde(rename = "type")]
@@ -80,6 +83,7 @@ pub struct Navaid {
 ///
 /// Currently this only affects the UI display.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NavaidType {
     /// This navaid tells the heading from the aircraft to the waypoint
     Vor,
@@ -90,6 +94,7 @@ pub enum NavaidType {
 /// Conditions under which a waypoint is visible,
 /// allowing it to serve as a visual navaid.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VisualWaypoint {
     /// Maximum 3D distance from which pilots can see the waypoint.
     pub max_distance: Length<f32>,
@@ -97,6 +102,7 @@ pub struct VisualWaypoint {
 
 /// A preset route that an aircraft may be assigned to.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutePreset {
     /// When is this preset available for use?
     pub trigger: RoutePresetTrigger,
@@ -158,6 +164,7 @@ pub fn route_presets_at_waypoints(
 
 /// Defines when a route preset may be selected.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RoutePresetTrigger {
     /// This preset may be selected when the current direct target is the waypoint.
     Waypoint(WaypointRef),

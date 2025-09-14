@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Metadata describing the file.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Meta {
     /// An identifier for this file.
     ///

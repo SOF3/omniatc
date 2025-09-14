@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// A list of items with relative randomness weights.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WeightedList<T> {
     /// Entries in the list.
     pub items: Vec<WeightedEntry<T>>,
@@ -68,6 +69,7 @@ impl<T> WeightedList<T> {
 
 /// An entry in a [`WeightedList`].
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WeightedEntry<T> {
     /// The item for this entry.
     pub item:   T,

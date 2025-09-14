@@ -6,6 +6,7 @@ use crate::AxisDirection;
 
 /// State of UI.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Ui {
     /// The camera state.
     pub camera: Camera,
@@ -13,6 +14,7 @@ pub struct Ui {
 
 /// State of a camera.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Camera {
     /// Render the world with 2D view.
     TwoDimension(Camera2d),
@@ -20,6 +22,7 @@ pub enum Camera {
 
 /// State of a 2D camera.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Camera2d {
     /// Level position that the camera is centered in.
     pub center: Position<Vec2>,

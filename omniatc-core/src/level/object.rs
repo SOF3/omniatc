@@ -28,6 +28,8 @@ use crate::level::dest;
 use crate::try_log::EntityWorldMutExt;
 
 pub mod loader;
+pub mod types;
+pub use types::Type;
 
 #[cfg(test)]
 mod tests;

@@ -1,7 +1,7 @@
 use math::{Length, Position, Speed};
 use serde::{Deserialize, Serialize};
 
-use crate::{RunwayRef, SegmentRef, WaypointRef};
+use crate::{RoutePresetRef, RunwayRef, SegmentRef, WaypointRef};
 
 /// A sequence of highest-level actions to execute,
 /// describing the route to follow.
@@ -52,7 +52,7 @@ pub enum RouteNode {
         /// Runway to land on.
         runway:          RunwayRef,
         /// Preset to switch to upon missed approach.
-        goaround_preset: Option<String>,
+        goaround_preset: Option<RoutePresetRef>,
     },
     /// Taxi to a segment on the ground.
     ///

@@ -10,7 +10,7 @@ use math::sweep;
 
 use crate::level::route::{self};
 use crate::level::waypoint::{self};
-use crate::level::{aerodrome, object, score, wind};
+use crate::level::{aerodrome, object, score, spawn, wind};
 
 pub struct Plug;
 
@@ -18,9 +18,10 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) { app.init_resource::<CameraAdvice>(); }
 }
 
-/// Marks that an entity was loaded from a save file, and should be deleted during reload.
+/// Marks an entity as part of a loaded level,
+/// so it should be removed when loading a new level.
 #[derive(Component)]
-pub struct LoadedEntity;
+pub struct StoredEntity;
 
 #[derive(Resource, Default)]
 pub struct CameraAdvice(pub Option<store::Camera>);
@@ -57,19 +58,28 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     };
 
     world
-        .query_filtered::<Entity, With<LoadedEntity>>()
+        .query_filtered::<Entity, With<StoredEntity>>()
         .iter(world)
         .collect::<Vec<_>>()
         .into_iter()
         .for_each(|entity| world.entity_mut(entity).despawn());
 
     wind::loader::spawn(world, &file.level.environment.winds);
+    let object_types = object::loader::spawn_types(world, &file.level.object_types);
     let aerodromes = aerodrome::loader::spawn(world, &file.level.aerodromes)?;
     let waypoints = waypoint::loader::spawn(world, &file.level.waypoints);
     let route_presets =
         route::loader::spawn_presets(world, &aerodromes, &waypoints, &file.level.route_presets)?;
+    spawn::loader::spawn_sets(
+        world,
+        &object_types,
+        &aerodromes,
+        &waypoints,
+        &route_presets,
+        &file.level.spawn_sets,
+    )?;
+    spawn::loader::spawn_trigger(world, &file.level.spawn_trigger);
     score::loader::spawn(world, &file.stats);
-
     object::loader::spawn(world, &aerodromes, &waypoints, &route_presets, &file.objects)?;
 
     world.resource_mut::<CameraAdvice>().0 = Some(file.ui.camera.clone());
@@ -89,8 +99,6 @@ pub enum Error {
     UnresolvedRunway { aerodrome: String, runway: String },
     #[error("No waypoint called {0:?}")]
     UnresolvedWaypoint(String),
-    #[error("No route preset called {0:?}")]
-    UnresolvedRoutePreset(String),
     #[error("No {variant} called {value:?} in aerodrome {aerodrome:?}")]
     UnresolvedSegment { variant: &'static str, value: String, aerodrome: String },
     #[error(
@@ -102,6 +110,10 @@ pub enum Error {
         value:     String,
         aerodrome: String,
     },
+    #[error("No route preset called {0:?}")]
+    UnresolvedRoutePreset(String),
+    #[error("No object type called {0:?}")]
+    UnresolvedObjectType(String),
     #[error("Non-finite value encountered at {0}")]
     NonFiniteFloat(&'static str),
     #[error(

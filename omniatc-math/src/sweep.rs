@@ -190,7 +190,7 @@ where
             fn next(&mut self) -> Option<Self::Item> {
                 self.fill_buf();
 
-                // TODO replcae this with `extract_if` when it is stable.
+                // TODO replace this with `extract_if` when it is stable.
                 // For now we just allocate a separate Vec.
 
                 let mut buf = mem::take(&mut self.buf).into_iter();

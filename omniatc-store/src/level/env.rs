@@ -6,6 +6,7 @@ use crate::{AxisDirection, Shape2d};
 
 /// Environmental features of a map.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Environment {
     /// Terrain altitude.
     pub heightmap: HeatMap2<Position<f32>>,
@@ -23,6 +24,7 @@ pub struct Environment {
 
 /// A 2D heatmap representing a function `Vec2 -> Datum` within a rectangle.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct HeatMap2<Datum> {
     /// Base heatmap as a 2D dense matrix,
     /// used when majority of the terrain has irregular altitude,
@@ -39,6 +41,7 @@ pub struct HeatMap2<Datum> {
 
 /// A 2D heatmap represented as a matrix of values of type `Datum`.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AlignedHeatMap2<Datum> {
     /// Coordinates of the first data point in `data`.
     pub initial_corner:  Position<Vec2>,
@@ -200,6 +203,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
 
 /// A list of sparse functions only affecting certain areas.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SparseHeatMap2<Datum> {
     /// List of sparse valued areas.
     pub functions: Vec<SparseFunction2<Datum>>,
@@ -207,6 +211,7 @@ pub struct SparseHeatMap2<Datum> {
 
 /// Overrides the function with a constant value when within a certain area.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SparseFunction2<Datum> {
     /// The area in which the function is nonzero.
     pub shape:               Shape2d,
@@ -218,6 +223,7 @@ pub struct SparseFunction2<Datum> {
 
 /// Wind in a cuboid region, interpolated linearly between the bottom and top faces.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Wind {
     /// Minimum horizontal corner of the wind region.
     pub start:        Position<Vec2>,

@@ -15,6 +15,20 @@ impl<'de, T: serde::Deserialize<'de> + super::IsFinite> serde::Deserialize<'de> 
     }
 }
 
+#[cfg(feature = "schema")]
+impl<T> schemars::JsonSchema for Position<T>
+where
+    Length<T>: schemars::JsonSchema,
+{
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        format!("Position_{}", Length::schema_name()).into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <Length<T> as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
 impl<T> Position<T> {
     pub const fn new(value: T) -> Self { Position(Length::new(value)) }
 

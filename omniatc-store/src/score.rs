@@ -17,4 +17,5 @@ use serde::{Deserialize, Serialize};
     derive_more::Sub,
     derive_more::SubAssign,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Score(pub i32);

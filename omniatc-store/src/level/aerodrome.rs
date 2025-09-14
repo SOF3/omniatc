@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// An aerodrome, consisting of multiple runways and ground structures.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Aerodrome {
     /// Aerodrome short display name.
     pub code:           String,
@@ -19,6 +20,7 @@ pub struct Aerodrome {
 
 /// Ground paths of an aerodrome, such as taxiways and aprons.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GroundNetwork {
     /// Taxiways in the aerodrome.
     pub taxiways:    Vec<Taxiway>,
@@ -36,6 +38,7 @@ pub struct GroundNetwork {
 /// Taxiways automatically intersect with any other ground paths
 /// that cross with it or end within one meter of it.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Taxiway {
     /// Label of the taxiway.
     ///
@@ -57,6 +60,7 @@ pub struct Taxiway {
 /// Aprons automatically connect to the nearest taxiway
 /// extending opposite to its forward heading.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Apron {
     /// Label of the apron.
     ///
@@ -74,6 +78,7 @@ pub struct Apron {
 ///
 /// Currently, all runways must be usable from both directions.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunwayPair {
     /// Width of the runway. Only affects display.
     pub width:          Length<f32>,
@@ -92,6 +97,7 @@ pub struct RunwayPair {
 /// Full runway structure: backward stopway + {forward start} + forward displacement + main +
 /// backward displacement + {backward start} + forward stopway
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Runway {
     /// Runway identifier, e.g. "13R".
     ///
@@ -113,6 +119,7 @@ pub struct Runway {
 
 /// Defines the ILS availability at a runway direction.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Localizer {
     /// An aircraft is unable to establish on ILS when
     /// the horizontal deviation from the approach path is greater than this value.

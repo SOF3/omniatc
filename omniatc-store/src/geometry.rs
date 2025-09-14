@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// A horizontal map axis.
 #[derive(Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AxisDirection {
     /// The X direction.
     X,
@@ -58,6 +59,7 @@ impl AxisDirection {
 
 /// A 2D shape.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Shape2d {
     /// An ellipse shape.
     Ellipse {

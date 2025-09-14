@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Describes an object type (model),
 /// which characterizes the physical and performance limits of the object.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ObjectType {
     /// Full display name of the object type.
     pub full_name:   String,
@@ -15,6 +16,7 @@ pub struct ObjectType {
 
 /// Class-specific specifications of an object type.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ObjectClassSpec {
     /// The object is a plane.
     Plane {
@@ -25,6 +27,7 @@ pub enum ObjectClassSpec {
 
 /// Physical and performance limits of the plane affecting taxiing.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaxiLimits {
     /// Maximum acceleration on ground.
     pub accel:        Accel<f32>,
@@ -57,6 +60,7 @@ pub struct TaxiLimits {
 
 /// Physical and performance limits of the plane affecting airborne navigation.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NavLimits {
     /// Minimum horizontal indicated airspeed.
     pub min_horiz_speed: Speed<f32>,
@@ -113,6 +117,7 @@ pub struct NavLimits {
 
 /// Speed limitations during a certain climb rate.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClimbProfile {
     /// Vertical rate for this climb profile.
     /// A negative value indicates this is a descent profile.

@@ -10,6 +10,7 @@ use crate::{
 
 /// An object in the world.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Object {
     /// A [`Plane`].
     Plane(Plane),
@@ -18,6 +19,7 @@ pub enum Object {
 /// A plane, characterized by its ability to fly, takeoff and land,
 /// limited to forward thrust only and subject to stall.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Plane {
     /// Common attributes of the aircraft.
     pub aircraft:    BaseAircraft,
@@ -37,6 +39,7 @@ pub struct Plane {
 
 /// Common attributes of an aircraft.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BaseAircraft {
     /// Name of the aircraft, used for visual display.
     pub name:             String,
@@ -58,6 +61,7 @@ pub struct BaseAircraft {
 
 /// Condition for the completion of control of an object.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Destination {
     /// Object can be handed over upon vacating a runway in the specific aerodrome.
     Landing {
@@ -86,6 +90,7 @@ pub enum Destination {
 
 /// Control parameters specific to planes.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlaneControl {
     /// Forward thrust heading.
     pub heading:     Heading,
@@ -97,6 +102,7 @@ pub struct PlaneControl {
 
 /// Higher-level control target.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NavTarget {
     /// Airborne control target.
     Airborne(Box<AirborneNavTarget>),
@@ -106,6 +112,7 @@ pub enum NavTarget {
 
 /// Higher-level airborne control target.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AirborneNavTarget {
     /// Target yaw change.
     pub yaw:         YawTarget,
@@ -129,6 +136,7 @@ pub struct AirborneNavTarget {
 
 /// Target altitude to maintain.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TargetAltitude {
     /// Altitude to move towards and maintain.
     pub altitude: Position<f32>,
@@ -138,6 +146,7 @@ pub struct TargetAltitude {
 
 /// Target glide path to follow.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TargetGlide {
     /// Target waypoint to aim at.
     pub target_waypoint: WaypointRef,
@@ -158,6 +167,7 @@ pub struct TargetGlide {
 
 /// Target waypoint to fly towards.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TargetWaypoint {
     /// Name of target waypoint.
     pub waypoint: WaypointRef,
@@ -165,6 +175,7 @@ pub struct TargetWaypoint {
 
 /// Target path between two waypoints to align with.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TargetAlignment {
     /// Name of start waypoint.
     pub start_waypoint:   WaypointRef,
@@ -180,13 +191,15 @@ pub struct TargetAlignment {
 
 /// Higher-level ground control target.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GroundNavTarget {
     /// The current segment the object is taxiing on.
     pub segment: SegmentRef,
 }
 
 /// Target yaw change.
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.
     Heading(Heading),

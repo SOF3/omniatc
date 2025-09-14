@@ -48,6 +48,7 @@ pub use weighted::*;
 
 /// Root structure for a .osav file.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct File {
     /// Metadata about the file.
     pub meta:  Meta,

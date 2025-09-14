@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// References a runway, taxiway, or apron by label.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SegmentRef {
     /// Code of the aerodrome for the runway.
     pub aerodrome: AerodromeRef,
@@ -13,6 +14,7 @@ pub struct SegmentRef {
 
 /// Identifies a segment within an aerodrome.
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, strum::IntoStaticStr)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SegmentLabel {
     /// Name of the taxiway.
     Taxiway(String),
@@ -37,6 +39,7 @@ impl SegmentLabel {
 
 /// References a position.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum WaypointRef {
     /// A regular named waypoint.
     Named(NamedWaypointRef),
@@ -54,6 +57,7 @@ pub enum WaypointRef {
 ///
 /// This disallows referencing runway thresholds or localizer starts.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NamedWaypointRef(pub String);
 
 impl From<&str> for NamedWaypointRef {
@@ -62,6 +66,7 @@ impl From<&str> for NamedWaypointRef {
 
 /// References an aerodrome by name.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AerodromeRef(pub String);
 
 impl From<&str> for AerodromeRef {
@@ -70,6 +75,7 @@ impl From<&str> for AerodromeRef {
 
 /// References a runway.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunwayRef {
     /// Code of the aerodrome for the runway.
     pub aerodrome:   AerodromeRef,
@@ -81,6 +87,7 @@ macro_rules! newtype_str {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
         #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         pub struct $name(pub String);
 
         impl Borrow<str> for $name {

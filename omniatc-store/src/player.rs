@@ -4,6 +4,7 @@ use crate::Score;
 
 /// Game statistics.
 #[derive(Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Stats {
     /// Current score.
     pub score:          Score,

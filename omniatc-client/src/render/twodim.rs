@@ -36,7 +36,7 @@ pub struct Active(pub bool);
 ///
 /// The first item is the lowest layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumCount)]
-#[repr(u32)]
+#[repr(u16)]
 pub enum Zorder {
     Terrain,
     GroundSegmentCenterline,
@@ -60,8 +60,8 @@ pub enum Zorder {
 
 impl Zorder {
     #[expect(clippy::cast_precision_loss)] // the number of items is small
-    pub const fn into_z(self) -> f32 {
-        (self as u32 as f32) / (<Self as strum::EnumCount>::COUNT as f32)
+    pub fn into_z(self) -> f32 {
+        f32::from(self as u16) / (<Self as strum::EnumCount>::COUNT as f32) / 1024.0
     }
 
     pub fn local_translation(self) -> Transform {

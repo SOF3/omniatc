@@ -70,6 +70,7 @@ idb = "0.6.4"
 js-sys = "0.3.77"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2.100"
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 rusqlite = { version = "0.34.0", features = ["bundled"] }

@@ -13,6 +13,8 @@ jobs:
           target: "wasm32-unknown-unknown"
       - run: "wget -O - https://github.com/trunk-rs/trunk/releases/download/v0.21.5/trunk-x86_64-unknown-linux-gnu.tar.gz | tar xz"
       - run: "./trunk build --release=true"
+        env:
+          RUSTFLAGS: '--cfg getrandom_backend="wasm_js"'
       - uses: "actions/upload-artifact@v4"
         with:
           name: "wasm"

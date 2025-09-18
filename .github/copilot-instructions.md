@@ -72,23 +72,71 @@ cargo build --release -p omniatc-client     # ~10+ minutes, creates optimized bi
 - **`run_async<R>()` and `run_async_local<R>()`:** Async task execution with result handling via observer pattern
 - **`RateLimit` SystemParam:** Throttles system execution based on time intervals
 
+### Math Utilities (omniatc-math/src/units.rs)
+**Always use these for physical quantities and measurements:**
+
+- **`Quantity<T, Base, Dt, Pow>`:** Type-safe physical quantities with dimensional analysis
+- **`magnitude_cmp()`:** Compare magnitudes without explicit squaring - use instead of `.norm()` comparisons
+- **`magnitude_exact()`:** Get exact magnitude when needed (expensive operation)
+- **`horizontal()` / `vertical()`:** Extract 2D/vertical components from 3D vectors
+- **Unit constructors:** `Length::from_meters()`, `Speed::from_knots()`, `Position::from_feet()` etc.
+- **Unit converters:** `.into_meters()`, `.into_knots()`, `.into_feet()` etc.
+
 ### Client Utilities (omniatc-client/src/util/)
 **Reuse these for UI and rendering tasks:**
 
 - **`util/shapes.rs`:** Provides reusable mesh handles (`Meshes` resource) for squares, circles, and lines with thickness maintenance
-- **`util/billboard.rs`:** 
-  - `MaintainScale` component: Keeps entities same size regardless of camera zoom
-  - `MaintainRotation` component: Keeps entities same orientation regardless of camera rotation  
-  - `Label` component: Smart text positioning with real-world and screen-space offsets
-- **`util/anchor.rs`:** Configuration UI for `Anchor` enum with egui integration
 - **`util.rs`:** Cross-platform time utilities (`time_now()`) and directional helpers (`heading_to_approx_name()`)
 
 ### Utility Patterns to Follow
 - Use `try_log!` macro with these utilities for consistent error handling
 - Leverage enum-based system sets with the scheduling utilities
 - Prefer the async utilities over manual task management
-- Use the billboard components for consistent UI scaling and rotation
+- Use `magnitude_cmp()` instead of `.norm()` for magnitude comparisons
+- Use appropriate unit constructors (`from_meters`, `from_knots`) and converters
 - Reuse mesh handles from the shapes utility rather than creating new ones
+
+## Code Style Reference
+
+### Plugin Structure Pattern
+Follow this pattern for both core and client plugins:
+
+```rust
+pub struct Plug;
+
+impl Plugin for Plug {
+    fn build(&self, app: &mut App) {
+        // Configuration initialization
+        app.init_config::<ConfigManager, Conf>("section:name");
+        
+        // System registration with proper sets
+        app.add_systems(app::Update, system_name.in_set(SystemSets::Category));
+        app.add_systems(app::Update, other_system.after(dependency).in_set(SystemSets::Category));
+        
+        // Sub-plugin registration
+        app.add_plugins(submodule::Plug);
+        
+        // System set configuration
+        omniatc::util::configure_ordered_system_sets::<SetType>(app, app::Update);
+    }
+}
+```
+
+### Constants and Documentation
+- Use typed constants with unit constructors: `const SPEED: Speed<f32> = Speed::from_knots(1.);`
+- Document constants with their purpose and measurement context
+- Use doc comments (`///`) for public items, regular comments (`//`) for implementation details
+
+### Component and System Design
+- Use `#[derive(Component)]` with relationship attributes for entity hierarchies
+- System parameters: `Query`, `Res`, `ResMut`, custom `SystemParam` types
+- Use `QueryTryLog` and `try_log!` macro for error handling with logging
+- Structure systems with clear separation of concerns (spawn, update, maintain)
+
+### Import Organization  
+- Group imports: std, bevy (alphabetical), external crates, local modules
+- Use specific imports from bevy modules rather than glob imports
+- Import math utilities and use unit types consistently
 
 ## Project Architecture
 

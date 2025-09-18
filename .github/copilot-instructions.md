@@ -50,15 +50,45 @@ wget -O - https://github.com/trunk-rs/trunk/releases/download/v0.21.5/trunk-x86_
 ### Linting and Formatting
 ```bash
 cargo clippy                         # Runs clean, no warnings
-cargo fmt --check                    # May show formatting issues due to nightly features in rustfmt.toml
+cargo +nightly fmt --check          # Must use nightly for rustfmt.toml features
 ```
 
-**Note:** rustfmt.toml uses nightly-only features that will show warnings on stable Rust, but this is normal.
+**Note:** Always use `cargo +nightly fmt` for formatting. The rustfmt.toml uses nightly-only features. Binaries are built with stable/beta but formatting requires nightly.
 
 ### Release Builds
 ```bash
 cargo build --release -p omniatc-client     # ~10+ minutes, creates optimized binary
 ```
+
+## Utility Modules and Code Reuse
+
+### Core Utilities (omniatc-core/src/util.rs)
+**Always check and reuse these utilities before implementing similar functionality:**
+
+- **`TryLog<T>` trait:** For error handling with logging - converts `Option<T>` and `Result<T, E>` to `Option<T>` while logging errors
+- **`configure_ordered_system_sets<E>()`:** Sets up ordered system execution for enum-based SystemSets
+- **`EnumScheduleConfig` trait:** Provides `.after_all<E>()` and `.before_all<E>()` for scheduling systems relative to enum sets
+- **`manage_entity_vec<C, X, NB>()`:** Manages dynamic lists of entities with spawn/update/despawn logic
+- **`run_async<R>()` and `run_async_local<R>()`:** Async task execution with result handling via observer pattern
+- **`RateLimit` SystemParam:** Throttles system execution based on time intervals
+
+### Client Utilities (omniatc-client/src/util/)
+**Reuse these for UI and rendering tasks:**
+
+- **`util/shapes.rs`:** Provides reusable mesh handles (`Meshes` resource) for squares, circles, and lines with thickness maintenance
+- **`util/billboard.rs`:** 
+  - `MaintainScale` component: Keeps entities same size regardless of camera zoom
+  - `MaintainRotation` component: Keeps entities same orientation regardless of camera rotation  
+  - `Label` component: Smart text positioning with real-world and screen-space offsets
+- **`util/anchor.rs`:** Configuration UI for `Anchor` enum with egui integration
+- **`util.rs`:** Cross-platform time utilities (`time_now()`) and directional helpers (`heading_to_approx_name()`)
+
+### Utility Patterns to Follow
+- Use `try_log!` macro with these utilities for consistent error handling
+- Leverage enum-based system sets with the scheduling utilities
+- Prefer the async utilities over manual task management
+- Use the billboard components for consistent UI scaling and rotation
+- Reuse mesh handles from the shapes utility rather than creating new ones
 
 ## Project Architecture
 
@@ -103,13 +133,13 @@ The repository runs these checks on every push to master:
 cargo check --all-targets
 cargo test
 cargo clippy
-cargo fmt --check
+cargo +nightly fmt --check
 cargo run -p omniatc-maps build-assets
 cargo run -p omniatc-maps json-schema schema/schema.json.gz
 ```
 
 ### Known Build Issues and Workarounds
-- **Formatting:** rustfmt shows warnings about nightly features on stable Rust - this is expected
+- **Formatting:** Always use `cargo +nightly fmt` - nightly is required for rustfmt.toml features
 - **WASM Build:** Must use `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` and `--no-default-features`
 - **Assets:** Asset generation must complete before WASM builds
 - **Release Build:** Takes 10+ minutes due to heavy optimization

@@ -965,9 +965,9 @@ dependencies = [
 
 [[package]]
 name = "bevy_mod_config"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a537e9f364630b90c206bfdb7935fe363d58bc6746db230659c1ee2a3653558"
+checksum = "1350c5d1a353d08d8d325f3b9d9232ea17dd98862203ba888bbc4866220466a7"
 dependencies = [
  "bevy_app",
  "bevy_color",
@@ -3768,6 +3768,7 @@ dependencies = [
  "bevy_mod_config",
  "ciborium",
  "clap",
+ "derive_more 2.0.1",
  "dirs",
  "egui_extras",
  "either",

@@ -142,3 +142,27 @@ fn heading_is_between() {
         "south is not between -1 and 1 degrees"
     );
 }
+
+#[test]
+fn heading_closest_midpoint() {
+    assert_almost_eq(
+        Heading::from_degrees(90.0).closest_midpoint(Heading::from_degrees(92.0)),
+        Heading::from_degrees(91.0),
+        "forward",
+    );
+    assert_almost_eq(
+        Heading::from_degrees(90.0).closest_midpoint(Heading::from_degrees(88.0)),
+        Heading::from_degrees(89.0),
+        "backward",
+    );
+    assert_almost_eq(
+        Heading::from_degrees(-2.0).closest_midpoint(Heading::from_degrees(2.0)),
+        Heading::from_degrees(0.0),
+        "forward crossing",
+    );
+    assert_almost_eq(
+        Heading::from_degrees(2.0).closest_midpoint(Heading::from_degrees(-2.0)),
+        Heading::from_degrees(0.0),
+        "backward crossing",
+    );
+}

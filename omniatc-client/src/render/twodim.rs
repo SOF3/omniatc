@@ -39,10 +39,12 @@ pub struct Active(pub bool);
 #[repr(u16)]
 pub enum Zorder {
     Terrain,
+    GroundSegmentBackground,
     GroundSegmentCenterline,
     RunwayStrip,
     Localizer,
     LocalizerGlidePoint,
+    GroundSegmentLabel,
     ObjectTrack,
     WaypointSprite,
     WaypointLabel,
@@ -51,11 +53,11 @@ pub enum Zorder {
     ObjectSeparationRing,
     ObjectVector,
     ObjectLabel,
-    ScaleRuler,
-    ScaleRulerLabel,
     RoutePresetPreview,
     ObjectTrackPreview,
     PossibleGroundPathPreview,
+    ScaleRuler,
+    ScaleRulerLabel,
 }
 
 impl Zorder {

@@ -11,10 +11,7 @@ use smallvec::SmallVec;
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) {
-        app.add_event::<SegmentChangedEvent>();
-        app.add_event::<EndpointChangedEvent>();
-    }
+    fn build(&self, app: &mut App) { app.add_event::<ChangedEvent>(); }
 }
 
 /// The aerodrome owning a segment.
@@ -219,6 +216,12 @@ impl Hash for SegmentLabel {
     }
 }
 
+/// Marker component indicating that a segment's label should be displayed in the UI.
+///
+/// This is typically applied to the middle segment of a straight slice of a segment.
+#[derive(Component)]
+pub struct SegmentShouldDisplayLabel;
+
 /// The intersection between segments.
 #[derive(Component)]
 pub struct Endpoint {
@@ -228,9 +231,12 @@ pub struct Endpoint {
 }
 
 pub struct SpawnSegment {
-    pub segment: Segment,
-    pub label:   SegmentLabel,
+    pub segment:       Segment,
+    pub label:         SegmentLabel,
+    pub aerodrome:     Entity,
+    pub display_label: bool,
 }
+
 impl EntityCommand for SpawnSegment {
     fn apply(self, mut entity: EntityWorldMut) {
         let alpha_endpoint = self.segment.alpha;
@@ -256,11 +262,16 @@ impl EntityCommand for SpawnSegment {
             self.segment,
             Name::new(format!("GroundSegment {:?}", &self.label)),
             self.label,
+            SegmentOf(self.aerodrome),
         ));
+
+        if self.display_label {
+            entity.insert(SegmentShouldDisplayLabel);
+        }
 
         let entity_id = entity.id();
         entity.world_scope(|world| {
-            world.send_event(SegmentChangedEvent(entity_id));
+            world.send_event(ChangedEvent { aerodrome: self.aerodrome });
 
             for endpoint in [alpha_endpoint, beta_endpoint] {
                 world
@@ -268,7 +279,6 @@ impl EntityCommand for SpawnSegment {
                     .expect("invalid endpoint reference in spawned segment")
                     .adjacency
                     .push(entity_id);
-                world.send_event(EndpointChangedEvent(endpoint));
 
                 bevy::log::trace!("Segment {entity_id:?} contains endpoint {endpoint:?}");
             }
@@ -277,23 +287,23 @@ impl EntityCommand for SpawnSegment {
 }
 
 pub struct SpawnEndpoint {
-    pub position: Position<Vec2>,
+    pub position:  Position<Vec2>,
+    pub aerodrome: Entity,
 }
+
 impl EntityCommand for SpawnEndpoint {
     fn apply(self, mut entity: EntityWorldMut) {
         entity.insert((
             Endpoint { position: self.position, adjacency: SmallVec::new() },
             Name::new("GroundEndpoint"),
+            EndpointOf(self.aerodrome),
         ));
-        let entity_id = entity.id();
-        entity.world_scope(|world| world.send_event(EndpointChangedEvent(entity_id)));
+        entity.world_scope(|world| world.send_event(ChangedEvent { aerodrome: self.aerodrome }));
     }
 }
 
-/// Dispatched after a segment is spawned or updated.
+/// Dispatched after an aerodrome endpoint/segment is spawned or updated.
 #[derive(Event)]
-pub struct SegmentChangedEvent(pub Entity);
-
-/// Dispatched after an endpoint is spawned or updated.
-#[derive(Event)]
-pub struct EndpointChangedEvent(pub Entity);
+pub struct ChangedEvent {
+    pub aerodrome: Entity,
+}

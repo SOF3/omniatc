@@ -56,7 +56,10 @@ fn prepare_world(world: &mut World) -> Prepared {
     ] {
         *id = commands
             .spawn_empty()
-            .queue(ground::SpawnEndpoint { position: Position::from_origin_nm(x, y) })
+            .queue(ground::SpawnEndpoint {
+                position:  Position::from_origin_nm(x, y),
+                aerodrome: Entity::PLACEHOLDER,
+            })
             .id();
     }
 
@@ -81,8 +84,16 @@ fn prepare_world(world: &mut World) -> Prepared {
         *id = commands
             .spawn_empty()
             .queue(ground::SpawnSegment {
-                segment: ground::Segment { alpha, beta, width, max_speed, elevation: ELEVATION },
-                label:   ground::SegmentLabel::Taxiway { name: name.into() },
+                segment:       ground::Segment {
+                    alpha,
+                    beta,
+                    width,
+                    max_speed,
+                    elevation: ELEVATION,
+                },
+                label:         ground::SegmentLabel::Taxiway { name: name.into() },
+                aerodrome:     Entity::PLACEHOLDER,
+                display_label: false,
             })
             .id();
     }

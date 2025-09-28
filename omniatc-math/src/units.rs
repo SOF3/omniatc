@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use std::time::Duration;
 use std::{cmp, fmt, iter, ops};
 
-use bevy_math::{Dir2, Dir3, NormedVectorSpace, Vec2, Vec3, Vec3Swizzles, VectorSpace};
+use bevy_math::{
+    Dir2, Dir3, InvalidDirectionError, NormedVectorSpace, Vec2, Vec3, Vec3Swizzles, VectorSpace,
+};
 use ordered_float::OrderedFloat;
 
 use crate::Sign;
@@ -651,8 +653,17 @@ where
         Quantity(Vec3::new(self.0.x, self.0.y, vertical.0), PhantomData)
     }
 
+    /// Returns the direction of the receiver.
+    ///
+    /// May return a non-finite value if the receiver is zero.
     #[must_use]
     pub fn heading(self) -> Heading { Heading::from_vec2(self.0) }
+
+    /// Normalizes the receiver to a unit direction.
+    ///
+    /// # Errors
+    /// If the receiver is zero or very small.
+    pub fn dir(self) -> Result<Dir2, InvalidDirectionError> { Dir2::new(self.0) }
 
     #[must_use]
     pub fn normalize_to_magnitude(self, magnitude: Quantity<f32, LengthBase, Dt, Pow>) -> Self {

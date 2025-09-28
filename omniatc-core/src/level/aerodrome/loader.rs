@@ -509,12 +509,13 @@ fn find_ground_intersects(lines: &[GroundLine]) -> Result<Vec<IntersectGroup>, l
 }
 
 struct GroundSegment {
-    alpha: GroundSegmentEndpoint,
-    beta:  GroundSegmentEndpoint,
-    line:  sweep::LineIndex,
+    alpha:         GroundSegmentEndpoint,
+    beta:          GroundSegmentEndpoint,
+    line:          sweep::LineIndex,
+    display_label: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct GroundSegmentEndpoint {
     position: Position<Vec2>,
     group:    Option<usize>,
@@ -550,20 +551,46 @@ fn ground_lines_to_segments(
             .is_none_or(|&(_, group)| group.position.distance_cmp(line.beta) > GROUND_EPSILON)
             .then_some(GroundSegmentEndpoint { position: line.beta, group: None });
 
-        segments.extend(
-            alpha_endpoint
-                .into_iter()
-                .chain(intersects.iter().map(|&(_, group)| GroundSegmentEndpoint {
-                    position: group.position,
-                    group:    Some(group.index),
-                }))
-                .chain(beta_endpoint)
-                .tuple_windows()
-                .map(|(alpha, beta)| GroundSegment { alpha, beta, line: line_index }),
-        );
+        let endpoint_pairs = alpha_endpoint
+            .into_iter()
+            .chain(intersects.iter().map(|&(_, group)| GroundSegmentEndpoint {
+                position: group.position,
+                group:    Some(group.index),
+            }))
+            .chain(beta_endpoint)
+            .tuple_windows();
+
+        let display_index = line_strip_midpoint_index(
+            endpoint_pairs
+                .clone()
+                .map(|(alpha, beta)| alpha.position.distance_exact(beta.position)),
+        )
+        .unwrap_or(intersects.len() + 1); // chain(alpha, intersects, beta).tuple_windows()
+
+        segments.extend(endpoint_pairs.enumerate().map(|(index, (alpha, beta))| GroundSegment {
+            alpha,
+            beta,
+            line: line_index,
+            display_label: index == display_index,
+        }));
     }
 
     segments
+}
+
+fn line_strip_midpoint_index(
+    endpoint_pairs: impl Iterator<Item = Length<f32>> + Clone,
+) -> Option<usize> {
+    // I could have summed from both ends until the two iterators meet in the middle,
+    // but that is more complex and usually not worth optimizing
+    // given the expected small number of segments per line.
+
+    let total_length: Length<f32> = endpoint_pairs.clone().sum();
+    let mut prefix_sum = endpoint_pairs.scan(Length::ZERO, |sum, length| {
+        *sum += length;
+        Some(*sum)
+    });
+    prefix_sum.position(|sum| sum * 2.0 >= total_length)
 }
 
 pub type SpawnedSegments = HashMap<ground::SegmentLabel, Vec<SpawnedSegment>>;
@@ -591,8 +618,9 @@ fn spawn_ground_segments(
     let endpoints: Vec<_> = intersect_groups
         .iter()
         .map(|group| {
-            let entity = world.spawn_empty().insert(ground::EndpointOf(aerodrome_entity)).id();
-            ground::SpawnEndpoint { position: group.position }.apply(world.entity_mut(entity));
+            let entity = world.spawn_empty().id();
+            ground::SpawnEndpoint { position: group.position, aerodrome: aerodrome_entity }
+                .apply(world.entity_mut(entity));
             entity
         })
         .collect();
@@ -605,24 +633,26 @@ fn spawn_ground_segments(
                 endpoints[index]
             } else {
                 // spawn a non-intersecting endpoint only used in this segment
-                let entity = world.spawn_empty().insert(ground::EndpointOf(aerodrome_entity)).id();
-                ground::SpawnEndpoint { position: endpoint.position }
+                let entity = world.spawn_empty().id();
+                ground::SpawnEndpoint { position: endpoint.position, aerodrome: aerodrome_entity }
                     .apply(world.entity_mut(entity));
                 entity
             }
         });
 
-        let segment_entity = world.spawn_empty().insert(ground::SegmentOf(aerodrome_entity)).id();
+        let segment_entity = world.spawn_empty().id();
         let &GroundLine { ref label, width, max_speed, .. } = &lines[segment.line.0];
         ground::SpawnSegment {
-            segment: ground::Segment {
+            segment:       ground::Segment {
                 alpha: alpha_endpoint,
                 beta: beta_endpoint,
                 width,
                 max_speed,
                 elevation,
             },
-            label:   label.clone(),
+            label:         label.clone(),
+            aerodrome:     aerodrome_entity,
+            display_label: segment.display_label,
         }
         .apply(world.entity_mut(segment_entity));
 

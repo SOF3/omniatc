@@ -51,7 +51,14 @@ pub trait QueryExtSuper {
 pub trait QueryExt: QueryExtSuper {
     fn log_get(&self, entity: Entity) -> Option<Self::Read<'_>>;
 
+    fn log_get_many<const N: usize>(&self, entity: [Entity; N]) -> Option<[Self::Read<'_>; N]>;
+
     fn log_get_mut(&mut self, entity: Entity) -> Option<Self::Write<'_>>;
+
+    fn log_get_many_mut<const N: usize>(
+        &mut self,
+        entity: [Entity; N],
+    ) -> Option<[Self::Write<'_>; N]>;
 }
 
 impl<D, F> QueryExtSuper for Query<'_, '_, D, F>
@@ -72,7 +79,20 @@ where
         match self.get(entity) {
             Ok(value) => Some(value),
             Err(err) => {
-                bevy::log::error!("Expected {entity:?} to match query: {err}");
+                bevy::log::error!("Expected {entity:?} to match query {}: {err}", type_name::<D>());
+                None
+            }
+        }
+    }
+
+    fn log_get_many<const N: usize>(
+        &self,
+        entity: [Entity; N],
+    ) -> Option<[<D::ReadOnly as QueryData>::Item<'_>; N]> {
+        match self.get_many(entity) {
+            Ok(value) => Some(value),
+            Err(err) => {
+                bevy::log::error!("Expected {entity:?} to match query {}: {err}", type_name::<D>());
                 None
             }
         }
@@ -82,7 +102,20 @@ where
         match self.get_mut(entity) {
             Ok(value) => Some(value),
             Err(err) => {
-                bevy::log::error!("Expected {entity:?} to match query: {err}");
+                bevy::log::error!("Expected {entity:?} to match query {}: {err}", type_name::<D>());
+                None
+            }
+        }
+    }
+
+    fn log_get_many_mut<const N: usize>(
+        &mut self,
+        entity: [Entity; N],
+    ) -> Option<[D::Item<'_>; N]> {
+        match self.get_many_mut(entity) {
+            Ok(value) => Some(value),
+            Err(err) => {
+                bevy::log::error!("Expected {entity:?} to match query {}: {err}", type_name::<D>());
                 None
             }
         }

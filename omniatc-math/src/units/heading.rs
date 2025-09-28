@@ -1,4 +1,4 @@
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use std::hash::Hash;
 use std::{fmt, ops};
 
@@ -27,7 +27,18 @@ impl Heading {
     /// Heading west.
     pub const WEST: Self = Self(Angle::new(FRAC_PI_2 * 3.));
 
+    /// Heading northeast.
+    pub const NORTHEAST: Self = Self(Angle::new(FRAC_PI_4));
+    /// Heading southeast.
+    pub const SOUTHEAST: Self = Self(Angle::new(FRAC_PI_2 + FRAC_PI_4));
+    /// Heading southwest.
+    pub const SOUTHWEST: Self = Self(Angle::new(PI + FRAC_PI_4));
+    /// Heading northwest.
+    pub const NORTHWEST: Self = Self(Angle::new(PI + FRAC_PI_2 + FRAC_PI_4));
+
     /// Returns the heading of the vector.
+    ///
+    /// Returns a NaN heading if and only if the argument is zero or contains NaN components.
     #[must_use]
     pub fn from_vec2(vec: Vec2) -> Self { Self(Angle::new(vec.x.atan2(vec.y))) }
 
@@ -193,6 +204,14 @@ impl Heading {
     #[must_use]
     pub fn restricted_turn(self, desired: Heading, max_turn: Angle) -> Self {
         self + self.closest_distance(desired).clamp(-max_turn, max_turn)
+    }
+
+    /// Returns the midpoint of the non-reflex angle between the receiver and `other`.
+    ///
+    /// The result may be in either direction if `self + Angle::STRAIGHT == other`.
+    #[must_use]
+    pub fn closest_midpoint(self, other: Heading) -> Heading {
+        self + self.closest_distance(other) * 0.5
     }
 }
 

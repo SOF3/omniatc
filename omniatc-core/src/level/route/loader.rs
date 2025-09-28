@@ -19,10 +19,7 @@ impl RoutePresetMap {
     /// # Errors
     /// If the route preset name does not exist.
     pub fn resolve(&self, name: &store::RoutePresetRef) -> Result<Entity, load::Error> {
-        self.0
-            .get(name)
-            .copied()
-            .ok_or_else(|| load::Error::UnresolvedRoutePreset(name.0.to_string()))
+        self.0.get(name).copied().ok_or_else(|| load::Error::UnresolvedRoutePreset(name.0.clone()))
     }
 }
 

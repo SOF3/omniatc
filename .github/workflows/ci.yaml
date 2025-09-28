@@ -1,0 +1,32 @@
+name: "CI"
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+    branches:
+      - "master"
+jobs:
+  fmt:
+    name: "Check code formatting"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "dtolnay/rust-toolchain@nightly"
+        with:
+          components: "rustfmt"
+      - run: "cargo fmt --all -- --check"
+  lint:
+    name: "Clippy lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "dtolnay/rust-toolchain@clippy"
+      - run: "cargo clippy --all --tests -F precommit-checks"
+  test:
+    name: "Run tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "dtolnay/rust-toolchain@stable"
+      - run: "cargo test --all"

@@ -28,9 +28,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Speed" }
 
-    fn should_show(_this: &Self::Item<'_>) -> bool { true }
+    fn should_show(_this: &Self::Item<'_, '_>) -> bool { true }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         ui.label(format!(
             "Current ground: {:.0} kt",
             this.object.ground_speed.magnitude_exact().into_knots()
@@ -64,7 +64,7 @@ impl Writer for ObjectQuery {
 
                 #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
                 if target_knots != slider_knots {
-                    params.commands.send_event(comm::InstructionEvent {
+                    params.commands.write_message(comm::InstructionMessage {
                         object: this.entity,
                         body:   comm::SetSpeed { target: Speed::from_knots(slider_knots) }.into(),
                     });

@@ -22,7 +22,7 @@ use std::time::Duration;
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::{Event, EventWriter};
+use bevy::ecs::message::{Message, MessageWriter};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
@@ -52,7 +52,7 @@ where
     fn build(&self, app: &mut App) {
         app.init_config::<M, Conf>("core:wake");
         app.init_resource::<VortexIndex>();
-        app.add_event::<SpawnEvent>();
+        app.add_message::<SpawnMessage>();
         app.add_systems(app::Update, dissipate_vortex_system.in_set(SystemSets::PrepareEnviron));
         app.add_systems(
             app::Update,
@@ -253,7 +253,7 @@ fn spawn_vortex_system(
     conf: ReadConfig<Conf>,
     mut index: ResMut<VortexIndex>,
     aircraft_query: Query<(Entity, &object::Object, &object::Airborne, &Producer)>,
-    mut spawn_event_writer: EventWriter<SpawnEvent>,
+    mut spawn_msg_writer: MessageWriter<SpawnMessage>,
 ) {
     let conf = conf.read();
 
@@ -277,9 +277,9 @@ fn spawn_vortex_system(
             ))
             .id();
         index.insert(object.position, vortex);
-        spawn_events.push(SpawnEvent(vortex));
+        spawn_events.push(SpawnMessage(vortex));
     }
-    spawn_event_writer.write_batch(spawn_events);
+    spawn_msg_writer.write_batch(spawn_events);
 }
 
 /// A component on [objects](object) to indicate that it needs to know how much *external* wake it
@@ -310,5 +310,5 @@ fn detect_vortex_system(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct DetectorReaderSystemSet;
 
-#[derive(Event)]
-pub struct SpawnEvent(pub Entity);
+#[derive(Message)]
+pub struct SpawnMessage(pub Entity);

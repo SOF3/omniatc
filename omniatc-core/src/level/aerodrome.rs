@@ -1,5 +1,7 @@
 use bevy::app::{App, Plugin};
-use bevy::prelude::{Component, Entity, Event};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Message;
 use math::Position;
 
 pub mod loader;
@@ -7,7 +9,7 @@ pub mod loader;
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) { app.add_event::<SpawnEvent>(); }
+    fn build(&self, app: &mut App) { app.add_message::<SpawnMessage>(); }
 }
 
 /// Display metadata of an aerodrome.
@@ -23,5 +25,5 @@ pub struct Aerodrome {
     pub elevation: Position<f32>,
 }
 
-#[derive(Event)]
-pub struct SpawnEvent(pub Entity);
+#[derive(Message)]
+pub struct SpawnMessage(pub Entity);

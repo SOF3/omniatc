@@ -7,8 +7,8 @@ use bevy::app::{self, App, Plugin};
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::Event;
-use bevy::ecs::observer::Trigger;
+use bevy::ecs::event::EntityEvent;
+use bevy::ecs::observer;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::graph::GraphInfo;
@@ -164,7 +164,10 @@ impl<R: Send + Sync + 'static> RunAsync<R> {
         poll_list.0.push(Box::new(move |commands| {
             match tasks::block_on(tasks::poll_once(&mut task)) {
                 Some(result) => {
-                    commands.entity(handler).trigger(AsyncResultTrigger(Some(result))).despawn();
+                    commands
+                        .entity(handler)
+                        .trigger(move |entity| AsyncResultTrigger(entity, Some(result)))
+                        .despawn();
                     AsyncPollResult::Done
                 }
                 _ => AsyncPollResult::Pending,
@@ -180,18 +183,18 @@ enum AsyncPollResult {
 }
 
 /// Wraps the result of a [`run_async`] task.
-#[derive(Event)]
-pub struct AsyncResultTrigger<R>(Option<R>);
+#[derive(EntityEvent)]
+pub struct AsyncResultTrigger<R>(#[event_target] Entity, Option<R>);
 
 impl<R> AsyncResultTrigger<R> {
     /// # Panics
     /// Panics if called more than once.
     pub fn get(&mut self) -> R {
-        self.0.take().expect("AsyncResult.get() should only be called once")
+        self.1.take().expect("AsyncResult.get() should only be called once")
     }
 }
 
-pub type AsyncResult<'w, R> = Trigger<'w, AsyncResultTrigger<R>>;
+pub type AsyncResult<'w, 't, R> = observer::On<'w, 't, AsyncResultTrigger<R>>;
 
 #[derive(Resource, Default)]
 pub struct AsyncPollList(Vec<AsyncPoll>);

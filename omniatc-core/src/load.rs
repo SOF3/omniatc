@@ -4,8 +4,11 @@ use std::io;
 
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::prelude::{Command as BevyCommand, Entity, With, World};
+use bevy::ecs::system::Command as BevyCommand;
+use bevy::ecs::world::World;
 use math::sweep;
 
 use crate::level::route::{self};

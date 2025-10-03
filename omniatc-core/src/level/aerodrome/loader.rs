@@ -47,7 +47,7 @@ pub fn spawn(
                     },
                 ))
                 .id();
-            world.send_event(aerodrome::SpawnEvent(aerodrome_entity));
+            world.write_message(aerodrome::SpawnMessage(aerodrome_entity));
 
             let mut runway_entities = HashMap::new();
             for runway_pair in &aerodrome.runways {

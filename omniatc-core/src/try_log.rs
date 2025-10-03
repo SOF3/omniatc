@@ -61,21 +61,21 @@ pub trait QueryExt: QueryExtSuper {
     ) -> Option<[Self::Write<'_>; N]>;
 }
 
-impl<D, F> QueryExtSuper for Query<'_, '_, D, F>
+impl<'s, D, F> QueryExtSuper for Query<'_, 's, D, F>
 where
     D: QueryData,
     F: QueryFilter,
 {
-    type Read<'a> = <D::ReadOnly as QueryData>::Item<'a>;
-    type Write<'a> = D::Item<'a>;
+    type Read<'a> = <D::ReadOnly as QueryData>::Item<'a, 's>;
+    type Write<'a> = D::Item<'a, 's>;
 }
 
-impl<D, F> QueryExt for Query<'_, '_, D, F>
+impl<'s, D, F> QueryExt for Query<'_, 's, D, F>
 where
     D: QueryData,
     F: QueryFilter,
 {
-    fn log_get(&self, entity: Entity) -> Option<<D::ReadOnly as QueryData>::Item<'_>> {
+    fn log_get(&self, entity: Entity) -> Option<<D::ReadOnly as QueryData>::Item<'_, 's>> {
         match self.get(entity) {
             Ok(value) => Some(value),
             Err(err) => {
@@ -88,7 +88,7 @@ where
     fn log_get_many<const N: usize>(
         &self,
         entity: [Entity; N],
-    ) -> Option<[<D::ReadOnly as QueryData>::Item<'_>; N]> {
+    ) -> Option<[<D::ReadOnly as QueryData>::Item<'_, 's>; N]> {
         match self.get_many(entity) {
             Ok(value) => Some(value),
             Err(err) => {
@@ -98,7 +98,7 @@ where
         }
     }
 
-    fn log_get_mut(&mut self, entity: Entity) -> Option<D::Item<'_>> {
+    fn log_get_mut(&mut self, entity: Entity) -> Option<D::Item<'_, 's>> {
         match self.get_mut(entity) {
             Ok(value) => Some(value),
             Err(err) => {
@@ -111,7 +111,7 @@ where
     fn log_get_many_mut<const N: usize>(
         &mut self,
         entity: [Entity; N],
-    ) -> Option<[D::Item<'_>; N]> {
+    ) -> Option<[D::Item<'_, 's>; N]> {
         match self.get_many_mut(entity) {
             Ok(value) => Some(value),
             Err(err) => {

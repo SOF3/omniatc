@@ -5,13 +5,12 @@ use bevy::asset::Assets;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single, SystemParam};
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, SystemParam};
 use bevy::math::Vec2;
-use bevy::sprite::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
-use bevy::transform::components::GlobalTransform;
+use bevy::sprite_render::{AlphaMode2d, ColorMaterial, MeshMaterial2d};
 use bevy_mod_config::{self, AppExt, Config, ReadConfig};
 use itertools::Itertools;
 use math::Length;
@@ -20,8 +19,7 @@ use omniatc::{QueryTryLog, try_log};
 use smallvec::SmallVec;
 
 use super::Zorder;
-use crate::render::twodim::camera;
-use crate::util::shapes;
+use crate::util::{ActiveCamera2d, shapes};
 use crate::{ConfigManager, render};
 
 pub struct Plug;
@@ -44,7 +42,7 @@ struct IsSpriteOf(Entity);
 struct HasSprite(SmallVec<[Entity; 4]>);
 
 fn spawn_system(
-    mut events: EventReader<wake::SpawnEvent>,
+    mut spawns: MessageReader<wake::SpawnMessage>,
     conf: ReadConfig<Conf>,
     mut last_display: Local<bool>,
     mut params: SpawnVortexParams,
@@ -65,7 +63,7 @@ fn spawn_system(
             }
         }
         (true, true) => {
-            for &wake::SpawnEvent(vortex_entity) in events.read() {
+            for &wake::SpawnMessage(vortex_entity) in spawns.read() {
                 let (_, vortex) = vortex_query.get(vortex_entity).expect("vortex was just spawned");
                 spawn_vortex(vortex_entity, vortex, &mut params);
             }
@@ -80,7 +78,7 @@ struct SpawnVortexParams<'w, 's> {
     meshes:    Res<'w, shapes::Meshes>,
     conf:      ReadConfig<'w, 's, Conf>,
     materials: ResMut<'w, Assets<ColorMaterial>>,
-    camera:    Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    camera:    ActiveCamera2d<'w, 's>,
 }
 
 fn spawn_vortex(vortex_entity: Entity, vortex: &wake::Vortex, params: &mut SpawnVortexParams) {

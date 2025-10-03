@@ -9,7 +9,7 @@ use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use bevy::sprite_render::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
 use bevy_mod_config::{Config, ReadConfig};
 use math::Length;

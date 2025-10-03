@@ -2,18 +2,18 @@ use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
-use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, ResMut, Single};
+use bevy::ecs::system::{Query, ResMut};
 use bevy::math::Vec2;
 use bevy::math::primitives::{Circle, Rectangle};
-use bevy::render::mesh::{Mesh, Mesh2d};
-use bevy::transform::components::{GlobalTransform, Transform};
+use bevy::mesh::{Mesh, Mesh2d};
+use bevy::transform::components::Transform;
 use math::{Length, Position};
 
 use crate::render::twodim::Zorder;
-use crate::render::{self, twodim};
+use crate::render::{self};
+use crate::util::ActiveCamera2d;
 
 pub struct Plug;
 
@@ -55,11 +55,11 @@ impl Meshes {
         zorder: Zorder,
         from: Position<Vec2>,
         to: Position<Vec2>,
-        camera: &GlobalTransform,
+        camera: &ActiveCamera2d,
     ) -> impl Bundle {
         let mut tf = square_line_transform(zorder);
         set_square_line_transform_relative(&mut tf, from.0, to.0);
-        tf.scale.x = thickness * camera.scale().y;
+        tf.scale.x = camera.scale() * thickness;
         (Mesh2d(self.square().clone()), tf, MaintainThickness(thickness))
     }
 }
@@ -96,9 +96,9 @@ pub struct MaintainThickness(pub f32);
 
 fn maintain_thickness_system(
     mut query: Query<(&MaintainThickness, &mut Transform)>,
-    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
+    camera: ActiveCamera2d,
 ) {
     query.iter_mut().for_each(|(thickness, mut tf)| {
-        tf.scale.x = thickness.0 * camera.scale().y;
+        tf.scale.x = camera.scale() * thickness.0;
     });
 }

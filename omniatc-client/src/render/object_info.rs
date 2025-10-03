@@ -1,6 +1,6 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -39,7 +39,7 @@ impl Plugin for Plug {
 }
 
 fn cleanup_despawned_selected_object_system(
-    mut despawn_events: EventReader<object::DespawnEvent>,
+    mut despawn_events: MessageReader<object::DespawnMessage>,
     mut current_object: ResMut<CurrentObject>,
     mut current_hovered_object: ResMut<CurrentHoveredObject>,
 ) {
@@ -104,9 +104,9 @@ trait Writer: QueryData {
 
     fn default_open() -> bool { true }
 
-    fn should_show(this: &Self::Item<'_>) -> bool;
+    fn should_show(this: &Self::Item<'_, '_>) -> bool;
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, param: &mut Self::SystemParams<'_, '_>);
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, param: &mut Self::SystemParams<'_, '_>);
 }
 
 macro_rules! writer_def {

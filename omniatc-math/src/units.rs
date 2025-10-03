@@ -66,7 +66,7 @@ impl<T, Base, Dt, Pow> QuantityTrait for Quantity<T, Base, Dt, Pow> {
 
 impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow>
 where
-    T: VectorSpace,
+    T: VectorSpace<Scalar = f32>,
 {
     pub const ZERO: Self = Self(T::ZERO, PhantomData);
 
@@ -364,7 +364,7 @@ pub type PowTwo = PowPlusOne<PowOne>;
 
 impl<T, Dt, Pow> Quantity<T, LengthBase, Dt, Pow>
 where
-    T: NormedVectorSpace,
+    T: NormedVectorSpace<Scalar = f32>,
     Dt: DtTrait,
     Pow: PowTrait,
 {

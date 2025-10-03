@@ -1,10 +1,10 @@
 use std::mem;
 
 use bevy::app::{self, App, Plugin};
+use bevy::camera::Camera2d;
 use bevy::color::Color;
-use bevy::core_pipeline::core_2d::Camera2d;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventWriter;
+use bevy::ecs::message::MessageWriter;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
@@ -305,7 +305,7 @@ impl SetNavTargetParams<'_, '_> {
 
 #[derive(SystemParam)]
 struct ProposeParams<'w, 's> {
-    instr_writer:     EventWriter<'w, comm::InstructionEvent>,
+    instr_writer:     MessageWriter<'w, comm::InstructionMessage>,
     commands:         Commands<'w, 's>,
     margins:          Res<'w, EguiUsedMargins>,
     buttons:          Res<'w, ButtonInput<KeyCode>>,
@@ -325,7 +325,7 @@ impl ProposeParams<'_, '_> {
         SetRoute { commit, append: _ }: SetRoute,
     ) {
         if commit {
-            self.instr_writer.write(comm::InstructionEvent {
+            self.instr_writer.write(comm::InstructionMessage {
                 object,
                 body: comm::SetWaypoint { waypoint }.into(),
             });
@@ -372,8 +372,10 @@ impl ProposeParams<'_, '_> {
         }
 
         if commit {
-            self.instr_writer
-                .write(comm::InstructionEvent { object, body: comm::SetHeading { target }.into() });
+            self.instr_writer.write(comm::InstructionMessage {
+                object,
+                body: comm::SetHeading { target }.into(),
+            });
         } else {
             let target_override_value = preview::AirborneTargetOverride {
                 target: preview::AirborneTarget::Yaw(target),
@@ -413,9 +415,9 @@ impl ProposeParams<'_, '_> {
         if commit {
             if !append {
                 self.instr_writer
-                    .write(comm::InstructionEvent { object, body: comm::ClearRoute.into() });
+                    .write(comm::InstructionMessage { object, body: comm::ClearRoute.into() });
             }
-            self.instr_writer.write(comm::InstructionEvent {
+            self.instr_writer.write(comm::InstructionMessage {
                 object,
                 body: comm::AppendSegment {
                     segment:    segment_label.clone(),

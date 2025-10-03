@@ -1,6 +1,7 @@
 use std::cmp;
 
 use bevy::app::{App, Plugin};
+use bevy::camera::Camera;
 use bevy::diagnostic::{
     Diagnostic, DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin,
 };
@@ -11,7 +12,6 @@ use bevy::ecs::system::{Local, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
-use bevy::render::camera::Camera;
 use bevy::time::{self, Time};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};

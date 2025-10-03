@@ -4,11 +4,12 @@ use std::time::Duration;
 use std::{mem, ops};
 
 use bevy::app::{self, App, Plugin};
-use bevy::ecs::event::EventWriter;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::{Message, MessageWriter};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity, Event};
 use math::{CanSqrt, Heading, Length, Position, TurnDirection};
 
 use super::SystemSets;
@@ -21,7 +22,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_event::<UsageChangeEvent>();
+        app.add_message::<UsageChangeMessage>();
         app.add_systems(app::Update, maintain_usages_system.in_set(SystemSets::ReconcileForRead));
     }
 }
@@ -151,8 +152,8 @@ pub struct Visual {
 pub struct LandingAid; // TODO add system to control min range subject to interference
 
 /// When a navaid connection is lost.
-#[derive(Event)]
-pub struct UsageChangeEvent {
+#[derive(Message)]
+pub struct UsageChangeMessage {
     pub object: Entity,
 }
 
@@ -167,7 +168,7 @@ fn maintain_usages_system(
     object_query: Query<(Entity, &Object, &mut ObjectUsageList)>,
     navaid_query: Query<(Entity, &OwnerWaypoint, &Navaid)>,
     waypoint_query: Query<&Waypoint>,
-    mut usage_change_event_writer: EventWriter<UsageChangeEvent>,
+    mut usage_change_msg_writer: MessageWriter<UsageChangeMessage>,
 ) {
     if rl.should_run(MAINTAIN_USAGE_PERIOD).is_none() {
         return;
@@ -191,7 +192,7 @@ fn maintain_usages_system(
 
         used.0.sort();
         if used.0 != prev {
-            usage_change_event_writer.write(UsageChangeEvent { object: object_id });
+            usage_change_msg_writer.write(UsageChangeMessage { object: object_id });
         }
     }
 }

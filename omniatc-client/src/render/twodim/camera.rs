@@ -1,18 +1,17 @@
 use std::cmp;
 
 use bevy::app::{self, App, Plugin};
-use bevy::core_pipeline::core_2d::Camera2d;
+use bevy::camera::visibility::RenderLayers;
+use bevy::camera::{Camera, Camera2d, Viewport};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
 use bevy::input::ButtonInput;
 use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
-use bevy::render::camera::{Camera, Viewport};
-use bevy::render::view::RenderLayers;
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
 use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
@@ -190,7 +189,7 @@ struct DraggingState {
 #[expect(clippy::too_many_arguments)]
 fn drag_camera_system(
     buttons: Res<ButtonInput<MouseButton>>,
-    mut motion_events: EventReader<MouseMotion>,
+    mut motion_events: MessageReader<MouseMotion>,
     mut dragging_camera: Local<Option<DraggingState>>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     window: Option<Single<&Window>>,
@@ -264,7 +263,7 @@ fn drag_camera_system(
 }
 
 fn scroll_zoom_system(
-    mut wheel_events: EventReader<MouseWheel>,
+    mut wheel_events: MessageReader<MouseWheel>,
     current_cursor_camera: Res<input::CurrentCursorCamera>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
     conf: ReadConfig<Conf>,

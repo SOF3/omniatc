@@ -1,7 +1,12 @@
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Message;
+use bevy::ecs::query::Without;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{EntityCommand, Query};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Without};
 use math::{Angle, Length, Position};
 use smallvec::SmallVec;
 
@@ -14,7 +19,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_event::<SpawnEvent>();
+        app.add_message::<SpawnMessage>();
         app.add_systems(
             app::Update,
             maintain_localizer_waypoint_system.in_set(SystemSets::PrepareEnviron),
@@ -96,13 +101,13 @@ impl EntityCommand for SpawnCommand {
         });
 
         entity.insert((self.runway, Condition { friction_factor: 1. }, RunwayOf(self.aerodrome)));
-        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
+        entity.world_scope(|world| world.write_message(SpawnMessage(entity_id)));
     }
 }
 
 /// Sent when a runway entity is spawned.
-#[derive(Event)]
-pub struct SpawnEvent(pub Entity);
+#[derive(Message)]
+pub struct SpawnMessage(pub Entity);
 
 /// Marks that a waypoint entity should translate along the extended approach centerline
 /// such that the segment between the waypoint and the runway

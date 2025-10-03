@@ -1,5 +1,5 @@
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventWriter;
+use bevy::ecs::message::MessageWriter;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy_egui::egui;
@@ -24,7 +24,7 @@ pub struct ObjectQuery {
 #[derive(SystemParam)]
 pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    instr_writer:   EventWriter<'w, comm::InstructionEvent>,
+    instr_writer:   MessageWriter<'w, comm::InstructionMessage>,
     hotkeys:        Res<'w, input::Hotkeys>,
 }
 
@@ -33,9 +33,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Altitude" }
 
-    fn should_show(this: &Self::Item<'_>) -> bool { this.airborne.is_some() }
+    fn should_show(this: &Self::Item<'_, '_>) -> bool { this.airborne.is_some() }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         ui.label(format!("Current: {:.0} ft", this.object.position.altitude().amsl().into_feet()));
         if let Some(airborne) = this.airborne {
             ui.label(format!("Vert rate: {:+.0} fpm", airborne.airspeed.vertical().into_fpm()));
@@ -81,7 +81,7 @@ impl Writer for ObjectQuery {
             if slider_alt != initial_alt
                 || (this.target_alt.is_some() && expedite != checkbox_expedite)
             {
-                params.instr_writer.write(comm::InstructionEvent {
+                params.instr_writer.write(comm::InstructionMessage {
                     object: this.entity,
                     body:   comm::SetAltitude {
                         target: nav::TargetAltitude {

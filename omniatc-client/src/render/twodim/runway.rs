@@ -1,10 +1,10 @@
 use bevy::app::{self, App, Plugin};
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, ParamSet, Query};
-use bevy::render::view::Visibility;
 use bevy::transform::components::Transform;
 use bevy_mod_config::{AppExt, Config};
 use math::{Length, LengthUnit};
@@ -31,10 +31,10 @@ mod localizer;
 mod strip;
 
 fn spawn_system(
-    mut events: EventReader<runway::SpawnEvent>,
+    mut spawns: MessageReader<runway::SpawnMessage>,
     mut params: ParamSet<(Commands, localizer::SpawnParam, strip::SpawnParam)>,
 ) {
-    for &runway::SpawnEvent(entity) in events.read() {
+    for &runway::SpawnMessage(entity) in spawns.read() {
         params.p0().entity(entity).insert((Transform::IDENTITY, Visibility::Visible));
         params.p1().spawn(entity);
         params.p2().spawn(entity);

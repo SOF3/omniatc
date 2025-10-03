@@ -21,15 +21,15 @@ pub struct AnchorConfMetadata {
 }
 
 const VARIANTS: &[(Anchor, &str)] = &[
-    (Anchor::Center, "Center"),
-    (Anchor::BottomLeft, "Bottom Left"),
-    (Anchor::BottomCenter, "Bottom Center"),
-    (Anchor::BottomRight, "Bottom Right"),
-    (Anchor::CenterLeft, "Center Left"),
-    (Anchor::CenterRight, "Center Right"),
-    (Anchor::TopLeft, "Top Left"),
-    (Anchor::TopCenter, "Top Center"),
-    (Anchor::TopRight, "Top Right"),
+    (Anchor::CENTER, "Center"),
+    (Anchor::BOTTOM_LEFT, "Bottom Left"),
+    (Anchor::BOTTOM_CENTER, "Bottom Center"),
+    (Anchor::BOTTOM_RIGHT, "Bottom Right"),
+    (Anchor::CENTER_LEFT, "Center Left"),
+    (Anchor::CENTER_RIGHT, "Center Right"),
+    (Anchor::TOP_LEFT, "Top Left"),
+    (Anchor::TOP_CENTER, "Top Center"),
+    (Anchor::TOP_RIGHT, "Top Right"),
 ];
 
 fn anchor_to_str(value: Anchor) -> &'static str {

@@ -1,16 +1,15 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
 use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::{self, With};
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, ParamSet, Query, Res};
-use bevy::render::view::Visibility;
-use bevy::sprite::{Anchor, Sprite};
-use bevy::text::Text2d;
+use bevy::sprite::{Anchor, Sprite, Text2d};
 use bevy::transform::components::Transform;
 use bevy_mod_config::{self, AppExt as _, Config, ReadConfig, ReadConfigChange};
 use math::Length;
@@ -67,14 +66,14 @@ struct IsSpriteOf(Entity);
 struct HasSprite(Entity);
 
 fn spawn_plane_system(
-    mut spawn_events: EventReader<plane::SpawnEvent>,
+    mut spawn_events: MessageReader<plane::SpawnMessage>,
     mut params: ParamSet<(
         (Commands, ReadConfig<Conf>, Res<AssetServer>),
         separation_ring::SpawnSubsystemParam,
         vector::SpawnSubsystemParam,
     )>,
 ) {
-    for &plane::SpawnEvent(plane_entity) in spawn_events.read() {
+    for &plane::SpawnMessage(plane_entity) in spawn_events.read() {
         let (mut commands, conf, asset_server) = params.p0();
         let conf = conf.read();
 
@@ -211,7 +210,7 @@ struct PlaneConf {
     #[config(default = 50.0, min = 0., max = 300.)]
     label_distance: f32,
     /// Direction of the object relative to the label.
-    #[config(default = Anchor::BottomLeft)]
+    #[config(default = Anchor::BOTTOM_LEFT)]
     label_anchor:   AnchorConf,
     /// Object color will be based on this scheme.
     color_scheme:   base_color::Scheme,

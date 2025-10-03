@@ -114,12 +114,12 @@ impl<T: ops::Sub<Output = T>> ops::Sub for Position<T> {
     fn sub(self, rhs: Self) -> Length<T> { self.0 - rhs.0 }
 }
 
-impl<T: VectorSpace> Position<T> {
+impl<T: VectorSpace<Scalar = f32>> Position<T> {
     #[must_use]
     pub fn lerp(self, other: Self, s: f32) -> Self { Self(self.0.lerp(other.0, s)) }
 }
 
-impl<T: ops::SubAssign + NormedVectorSpace> Position<T> {
+impl<T: ops::SubAssign + NormedVectorSpace<Scalar = f32>> Position<T> {
     /// Returns a wrapper that can be compared with a linear distance quantity.
     pub fn distance_cmp(self, other: Self) -> AsSqrt<DtZero, PowOne> {
         (self - other).magnitude_cmp()

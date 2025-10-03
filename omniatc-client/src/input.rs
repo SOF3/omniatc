@@ -1,4 +1,5 @@
 use bevy::app::{self, App, Plugin};
+use bevy::camera::Camera;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{Has, Or, QueryData, With};
 use bevy::ecs::resource::Resource;
@@ -6,7 +7,6 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Query, ResMut, Single};
 use bevy::math::primitives::InfinitePlane3d;
 use bevy::math::{Vec2, Vec3};
-use bevy::render::camera::Camera;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::Window;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};

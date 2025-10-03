@@ -1,6 +1,7 @@
+use bevy::ecs::entity::Entity;
 use bevy::ecs::system::SystemState;
+use bevy::ecs::world::World;
 use bevy::math::Vec2;
-use bevy::prelude::{Entity, World};
 use math::{Between, Length, Position, Speed};
 use store::WaypointProximity;
 

@@ -4,9 +4,12 @@ use std::ops;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Query, Res};
 use bevy::math::Vec2;
-use bevy::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{
     Accel, Angle, CanSqrt, Frequency, Heading, Length, Position, Speed, line_circle_intersect,

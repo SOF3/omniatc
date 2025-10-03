@@ -27,7 +27,7 @@ pub struct ObjectData {
     display:      &'static object::Display,
 }
 
-impl ObjectDataItem<'_> {
+impl ObjectDataItem<'_, '_> {
     pub fn write_label(&self, _conf: &PlaneConfRead, label_writer: &mut Writer) {
         label_writer.rewrite(self.label_entity.0, |mut s| {
             s.write(&self.display.name);
@@ -82,12 +82,12 @@ struct SpanData {
     color: &'static mut TextColor,
 }
 
-enum TextStyler<'w, 'a> {
-    FromQuery(SpanDataItem<'w>),
+enum TextStyler<'w, 's, 'a> {
+    FromQuery(SpanDataItem<'w, 's>),
     NewBundle { bundle: Option<SpanBundle>, commands: EntityCommands<'a> },
 }
 
-impl TextStyler<'_, '_> {
+impl TextStyler<'_, '_, '_> {
     fn color(mut self, color: Color) -> Self {
         match self {
             Self::FromQuery(ref mut data) => &mut *data.color,
@@ -107,7 +107,7 @@ struct SpanBundle {
     _marker: Span,
 }
 
-impl Drop for TextStyler<'_, '_> {
+impl Drop for TextStyler<'_, '_, '_> {
     fn drop(&mut self) {
         if let Self::NewBundle { bundle, commands } = self {
             commands.with_child(bundle.take().expect("only removed on drop"));
@@ -115,8 +115,8 @@ impl Drop for TextStyler<'_, '_> {
     }
 }
 
-impl WriterScope<'_, '_, '_, '_> {
-    fn write(&mut self, text: impl AsRef<str> + Into<String>) -> TextStyler<'_, '_> {
+impl<'s> WriterScope<'_, 's, '_, '_> {
+    fn write(&mut self, text: impl AsRef<str> + Into<String>) -> TextStyler<'_, 's, '_> {
         if let Some(&child) = self.children.split_off_first() {
             let mut data =
                 self.span_query.get_mut(child).expect("invalid reference to label child span");

@@ -17,9 +17,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Environment" }
 
-    fn should_show(this: &Self::Item<'_>) -> bool { this.wake.is_some() || this.wind.is_some() }
+    fn should_show(this: &Self::Item<'_, '_>) -> bool { this.wake.is_some() || this.wind.is_some() }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, (): &mut Self::SystemParams<'_, '_>) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, (): &mut Self::SystemParams<'_, '_>) {
         if let Some(wake) = this.wake {
             ui.label(format!("Wake: {:.2}", f64::from(wake.last_detected.0) / 60000.));
         }

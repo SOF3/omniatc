@@ -1,8 +1,9 @@
 use bevy::app::{self, App, Plugin};
-use bevy::ecs::event::{Event, EventReader};
-use bevy::ecs::system::EntityCommands;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::{Message, MessageReader};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Commands, EntityCommands};
 use bevy::ecs::world::EntityWorldMut;
-use bevy::prelude::{Commands, Entity, IntoScheduleConfigs};
 use math::Speed;
 use store::YawTarget;
 
@@ -14,13 +15,13 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_event::<InstructionEvent>();
+        app.add_message::<InstructionMessage>();
         app.add_systems(app::Update, process_instr_system.in_set(SystemSets::Communicate));
     }
 }
 
-fn process_instr_system(mut commands: Commands, mut events: EventReader<InstructionEvent>) {
-    for event in events.read() {
+fn process_instr_system(mut commands: Commands, mut messages: MessageReader<InstructionMessage>) {
+    for event in messages.read() {
         // TODO validate radio reachability and congestion delay
         event.body.process(commands.entity(event.object));
     }
@@ -31,8 +32,8 @@ pub trait InstructionKind {
     fn process(&self, commands: EntityCommands);
 }
 
-#[derive(Event)]
-pub struct InstructionEvent {
+#[derive(Message)]
+pub struct InstructionMessage {
     pub object: Entity,
     // pub source: Entity, // TODO radio reachability validation
     pub body:   Instruction,

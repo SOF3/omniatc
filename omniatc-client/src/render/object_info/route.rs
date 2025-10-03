@@ -41,9 +41,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Route" }
 
-    fn should_show(_this: &Self::Item<'_>) -> bool { true }
+    fn should_show(_this: &Self::Item<'_, '_>) -> bool { true }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         if let Some(target) = this.target_waypoint
             && let Ok(presets) = params.waypoint_presets_query.get(target.waypoint_entity)
         {

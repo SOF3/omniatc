@@ -1,13 +1,14 @@
 use bevy::app::{self, App, Plugin};
-use bevy::math::{Vec2, Vec3, Vec3Swizzles};
-use bevy::prelude::{
-    Component, GlobalTransform, IntoScheduleConfigs, Query, Single, Transform, With,
-};
-use bevy::sprite::Anchor;
-use bevy::text::Text2d;
+use bevy::ecs::component::Component;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::Query;
+use bevy::math::{Vec2, Vec3};
+use bevy::sprite::{Anchor, Text2d};
+use bevy::transform::components::Transform;
 use math::Length;
 
-use crate::render::{self, twodim};
+use crate::render::{self};
+use crate::util::ActiveCamera2d;
 
 pub struct Plug;
 
@@ -45,34 +46,29 @@ pub struct Label {
 }
 
 fn translate_label_system(
-    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
+    camera: ActiveCamera2d,
     mut query: Query<(&Label, &Anchor, &mut Transform)>,
 ) {
-    let camera = *camera;
-
     query.iter_mut().for_each(|(bb, anchor, mut tf)| {
-        let offset = camera.affine().matrix3 * Vec3::from((anchor.as_vec(), 0.));
-        tf.translation = (bb.offset.0 + (offset * bb.distance).xy(), tf.translation.z).into();
+        let offset = camera.affine_transform(anchor.as_vec());
+        tf.translation = (bb.offset.0 + (offset * bb.distance), tf.translation.z).into();
     });
 }
 
 fn maintain_scale_system(
-    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
+    camera: ActiveCamera2d,
     mut query: Query<(&MaintainScale, &mut Transform)>,
 ) {
-    let camera = *camera;
-
     query.iter_mut().for_each(|(maintain, mut tf)| {
-        tf.scale = camera.scale() * maintain.size;
+        let scale = camera.scale() * maintain.size;
+        tf.scale = Vec3::new(scale, scale, 1.0);
     });
 }
 
 fn maintain_rot_system(
-    camera: Single<&GlobalTransform, With<twodim::camera::Layout>>,
+    camera: ActiveCamera2d,
     mut query: Query<(&MaintainRotation, &mut Transform)>,
 ) {
-    let camera = *camera;
-
     query.iter_mut().for_each(|(MaintainRotation, mut tf)| {
         tf.rotation = camera.rotation();
     });

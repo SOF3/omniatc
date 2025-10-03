@@ -11,7 +11,6 @@ description = "Yet another ATC simulator"
 [features]
 default = ["dev"]
 dev = ["bevy/dynamic_linking", "omniatc-core/dev"]
-inspect = ["dep:bevy-inspector-egui"]
 
 # For development only
 precommit-checks = []
@@ -22,13 +21,12 @@ omniatc-core.workspace = true
 omniatc-math = { workspace = true, features = ["egui"] }
 omniatc-store.workspace = true
 
-bevy-inspector-egui = { version = "0.32.0", optional = true }
 anyhow = "1.0.97"
 async-lock = "3.4.0"
 bevy_mod_config = { workspace = true, features = ["serde_json", "egui"] }
 ciborium = "0.2.2"
 dirs = "6.0.0"
-egui_extras = "0.31.1"
+egui_extras.workspace = true
 either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"
@@ -47,6 +45,7 @@ default-features = false
 features = [
 	"bevy_color",
 	"bevy_render",
+	"bevy_sprite_render",
 	"bevy_state",
 	"bevy_text",
 	"bevy_ui",
@@ -62,8 +61,7 @@ features = [
 ]
 
 [dependencies.bevy_egui]
-version = "0.35.1"
-default-features = false
+workspace = true
 features = ["default_fonts", "manage_clipboard", "open_url", "render", "serde"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]

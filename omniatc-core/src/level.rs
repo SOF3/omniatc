@@ -3,8 +3,7 @@
 use std::marker::PhantomData;
 
 use bevy::app::{self, App, Plugin};
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::prelude::SystemSet;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_mod_config::{ConfigFieldFor, Manager};
 use itertools::Itertools;
 use strum::IntoEnumIterator;

@@ -10,13 +10,12 @@
 
 use std::time::Duration;
 
-use bevy::app::{self, App};
+use bevy::app::{self, App, PluginGroup};
 use bevy::asset::AssetPlugin;
 use bevy::diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::{self, ScheduleBuildSettings};
+use bevy::ecs::schedule::{self, IntoScheduleConfigs, ScheduleBuildSettings, SystemSet};
 use bevy::ecs::system::ResMut;
-use bevy::prelude::{IntoScheduleConfigs, PluginGroup, SystemSet};
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{RenderCreation, WgpuLimits, WgpuSettings};
 use bevy::window::{Window, WindowPlugin};
@@ -60,11 +59,9 @@ fn main() {
                 }),
                 ..Default::default()
             }),
-        EntityCountDiagnosticsPlugin,
+        EntityCountDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default(),
         bevy_egui::EguiPlugin::default(),
-        #[cfg(feature = "inspect")]
-        bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug::<ConfigManager>::default(),
         omniatc::load::Plug,
         omniatc::util::Plug,

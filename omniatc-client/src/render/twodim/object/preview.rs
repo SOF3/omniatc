@@ -33,6 +33,7 @@ use std::mem;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
@@ -42,10 +43,9 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::ecs::world::Mut;
 use bevy::math::Vec2;
-use bevy::render::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
-use bevy::render::view::Visibility;
-use bevy::sprite::{ColorMaterial, MeshMaterial2d};
-use bevy::transform::components::{GlobalTransform, Transform};
+use bevy::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
+use bevy::sprite_render::{ColorMaterial, MeshMaterial2d};
+use bevy::transform::components::Transform;
 use bevy_mod_config::{Config, ReadConfig};
 use either::Either;
 use itertools::Itertools;
@@ -61,8 +61,8 @@ use store::{NavLimits, YawTarget};
 use super::SetColorThemeSystemSet;
 use crate::render;
 use crate::render::object_info;
-use crate::render::twodim::{Zorder, camera};
-use crate::util::shapes;
+use crate::render::twodim::Zorder;
+use crate::util::{ActiveCamera2d, shapes};
 
 const ARC_DENSITY: Angle = Angle::from_degrees(10.0);
 
@@ -257,17 +257,23 @@ struct DrawCurrent<'w, 's> {
     turn_query: Option<
         Single<
             'w,
+            's,
             (&'static mut Visibility, &'static Mesh2d, &'static mut Transform),
             With<TurnArcViewable>,
         >,
     >,
     direct_query: Option<
-        Single<'w, &'static mut Transform, (With<DirectLineViewable>, Without<TurnArcViewable>)>,
+        Single<
+            'w,
+            's,
+            &'static mut Transform,
+            (With<DirectLineViewable>, Without<TurnArcViewable>),
+        >,
     >,
     commands:       Commands<'w, 's>,
     meshes:         ResMut<'w, Assets<Mesh>>,
     shapes:         Res<'w, shapes::Meshes>,
-    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    camera:         ActiveCamera2d<'w, 's>,
 }
 
 #[derive(QueryData)]
@@ -492,7 +498,7 @@ impl DrawCurrent<'_, '_> {
         }
 
         let window_thickness =
-            self.conf.read().preview_line.airborne_thickness * self.camera.scale().y;
+            self.camera.scale() * self.conf.read().preview_line.airborne_thickness;
         if let Some(&mut (ref mut vis, mesh, ref mut tf)) = self.turn_query.as_deref_mut() {
             **vis = Visibility::Visible;
             let mesh = self.meshes.get_mut(&mesh.0).expect("strong reference must be valid");
@@ -623,7 +629,7 @@ struct DrawRouteOnce<'w, 's> {
     shapes:         Res<'w, shapes::Meshes>,
     conf:           ReadConfig<'w, 's, super::Conf>,
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    camera:         ActiveCamera2d<'w, 's>,
 }
 
 impl DrawRouteOnce<'_, '_> {
@@ -739,7 +745,7 @@ struct DrawGroundPathOnce<'w, 's> {
     shapes:         Res<'w, shapes::Meshes>,
     conf:           ReadConfig<'w, 's, super::Conf>,
     endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
-    camera:         Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    camera:         ActiveCamera2d<'w, 's>,
 }
 
 impl DrawGroundPathOnce<'_, '_> {

@@ -24,9 +24,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Goal" }
 
-    fn should_show(_this: &Self::Item<'_>) -> bool { true }
+    fn should_show(_this: &Self::Item<'_, '_>) -> bool { true }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         ui.label(match *this.dest {
             Destination::Landing { aerodrome } => {
                 let Some(data) = params.aerodrome.log_get(aerodrome) else { return };

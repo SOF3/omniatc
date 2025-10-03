@@ -1,15 +1,14 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetServer;
+use bevy::camera::visibility::Visibility;
 use bevy::ecs::change_detection::{DetectChangesMut, Mut};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EventReader;
 use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res};
-use bevy::render::view::Visibility;
-use bevy::sprite::{Anchor, Sprite};
-use bevy::text::Text2d;
+use bevy::sprite::{Anchor, Sprite, Text2d};
 use bevy::transform::components::Transform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::Length;
@@ -47,14 +46,14 @@ struct HasLabel(Entity);
 
 fn spawn_system(
     mut commands: Commands,
-    mut events: EventReader<waypoint::SpawnEvent>,
+    mut spawns: MessageReader<waypoint::SpawnMessage>,
     conf: ReadConfig<Conf>,
     asset_server: Res<AssetServer>,
     waypoint_query: Query<&Waypoint>,
 ) {
     let conf = conf.read();
 
-    for &waypoint::SpawnEvent(waypoint_entity) in events.read() {
+    for &waypoint::SpawnMessage(waypoint_entity) in spawns.read() {
         let waypoint = waypoint_query.get(waypoint_entity).expect("waypoint was just spawned");
 
         commands.entity(waypoint_entity).insert((Transform::IDENTITY, Visibility::Visible));
@@ -101,7 +100,7 @@ struct Conf {
     label_size:     f32,
     #[config(default = 30.0, min = 0.0, max = 100.0)]
     label_distance: f32,
-    #[config(default = Anchor::BottomCenter)]
+    #[config(default = Anchor::BOTTOM_CENTER)]
     label_anchor:   AnchorConf,
 }
 

@@ -11,6 +11,7 @@ description = "Yet another ATC simulator"
 [features]
 default = ["dev"]
 dev = ["bevy/dynamic_linking", "omniatc-core/dev"]
+debug = ["dep:bevy-inspector-egui"]
 
 # For development only
 precommit-checks = []
@@ -63,6 +64,16 @@ features = [
 [dependencies.bevy_egui]
 workspace = true
 features = ["default_fonts", "manage_clipboard", "open_url", "render", "serde"]
+
+[dependencies.bevy-inspector-egui]
+version = "0.34.0"
+optional = true
+default-features = false
+features = [
+	"bevy_core_pipeline",
+	"egui_clipboard",
+	"bevy_render",
+]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 idb = "0.6.4"

@@ -14,7 +14,7 @@ use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
-use bevy_egui::{EguiPrimaryContextPass, PrimaryEguiContext};
+use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass, PrimaryEguiContext};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
 use omniatc::{QueryTryLog, load};
@@ -67,7 +67,8 @@ pub enum Direction {
     Right,
 }
 
-fn setup_system(mut commands: Commands) {
+fn setup_system(mut commands: Commands, mut egui_global_settings: ResMut<EguiGlobalSettings>) {
+    egui_global_settings.auto_create_primary_context = false;
     commands.spawn((
         PrimaryEguiContext,
         Camera2d,

@@ -23,6 +23,7 @@ use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::{Message, MessageWriter};
+use bevy::ecs::name::Name;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
@@ -265,6 +266,7 @@ fn spawn_vortex_system(
     for (object_id, object, airborne, producer) in aircraft_query {
         let vortex = commands
             .spawn((
+                Name::new("Wake vortex"),
                 #[expect(clippy::cast_possible_truncation)] // arbitrary rounding is allowed
                 #[expect(clippy::cast_sign_loss)] // magnitude is never negative
                 Vortex {

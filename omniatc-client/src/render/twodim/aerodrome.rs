@@ -6,6 +6,7 @@ use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::{Entity, EntityHashSet};
 use bevy::ecs::message::MessageReader;
+use bevy::ecs::name::Name;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::resource::Resource;
@@ -464,6 +465,7 @@ impl CommitContext<'_, '_> {
                 );
 
                 self.commands.spawn((
+                    Name::new(format!("{zorder:?} background mesh")),
                     Mesh2d(mesh),
                     MeshMaterial2d(material.clone()),
                     zorder.local_translation(),
@@ -560,6 +562,7 @@ fn common_label_bundle(
     material: &Handle<ColorMaterial>,
 ) -> impl Bundle {
     (
+        Name::new(format!("Segment label {name}")),
         SegmentLabelsOfAerodrome(aerodrome_entity),
         Text2d(name.to_string()),
         billboard::Label {

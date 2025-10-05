@@ -62,6 +62,8 @@ fn main() {
         EntityCountDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default(),
         bevy_egui::EguiPlugin::default(),
+        #[cfg(feature = "debug")]
+        bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         level::Plug::<ConfigManager>::default(),
         omniatc::load::Plug,
         omniatc::util::Plug,

@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt;
 use std::future::Future;
 use std::num::NonZero;
@@ -223,5 +224,15 @@ impl RateLimit<'_, '_> {
             None => NonZero::new(1),
             Some(last) => NonZero::new(now - last),
         }
+    }
+}
+
+pub trait EqAny: Any {
+    fn eq_any(&self, other: &dyn Any) -> bool;
+}
+
+impl<T: Any + PartialEq> EqAny for T {
+    fn eq_any(&self, other: &dyn Any) -> bool {
+        other.downcast_ref::<T>().is_some_and(|value| self == value)
     }
 }

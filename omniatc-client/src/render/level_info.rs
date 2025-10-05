@@ -178,7 +178,7 @@ struct WriteCameraParams<'w, 's> {
         (&'static Camera, &'static mut Transform, &'static GlobalTransform),
         With<twodim::camera::Layout>,
     >,
-    cursor:       Res<'w, input::CurrentCursorCamera>,
+    cursor:       Res<'w, input::CursorState>,
     hotkeys:      Res<'w, input::Hotkeys>,
 }
 
@@ -233,7 +233,7 @@ impl WriteParams for WriteCameraParams<'_, '_> {
             }
         }
 
-        if let Some(cursor) = &self.cursor.0 {
+        if let Some(cursor) = &self.cursor.value {
             ui.label(format!(
                 "Cursor: ({:.1}, {:.1})",
                 cursor.world_pos.get().x,

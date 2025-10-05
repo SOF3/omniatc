@@ -10,7 +10,6 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
-use bevy::input::mouse::MouseButton;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
@@ -83,7 +82,7 @@ pub(super) fn input_system(
 
     let mut determine_mode = params.p0();
     let mut is_preview = false;
-    if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.0
+    if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.value
         && let Ok(&camera_tf) = determine_mode.camera_query.get(cursor_camera_value.camera_entity)
     {
         let mode = determine_mode.determine();
@@ -109,7 +108,7 @@ enum PickRouteKey {
 
 #[derive(SystemParam)]
 pub(super) struct DetermineMode<'w, 's> {
-    current_cursor_camera: Res<'w, input::CurrentCursorCamera>,
+    current_cursor_camera: Res<'w, input::CursorState>,
     camera_query:          Query<'w, 's, &'static GlobalTransform, With<Camera2d>>,
     margins:               Res<'w, EguiUsedMargins>,
     prev_pick_key:         Local<'s, PickRouteKey>,
@@ -159,7 +158,7 @@ struct SetRoute {
 
 #[derive(SystemParam)]
 pub(super) struct SelectObjectParams<'w, 's> {
-    buttons:                Res<'w, ButtonInput<MouseButton>>,
+    cursor_state:           Res<'w, input::CursorState>,
     current_hovered_object: ResMut<'w, object_info::CurrentHoveredObject>,
     current_object:         ResMut<'w, object_info::CurrentObject>,
     object_query:           Query<'w, 's, (Entity, &'static object::Object)>,
@@ -186,7 +185,7 @@ impl SelectObjectParams<'_, '_> {
             .map(|(object, _)| object);
 
         self.current_hovered_object.0 = closest_object;
-        if self.buttons.just_pressed(MouseButton::Left) {
+        if self.cursor_state.left_just_down() {
             self.current_object.0 = closest_object;
         }
     }
@@ -308,7 +307,7 @@ struct ProposeParams<'w, 's> {
     instr_writer:     MessageWriter<'w, comm::InstructionMessage>,
     commands:         Commands<'w, 's>,
     margins:          Res<'w, EguiUsedMargins>,
-    buttons:          Res<'w, ButtonInput<KeyCode>>,
+    buttons:          Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
     selected_segment: Local<'s, Option<Entity>>,
     endpoint_query:   Query<'w, 's, &'static ground::Endpoint>,
     segment_query:    Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,

@@ -1,10 +1,14 @@
+use std::hash::Hash;
+
 use bevy::app::{self, App, Plugin};
 use bevy::camera::Camera;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{Has, Or, QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{Query, ResMut, Single};
+use bevy::ecs::system::{Query, Res, ResMut, Single};
+use bevy::input::ButtonInput;
+use bevy::input::mouse::MouseButton;
 use bevy::math::primitives::InfinitePlane3d;
 use bevy::math::{Vec2, Vec3};
 use bevy::transform::components::GlobalTransform;
@@ -13,6 +17,7 @@ use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::Position;
 use omniatc::try_log_return;
+use omniatc::util::EqAny;
 
 use crate::render::{threedim, twodim};
 use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins};
@@ -25,10 +30,10 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_config::<ConfigManager, Conf>("input");
-        app.init_resource::<CurrentCursorCamera>();
+        app.init_resource::<CursorState>();
         app.add_systems(
             app::Update,
-            CurrentCursorCamera::update_system.before(ReadCurrentCursorCameraSystemSet),
+            CursorState::update_system.before(ReadCurrentCursorCameraSystemSet),
         );
         app.init_resource::<Hotkeys>();
         app.add_systems(
@@ -41,7 +46,37 @@ impl Plugin for Plug {
 }
 
 #[derive(Resource, Default)]
-pub struct CurrentCursorCamera(pub Option<CurrentCursorCameraValue>);
+pub struct CursorState {
+    pub value: Option<CurrentCursorCameraValue>,
+
+    pub left:  ButtonState,
+    pub right: ButtonState,
+
+    pub capture: Capture,
+    drag_state:  Option<Box<dyn EqAny + Send + Sync>>,
+}
+
+#[derive(Default)]
+pub struct ButtonState {
+    pub was_down: bool,
+    pub is_down:  bool,
+}
+
+impl ButtonState {
+    fn rotate_and_reset(&mut self) {
+        self.was_down = self.is_down;
+        self.is_down = false;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Capture {
+    /// Pointer captured by the game UI.
+    #[default]
+    Game,
+    /// Pointer captured by egui components.
+    Egui,
+}
 
 #[derive(Clone, Copy)]
 pub struct CurrentCursorCameraValue {
@@ -59,7 +94,59 @@ struct CameraData {
     is_threedim:   Has<threedim::CameraLayout>,
 }
 
-impl CurrentCursorCamera {
+impl CursorState {
+    pub fn left_just_down(&self) -> bool { self.left.is_down && !self.left.was_down }
+
+    pub fn left_just_up(&self) -> bool { !self.left.is_down && self.left.was_down }
+
+    pub fn right_just_down(&self) -> bool { self.right.is_down && !self.right.was_down }
+
+    pub fn right_just_up(&self) -> bool { !self.right.is_down && self.right.was_down }
+
+    /// Determines whether dragging is occurring,
+    /// selectively disabling dragging based on the current capture state.
+    ///
+    /// This function should be called every frame to ensure correct renewal,
+    /// not just during button state changes.
+    pub fn is_dragging(
+        &mut self,
+        id: impl EqAny + Send + Sync,
+        getter: impl FnOnce(&Self) -> bool,
+    ) -> bool {
+        match self.capture {
+            Capture::Game => {
+                // When within game area,
+                // all dragging overrides are allowed.
+                let dragging = getter(self);
+                if dragging {
+                    self.drag_state = Some(Box::new(id));
+                    true
+                } else {
+                    self.drag_state = None;
+                    false
+                }
+            }
+            Capture::Egui => {
+                // When within egui area,
+                // only renewal of the same dragging override is allowed.
+                if id.eq_any(&self.drag_state) {
+                    let dragging = getter(self);
+                    if dragging {
+                        // renew dragging state
+                        true
+                    } else {
+                        // no more dragging until egui releases the cursor.
+                        self.drag_state = None;
+                        false
+                    }
+                } else {
+                    // New dragging overrides are not allowed.
+                    false
+                }
+            }
+        }
+    }
+
     fn update_system(
         mut target: ResMut<Self>,
         window: Option<Single<&Window>>,
@@ -67,13 +154,34 @@ impl CurrentCursorCamera {
             CameraData,
             Or<(With<twodim::camera::Layout>, With<threedim::CameraLayout>)>,
         >,
+        buttons: Res<ButtonInput<MouseButton>>,
+        mut contexts: EguiContexts,
     ) {
+        target.capture = Capture::Game;
+
         let Some(window) = window else {
-            target.0 = None;
+            // No possible camera capture without a window.
+            // Pointer states may still be valid.
+            target.value = None;
             return;
         };
 
-        target.0 = None;
+        target.left.rotate_and_reset();
+        target.right.rotate_and_reset();
+
+        if let Ok(ctx) = contexts.ctx_mut()
+            && ctx.wants_pointer_input()
+        {
+            // If pointer enters egui area,
+            // just assume the pointer stays at the last position in game area,
+            // and ignore all mouse button press changes.
+            target.capture = Capture::Egui;
+            return;
+        }
+
+        target.left.is_down = buttons.pressed(MouseButton::Left);
+        target.right.is_down = buttons.pressed(MouseButton::Right);
+        target.value = None;
 
         let Some(cursor_pos) = window.cursor_position() else {
             return;
@@ -94,13 +202,13 @@ impl CurrentCursorCamera {
                 data.camera.viewport_to_world_2d(data.global_tf, cursor_pos),
                 expect "viewport should be valid"
             );
-            target.0 = Some(CurrentCursorCameraValue {
+            target.value = Some(CurrentCursorCameraValue {
                 camera_entity: data.camera_entity,
                 viewport_pos,
                 world_pos: Position::new(world_pos),
             });
         } else if data.is_threedim {
-            // TODO support 3D ca
+            // TODO support 3D camera
             let ray = try_log_return!(
                 data.camera.viewport_to_world(data.global_tf, cursor_pos),
                 expect "viewport should be valid"
@@ -111,7 +219,7 @@ impl CurrentCursorCamera {
             );
             if let Some(dist) = dist.filter(|&dist| dist > 0.) {
                 let world_pos = Position::new(ray.get_point(dist)).horizontal();
-                target.0 = Some(CurrentCursorCameraValue {
+                target.value = Some(CurrentCursorCameraValue {
                     camera_entity: data.camera_entity,
                     viewport_pos,
                     world_pos,

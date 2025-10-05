@@ -10,9 +10,12 @@ pub mod billboard;
 pub mod shapes;
 
 macro_rules! new_type_id {
-    () => {{
-        struct Anonymous;
-        bevy_egui::egui::Id::new(std::any::TypeId::of::<Anonymous>())
+    () => {
+        $crate::util::new_type_id!(Anonymous)
+    };
+    ($name:ident) => {{
+        struct $name;
+        bevy_egui::egui::Id::new((stringify!($name), std::any::TypeId::of::<$name>()))
     }};
 }
 pub(crate) use new_type_id;

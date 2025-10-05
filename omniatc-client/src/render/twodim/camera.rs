@@ -1,7 +1,6 @@
 use std::cmp;
 
 use bevy::app::{self, App, Plugin};
-use bevy::camera::visibility::RenderLayers;
 use bevy::camera::{Camera, Camera2d, Viewport};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -9,18 +8,17 @@ use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
-use bevy::input::ButtonInput;
-use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
+use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
-use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass, PrimaryEguiContext};
+use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
 use omniatc::{QueryTryLog, load};
 use serde::{Deserialize, Serialize};
 
-use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
+use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input, util};
 
 pub struct Plug;
 
@@ -68,13 +66,8 @@ pub enum Direction {
 }
 
 fn setup_system(mut commands: Commands, mut egui_global_settings: ResMut<EguiGlobalSettings>) {
-    egui_global_settings.auto_create_primary_context = false;
-    commands.spawn((
-        PrimaryEguiContext,
-        Camera2d,
-        RenderLayers::none(),
-        Camera { order: isize::MAX, ..Default::default() },
-    ));
+    egui_global_settings.auto_create_primary_context = true;
+
     commands.spawn((Camera2d, Layout { order: 0, direction: Direction::Top, ratio: 1. }));
 
     // Example
@@ -129,7 +122,6 @@ fn consume_camera_advice(
 
 fn fit_layout_system(
     window: Option<Single<&mut Window>>,
-    margins: Res<EguiUsedMargins>,
     mut camera_query: Query<(&Layout, &mut Camera)>,
 ) {
     let Some(window) = window else { return };
@@ -137,10 +129,9 @@ fn fit_layout_system(
     let mut camera_order: Vec<_> = camera_query.iter_mut().collect();
     camera_order.sort_by_key(|(layout, _)| cmp::Reverse(layout.order));
 
-    let mut start_pos = Vec2::new(margins.left, margins.top) * window.scale_factor();
-    #[expect(clippy::cast_precision_loss)]
-    let mut end_pos = Vec2::new(window.physical_width() as f32, window.physical_height() as f32)
-        - Vec2::new(margins.right, margins.bottom) * window.scale_factor();
+    let mut start_pos = Vec2::ZERO;
+    #[expect(clippy::cast_precision_loss, reason = "window width is usually within f32 range")]
+    let mut end_pos = Vec2::new(window.physical_width() as f32, window.physical_height() as f32);
 
     end_pos = end_pos.max(start_pos + Vec2::splat(1.0));
     // probably degenerate interface, but at least avoid panic by ensuring a nonzero viewport
@@ -187,12 +178,10 @@ struct DraggingState {
     start_translation:  Vec3,
 }
 
-#[expect(clippy::too_many_arguments)]
 fn drag_camera_system(
-    buttons: Res<ButtonInput<MouseButton>>,
     mut motion_events: MessageReader<MouseMotion>,
     mut dragging_camera: Local<Option<DraggingState>>,
-    current_cursor_camera: Res<input::CurrentCursorCamera>,
+    mut cursor_state: ResMut<input::CursorState>,
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
     conf: ReadConfig<Conf>,
@@ -206,14 +195,14 @@ fn drag_camera_system(
         return;
     }
 
-    match (&mut *dragging_camera, buttons.pressed(MouseButton::Right)) {
+    match (&mut *dragging_camera, cursor_state.is_dragging(util::new_type_id!(DragCamera), |state| state.right.is_down)) {
         (option @ Some(_), false) => {
             // stop dragging
             *option = None;
         }
         (option @ None, true) => {
             // start dragging
-            if let Some(ref camera_value) = current_cursor_camera.0
+            if let Some(ref camera_value) = cursor_state.value
                 && let Ok((camera_tf, _, _)) = camera_query
                     .get(camera_value.camera_entity) {
                     *option = Some(DraggingState {
@@ -265,7 +254,7 @@ fn drag_camera_system(
 
 fn scroll_zoom_system(
     mut wheel_events: MessageReader<MouseWheel>,
-    current_cursor_camera: Res<input::CurrentCursorCamera>,
+    current_cursor_camera: Res<input::CursorState>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
     conf: ReadConfig<Conf>,
     margins: Res<EguiUsedMargins>,
@@ -277,7 +266,8 @@ fn scroll_zoom_system(
     }
 
     for event in wheel_events.read() {
-        if let Some(input::CurrentCursorCameraValue { camera_entity, .. }) = current_cursor_camera.0
+        if let Some(input::CurrentCursorCameraValue { camera_entity, .. }) =
+            current_cursor_camera.value
         {
             let mut camera_tf = camera_query.get_mut(camera_entity).expect(
                 "CurrentCursorCamera::update_system should maintain an updated camera entity",

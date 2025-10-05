@@ -21,7 +21,7 @@ use std::ops;
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::{Event, EventWriter};
+use bevy::ecs::message::{Message, MessageWriter};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
@@ -67,7 +67,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(app::Update, maintain_dir.in_set(SystemSets::Aviate));
         app.add_systems(app::Update, target_path_system.in_set(SystemSets::Navigate));
-        app.add_event::<TargetResolutionEvent>();
+        app.add_message::<TargetResolutionMessage>();
     }
 }
 
@@ -318,14 +318,14 @@ pub enum TargetResolution {
 
 #[derive(SystemParam)]
 struct TargetPathParams<'w, 's> {
-    segment_query:        Query<'w, 's, &'static ground::Segment>,
-    endpoint_query:       Query<'w, 's, &'static ground::Endpoint>,
-    resolve_event_writer: EventWriter<'w, TargetResolutionEvent>,
+    segment_query:      Query<'w, 's, &'static ground::Segment>,
+    endpoint_query:     Query<'w, 's, &'static ground::Endpoint>,
+    resolve_msg_writer: MessageWriter<'w, TargetResolutionMessage>,
 }
 
 /// An event sent when the target resolution of an object changes.
-#[derive(Event)]
-pub struct TargetResolutionEvent {
+#[derive(Message)]
+pub struct TargetResolutionMessage {
     /// The object whose target resolution has changed.
     pub object: Entity,
 }
@@ -385,7 +385,7 @@ impl TargetPathParams<'_, '_> {
         };
         if let Some(resolution_mut) = resolution_mut {
             if resolution.is_some() != resolution_mut.is_some() {
-                self.resolve_event_writer.write(TargetResolutionEvent { object: object_id });
+                self.resolve_msg_writer.write(TargetResolutionMessage { object: object_id });
             }
             *resolution_mut = resolution;
         }

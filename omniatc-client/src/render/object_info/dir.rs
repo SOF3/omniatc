@@ -38,9 +38,9 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Direction" }
 
-    fn should_show(_this: &Self::Item<'_>) -> bool { true }
+    fn should_show(_this: &Self::Item<'_, '_>) -> bool { true }
 
-    fn show(this: &Self::Item<'_>, ui: &mut egui::Ui, params: &mut WriteParams) {
+    fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut WriteParams) {
         ui.label(format!(
             "Ground track: {:.0}\u{b0}",
             this.object.ground_speed.horizontal().heading().degrees()
@@ -130,7 +130,7 @@ fn show_yaw_target(
 
     #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
     if target_degrees != slider_degrees {
-        commands.send_event(comm::InstructionEvent {
+        commands.write_message(comm::InstructionMessage {
             object,
             body: comm::SetHeading {
                 target: YawTarget::Heading(Heading::from_degrees(slider_degrees)),

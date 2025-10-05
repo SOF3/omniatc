@@ -1,20 +1,21 @@
 use bevy::app::{self, App, Plugin};
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::{Entity, EntityHashSet};
-use bevy::ecs::event::EventReader;
+use bevy::ecs::message::MessageReader;
+use bevy::ecs::name::Name;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::math::{Dir2, Vec2};
-use bevy::render::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
-use bevy::render::view::Visibility;
-use bevy::sprite::{Anchor, ColorMaterial, MeshMaterial2d};
-use bevy::text::Text2d;
+use bevy::mesh::{Mesh, Mesh2d, PrimitiveTopology, VertexAttributeValues};
+use bevy::sprite::{Anchor, Text2d};
+use bevy::sprite_render::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{self, AppExt, Config, ReadConfig, ReadConfigChange};
 use itertools::Itertools;
@@ -24,7 +25,7 @@ use omniatc::level::aerodrome::Aerodrome;
 use omniatc::level::ground;
 
 use crate::render::twodim::{Zorder, camera};
-use crate::util::{AnchorConf, billboard};
+use crate::util::{ActiveCamera2d, AnchorConf, billboard};
 use crate::{ConfigManager, render};
 
 #[cfg(test)]
@@ -48,10 +49,10 @@ impl Plugin for Plug {
 
 fn update_visibility_system(
     conf: ReadConfig<Conf>,
-    camera: Single<&GlobalTransform, With<camera::Layout>>,
+    camera: ActiveCamera2d,
     mesh_query: Query<(&mut Visibility, &MeshType)>,
 ) {
-    let pixel_width = Length::new(camera.scale().x);
+    let pixel_length = camera.pixel_length();
     for (mut vis, mesh_type) in mesh_query {
         let min_width = match mesh_type {
             MeshType::TaxiwayCenterline => conf.read().taxiway.centerline_render_zoom,
@@ -62,7 +63,7 @@ fn update_visibility_system(
             MeshType::ApronLabel => conf.read().apron.label_render_zoom,
         };
 
-        if pixel_width <= min_width {
+        if pixel_length <= min_width {
             *vis = Visibility::Visible;
         } else {
             *vis = Visibility::Hidden;
@@ -82,9 +83,9 @@ fn regenerate_system(mut params: ParamSet<(FindOutdatedAerodromesParam, Regenera
 
 #[derive(SystemParam)]
 struct FindOutdatedAerodromesParam<'w, 's> {
-    events:            EventReader<'w, 's, ground::ChangedEvent>,
+    changes:           MessageReader<'w, 's, ground::ChangedMessage>,
     conf:              ReadConfig<'w, 's, Conf>,
-    camera:            Single<'w, &'static GlobalTransform, With<camera::Layout>>,
+    camera:            Single<'w, 's, &'static GlobalTransform, With<camera::Layout>>,
     aerodrome_query:   Query<'w, 's, Entity, With<Aerodrome>>,
     last_render_width: Local<'s, Option<Length<f32>>>,
 }
@@ -102,12 +103,12 @@ impl FindOutdatedAerodromesParam<'_, '_> {
 
         let mut aerodromes_outdated = EntityHashSet::new();
         if self.last_render_width.replace(min_width) == Some(min_width) {
-            for &ground::ChangedEvent { aerodrome } in self.events.read() {
+            for &ground::ChangedMessage { aerodrome } in self.changes.read() {
                 aerodromes_outdated.insert(aerodrome);
             }
         } else {
             aerodromes_outdated.extend(self.aerodrome_query.iter());
-            self.events.read().for_each(drop);
+            self.changes.read().for_each(drop);
         }
         (aerodromes_outdated, min_width)
     }
@@ -464,6 +465,7 @@ impl CommitContext<'_, '_> {
                 );
 
                 self.commands.spawn((
+                    Name::new(format!("{zorder:?} background mesh")),
                     Mesh2d(mesh),
                     MeshMaterial2d(material.clone()),
                     zorder.local_translation(),
@@ -560,6 +562,7 @@ fn common_label_bundle(
     material: &Handle<ColorMaterial>,
 ) -> impl Bundle {
     (
+        Name::new(format!("Segment label {name}")),
         SegmentLabelsOfAerodrome(aerodrome_entity),
         Text2d(name.to_string()),
         billboard::Label {
@@ -716,7 +719,7 @@ struct SegmentTypeConf {
     #[config(default = 0.1, min = 0.0, max = 50.0)]
     label_distance:         f32,
     /// Direction of segment labels from the center point.
-    #[config(default = Anchor::BottomCenter)]
+    #[config(default = Anchor::BOTTOM_CENTER)]
     label_anchor:           AnchorConf,
     /// Color of segment labels.
     #[config(default = Color::WHITE)]

@@ -6,11 +6,14 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Message;
 use bevy::ecs::query::Without;
-use bevy::ecs::system::{SystemParam, SystemState};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{EntityCommand, Query, Res, SystemParam, SystemState};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Quat, Vec2, Vec3};
-use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time, Timer, TimerMode};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
@@ -46,8 +49,8 @@ where
 {
     fn build(&self, app: &mut App) {
         app.init_config::<M, Conf>("core:object");
-        app.add_event::<SpawnEvent>();
-        app.add_event::<DespawnEvent>();
+        app.add_message::<SpawnMessage>();
+        app.add_message::<DespawnMessage>();
         app.add_systems(
             app::Update,
             update_airborne_system
@@ -123,20 +126,20 @@ impl EntityCommand for SpawnCommand {
         }
 
         let entity_id = entity.id();
-        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
+        entity.world_scope(|world| world.write_message(SpawnMessage(entity_id)));
     }
 }
 
 /// Sent when a plane entity is spawned.
-#[derive(Event)]
-pub struct SpawnEvent(pub Entity);
+#[derive(Message)]
+pub struct SpawnMessage(pub Entity);
 
 pub struct DespawnCommand;
 
 impl EntityCommand for DespawnCommand {
     fn apply(self, mut entity: EntityWorldMut) {
         let entity_id = entity.id();
-        entity.world_scope(|world| world.send_event(DespawnEvent(entity_id)));
+        entity.world_scope(|world| world.write_message(DespawnMessage(entity_id)));
         entity.despawn();
     }
 }
@@ -145,8 +148,8 @@ impl EntityCommand for DespawnCommand {
 ///
 /// By the time this event is received, the entity is already removed from the world,
 /// so it is invalid to query for its components.
-#[derive(Event)]
-pub struct DespawnEvent(pub Entity);
+#[derive(Message)]
+pub struct DespawnMessage(pub Entity);
 
 /// Sets an entity as airborne.
 pub struct SetAirborneCommand;
@@ -440,7 +443,7 @@ fn track_position_system(
 
     query.iter_mut().for_each(|(mut track, &Object { position, .. })| {
         track.timer.tick(time.delta());
-        if track.timer.finished() {
+        if track.timer.is_finished() {
             track.timer.set_duration(conf.track_density);
             track.timer.reset();
 

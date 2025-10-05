@@ -7,10 +7,14 @@
 //! but presence of a `VelocityTarget` allows a plane to be controlled by this plugin.
 
 use bevy::app::{self, App, Plugin};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Message;
 use bevy::ecs::query::{With, Without};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{EntityCommand, Query, Res};
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::Quat;
-use bevy::prelude::{Component, Entity, EntityCommand, Event, IntoScheduleConfigs, Query, Res};
 use bevy::time::{self, Time};
 use math::{Accel, Angle, AngularSpeed, Heading, TurnDirection};
 use store::YawTarget;
@@ -22,7 +26,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_event::<SpawnEvent>();
+        app.add_message::<SpawnMessage>();
         app.add_systems(app::Update, apply_forces_system.in_set(SystemSets::Aviate));
         app.add_systems(
             app::Update,
@@ -75,13 +79,13 @@ impl EntityCommand for SpawnCommand {
         entity.insert((control, self.limits));
 
         let entity_id = entity.id();
-        entity.world_scope(|world| world.send_event(SpawnEvent(entity_id)));
+        entity.world_scope(|world| world.write_message(SpawnMessage(entity_id)));
     }
 }
 
 /// Sent when a plane entity is spawned.
-#[derive(Event)]
-pub struct SpawnEvent(pub Entity);
+#[derive(Message)]
+pub struct SpawnMessage(pub Entity);
 
 fn apply_forces_system(
     time: Res<Time<time::Virtual>>,

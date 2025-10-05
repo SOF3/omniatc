@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use bevy::ecs::system::Command;
-use bevy::ecs::world::EntityWorldMut;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::system::{Command, EntityCommand};
+use bevy::ecs::world::{EntityRef, EntityWorldMut, World};
 use bevy::math::{Dir2, Vec2};
-use bevy::prelude::{Entity, EntityCommand, EntityRef, World};
 use bevy::time::{self, Time};
 use math::{Angle, Heading, Length, Speed};
 

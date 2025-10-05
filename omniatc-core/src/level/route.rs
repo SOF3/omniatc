@@ -3,10 +3,12 @@ use std::mem;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
-use bevy::ecs::system::SystemState;
-use bevy::ecs::world::EntityWorldMut;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{EntityCommand, SystemState};
+use bevy::ecs::world::{EntityRef, EntityWorldMut, World};
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, Entity, EntityCommand, EntityRef, IntoScheduleConfigs, World};
 use bevy::time::{self, Time};
 use math::{Heading, Length, Position, Speed};
 

@@ -9,13 +9,23 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-bevy = { version = "0.16.0", default-features = false }
-bevy_math = "0.16.0"
-bevy_mod_config = {version = "0.2.3", features = ["bevy_color"]}
+bevy_math = "0.17.0"
+bevy_egui = { version = "0.37.0", default-features = false }
+egui = "0.32.3"
+egui_extras = "0.32.3"
+bevy_mod_config = {version = "0.3.1", features = ["bevy_color"]}
 omniatc-core = { version = "*", path = "omniatc-core" }
 omniatc-math = { version = "*", path = "omniatc-math" }
 omniatc-store = { version = "*", path = "omniatc-store" }
 serde = "1.0.217"
+
+[workspace.dependencies.bevy]
+version = "0.17.0"
+default-features = false
+features = [
+	"bevy_log",
+	"reflect_auto_register",
+]
 
 [workspace.package]
 version = "0.0.0"

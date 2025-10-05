@@ -2,16 +2,20 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use bevy::app::{App, Plugin};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Message;
+use bevy::ecs::name::Name;
+use bevy::ecs::system::EntityCommand;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::math::{Dir2, Vec2};
-use bevy::prelude::{Component, Entity, EntityCommand, Event, Name};
 use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) { app.add_event::<ChangedEvent>(); }
+    fn build(&self, app: &mut App) { app.add_message::<ChangedMessage>(); }
 }
 
 /// The aerodrome owning a segment.
@@ -271,7 +275,7 @@ impl EntityCommand for SpawnSegment {
 
         let entity_id = entity.id();
         entity.world_scope(|world| {
-            world.send_event(ChangedEvent { aerodrome: self.aerodrome });
+            world.write_message(ChangedMessage { aerodrome: self.aerodrome });
 
             for endpoint in [alpha_endpoint, beta_endpoint] {
                 world
@@ -298,12 +302,13 @@ impl EntityCommand for SpawnEndpoint {
             Name::new("GroundEndpoint"),
             EndpointOf(self.aerodrome),
         ));
-        entity.world_scope(|world| world.send_event(ChangedEvent { aerodrome: self.aerodrome }));
+        entity
+            .world_scope(|world| world.write_message(ChangedMessage { aerodrome: self.aerodrome }));
     }
 }
 
 /// Dispatched after an aerodrome endpoint/segment is spawned or updated.
-#[derive(Event)]
-pub struct ChangedEvent {
+#[derive(Message)]
+pub struct ChangedMessage {
     pub aerodrome: Entity,
 }

@@ -4,7 +4,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use bevy::sprite_render::{ColorMaterial, MeshMaterial2d};
 use bevy::transform::components::Transform;
 use bevy_mod_config::{self, ReadConfig};
 use math::Length;

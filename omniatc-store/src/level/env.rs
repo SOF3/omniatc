@@ -112,7 +112,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
     #[must_use]
     pub fn resolve(&self, position: Position<Vec2>) -> Datum
     where
-        Datum: VectorSpace,
+        Datum: VectorSpace<Scalar = f32>,
     {
         let major = self.major_direction.of_position(position).ratio_between(
             self.major_direction.of_position(self.initial_corner),

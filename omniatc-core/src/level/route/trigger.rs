@@ -1,9 +1,11 @@
 use std::mem;
 use std::time::Duration;
 
-use bevy::ecs::event::EventReader;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::message::MessageReader;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::math::Vec2;
-use bevy::prelude::{Commands, Component, Entity, Query, Res};
 use bevy::time::{self, Time};
 use math::{Length, Position};
 
@@ -167,10 +169,10 @@ pub(super) fn distance_system(
 pub(super) struct NavaidChange;
 
 pub(super) fn navaid_system(
-    mut event_reader: EventReader<navaid::UsageChangeEvent>,
+    mut msg_reader: MessageReader<navaid::UsageChangeMessage>,
     mut commands: Commands,
 ) {
-    for event in event_reader.read() {
+    for event in msg_reader.read() {
         bevy::log::trace!("Trigger {:?} resync due to navaid change", event.object);
         commands.entity(event.object).queue(RunCurrentNode);
     }
@@ -180,10 +182,10 @@ pub(super) fn navaid_system(
 pub(super) struct TaxiTargetResolution;
 
 pub(super) fn taxi_target_resolution_system(
-    mut event_reader: EventReader<taxi::TargetResolutionEvent>,
+    mut msg_reader: MessageReader<taxi::TargetResolutionMessage>,
     mut commands: Commands,
 ) {
-    for event in event_reader.read() {
+    for event in msg_reader.read() {
         bevy::log::trace!("Trigger {:?} resync due to taxi resolution", event.object);
         commands.entity(event.object).queue(RunCurrentNode);
     }

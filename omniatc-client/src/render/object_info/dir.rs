@@ -3,8 +3,9 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use math::{Heading, TurnDirection};
+use omniatc::level::instr::CommandsExt;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, ground, nav, object, plane};
+use omniatc::level::{ground, instr, nav, object, plane};
 use omniatc::{QueryTryLog, try_log_return};
 use store::YawTarget;
 
@@ -130,13 +131,10 @@ fn show_yaw_target(
 
     #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
     if target_degrees != slider_degrees {
-        commands.write_message(comm::InstructionMessage {
+        commands.send_instruction(
             object,
-            body: comm::SetHeading {
-                target: YawTarget::Heading(Heading::from_degrees(slider_degrees)),
-            }
-            .into(),
-        });
+            instr::SetHeading { target: YawTarget::Heading(Heading::from_degrees(slider_degrees)) },
+        );
     }
 }
 
@@ -161,7 +159,7 @@ fn show_ground(
     ui.label(format!(
         "{}bound through {}",
         heading_to_approx_name((to_endpoint.position - from_endpoint.position).heading()),
-        display_segment_label(label, waypoint_query),
+        label.display_segment_label(waypoint_query),
     ));
 }
 
@@ -228,24 +226,4 @@ fn show_target_alignment(
             }
         }
     });
-}
-
-pub(super) fn display_segment_label(
-    label: &ground::SegmentLabel,
-    waypoint_query: &Query<&Waypoint>,
-) -> String {
-    match label {
-        &ground::SegmentLabel::RunwayPair([forward, backward]) => {
-            let Some(Waypoint { name: forward_name, .. }) = waypoint_query.log_get(forward) else {
-                return String::new();
-            };
-            let Some(Waypoint { name: backward_name, .. }) = waypoint_query.log_get(backward)
-            else {
-                return String::new();
-            };
-            format!("runway {forward_name}/{backward_name}")
-        }
-        ground::SegmentLabel::Taxiway { name } => format!("taxiway {name}"),
-        ground::SegmentLabel::Apron { name } => format!("apron {name}"),
-    }
 }

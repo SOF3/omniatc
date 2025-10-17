@@ -514,7 +514,7 @@ pub enum Node {
 
 pub fn node_vec(node: impl Into<Node>) -> Vec<Node> { Vec::from([node.into()]) }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Preset {
     pub id:    String,
     pub title: String,

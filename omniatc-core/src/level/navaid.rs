@@ -130,6 +130,7 @@ pub enum Kind {
     Vor,
     Dme,
     Gnss,
+    Radio,
 }
 
 /// Marks the navaid entity as a visual reference.

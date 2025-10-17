@@ -111,6 +111,7 @@ fn wind_move_vortex_system(
 ) {
     let conf = conf.read();
 
+    #[expect(clippy::unchecked_time_subtraction, reason = "time.elapsed() is always greater")]
     let delta_time = time.elapsed() - mem::replace(&mut *last_run, time.elapsed());
 
     for (entity, mut vortex) in vortex_query {
@@ -220,6 +221,10 @@ fn dissipate_vortex_system(
     mut commands: Commands,
     mut index: ResMut<VortexIndex>,
 ) {
+    #[expect(
+        clippy::unchecked_time_subtraction,
+        reason = "time.elapsed() is always greater than time.delta()"
+    )]
     let delta_ms = time.elapsed().as_millis() - (time.elapsed() - time.delta()).as_millis();
     let delta_ms = u32::try_from(delta_ms).unwrap_or(u32::MAX);
 

@@ -3,7 +3,8 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Res, SystemParam};
 use bevy_egui::egui;
 use math::Speed;
-use omniatc::level::{comm, nav, object};
+use omniatc::level::instr::CommandsExt;
+use omniatc::level::{instr, nav, object};
 
 use super::Writer;
 use crate::input;
@@ -64,10 +65,10 @@ impl Writer for ObjectQuery {
 
                 #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
                 if target_knots != slider_knots {
-                    params.commands.write_message(comm::InstructionMessage {
-                        object: this.entity,
-                        body:   comm::SetSpeed { target: Speed::from_knots(slider_knots) }.into(),
-                    });
+                    params.commands.send_instruction(
+                        this.entity,
+                        instr::SetSpeed { target: Speed::from_knots(slider_knots) },
+                    );
                 }
             }
         } else if let Some(ground) = this.ground {

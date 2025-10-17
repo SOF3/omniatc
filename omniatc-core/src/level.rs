@@ -9,9 +9,9 @@ use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 pub mod aerodrome;
-pub mod comm;
 pub mod dest;
 pub mod ground;
+pub mod instr;
 pub mod message;
 pub mod nav;
 pub mod navaid;
@@ -37,6 +37,7 @@ where
     object::Conf: ConfigFieldFor<M>,
     wake::Conf: ConfigFieldFor<M>,
     wind::Conf: ConfigFieldFor<M>,
+    instr::Conf: ConfigFieldFor<M>,
 {
     fn build(&self, app: &mut App) {
         for set in SystemSets::iter() {
@@ -55,7 +56,7 @@ where
         app.add_plugins(nav::Plug);
         app.add_plugins(navaid::Plug);
         app.add_plugins(route::Plug);
-        app.add_plugins(comm::Plug);
+        app.add_plugins(instr::Plug::<M>::default());
         app.add_plugins(runway::Plug);
         app.add_plugins(waypoint::Plug);
         app.add_plugins(ground::Plug);

@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: "actions/checkout@v4"
       - uses: "dtolnay/rust-toolchain@clippy"
-      - run: "cargo clippy --all --tests -F precommit-checks"
+      - run: "cargo clippy --all --tests -F precommit-checks -- -D warnings"
   test:
     name: "Run tests"
     runs-on: ubuntu-latest

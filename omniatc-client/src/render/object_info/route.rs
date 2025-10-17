@@ -5,13 +5,14 @@ use bevy_egui::egui;
 use itertools::Itertools;
 use omniatc::QueryTryLog;
 use omniatc::level::aerodrome::Aerodrome;
+use omniatc::level::instr::{self, CommandsExt};
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::RunwayOf;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, nav, taxi};
 use store::WaypointProximity;
 
-use super::{Writer, dir};
+use super::Writer;
 use crate::input;
 use crate::util::new_type_id;
 
@@ -138,14 +139,14 @@ fn write_route_options(
             // TODO move this to a comm::Instruction
             match selection {
                 Selection::None => {
-                    commands.entity(object).queue(route::ClearAllNodes).remove::<route::Id>();
+                    commands.send_instruction(object, instr::ClearRoute);
                 }
                 Selection::Available(index) => {
                     let new_preset = presets[index];
-                    commands
-                        .entity(object)
-                        .queue(route::ReplaceNodes(new_preset.nodes.clone()))
-                        .insert(route::Id(Some(new_preset.id.clone())));
+                    commands.send_instruction(
+                        object,
+                        instr::SelectRoute { preset: new_preset.clone() },
+                    );
                 }
                 Selection::Retain => {}
             }
@@ -163,7 +164,7 @@ fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRou
                 .iter()
                 .filter_map(|&segment| {
                     let label = params.segment_query.log_get(segment)?;
-                    Some(dir::display_segment_label(label, &params.waypoint_query))
+                    Some(label.display_segment_label(&params.waypoint_query))
                 })
                 .join(" or ");
             ui.label(format!("Turn to {label_strs}"));
@@ -250,12 +251,12 @@ fn write_route_node(
             if node.hold_short {
                 ui.label(format!(
                     "Hold short at {}",
-                    dir::display_segment_label(&node.label, &params.waypoint_query)
+                    node.label.display_segment_label(&params.waypoint_query)
                 ));
             } else {
                 ui.label(format!(
                     "Taxi via {}",
-                    dir::display_segment_label(&node.label, &params.waypoint_query)
+                    node.label.display_segment_label(&params.waypoint_query)
                 ));
             }
         }

@@ -12,6 +12,9 @@ use bevy::math::{Dir2, Vec2};
 use math::{Length, Position, Speed};
 use smallvec::SmallVec;
 
+use crate::level::waypoint::Waypoint;
+use crate::util::QueryWith;
+
 pub struct Plug;
 
 impl Plugin for Plug {
@@ -177,6 +180,24 @@ impl SegmentLabel {
 
     #[must_use]
     pub fn is_apron(&self) -> bool { matches!(self, SegmentLabel::Apron { .. }) }
+
+    #[must_use]
+    pub fn display_segment_label(&self, waypoint_query: &impl QueryWith<Waypoint>) -> String {
+        match self {
+            &SegmentLabel::RunwayPair([forward, backward]) => {
+                let Some(Waypoint { name: forward_name, .. }) = waypoint_query.get(forward) else {
+                    return String::new();
+                };
+                let Some(Waypoint { name: backward_name, .. }) = waypoint_query.get(backward)
+                else {
+                    return String::new();
+                };
+                format!("runway {forward_name}/{backward_name}")
+            }
+            SegmentLabel::Taxiway { name } => format!("taxiway {name}"),
+            SegmentLabel::Apron { name } => format!("apron {name}"),
+        }
+    }
 }
 
 impl AsRef<SegmentLabel> for SegmentLabel {

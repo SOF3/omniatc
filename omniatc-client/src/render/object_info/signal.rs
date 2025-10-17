@@ -38,6 +38,7 @@ impl Writer for ObjectQuery {
                 navaid::Kind::Vor => format!("{} VOR available", &waypoint.name),
                 navaid::Kind::Dme => format!("{} DME available", &waypoint.name),
                 navaid::Kind::Gnss => "GNSS usable".into(),
+                navaid::Kind::Radio => format!("{} radio contact", &waypoint.name),
             });
         }
     }

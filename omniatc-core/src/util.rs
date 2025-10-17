@@ -1,100 +1,30 @@
-use std::any::Any;
-use std::fmt;
-use std::future::Future;
-use std::num::NonZero;
-use std::time::Duration;
-
-use bevy::app::{self, App, Plugin};
+use bevy::app::{App, Plugin};
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::EntityEvent;
-use bevy::ecs::observer;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
-use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::graph::GraphInfo;
-use bevy::ecs::schedule::{
-    Chain, IntoScheduleConfigs, Schedulable, ScheduleConfigs, ScheduleLabel, SystemSet,
+use bevy::ecs::system::Commands;
+
+mod async_task;
+pub use async_task::{
+    AsyncPollList, AsyncResult, AsyncResultTrigger, RunAsync, run_async, run_async_local,
 };
-use bevy::ecs::system::{Commands, IntoObserverSystem, Local, Res, ResMut, SystemParam};
-use bevy::tasks::{self, IoTaskPool, Task};
-use bevy::time::{self, Time};
-use itertools::Itertools;
+mod eq_any;
+pub use eq_any::EqAny;
+mod rate_limit;
+pub use rate_limit::RateLimit;
+mod query;
+pub use query::{MapQuery, QueryWith};
+mod schedule;
+pub use schedule::{EnumScheduleConfig, configure_ordered_system_sets};
 
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<AsyncPollList>();
-        app.add_systems(app::FixedPreUpdate, poll_async_system);
-    }
+    fn build(&self, app: &mut App) { app.add_plugins(async_task::Plug); }
 }
 
-/// An expression that can be used for `$expr` in [`try_log!`](crate::try_log!).
-pub trait TryLog<T> {
-    /// Returns the successful result as `Some`, or log the error with `must`.
-    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T>;
-}
-
-impl<T> TryLog<T> for Option<T> {
-    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T> {
-        if let Some(value) = this {
-            Some(value)
-        } else {
-            bevy::log::error!("{must}");
-            None
-        }
-    }
-}
-
-impl<T, E: fmt::Display> TryLog<T> for Result<T, E> {
-    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T> {
-        match this {
-            Ok(value) => Some(value),
-            Err(err) => {
-                bevy::log::error!("{must}: {err}");
-                None
-            }
-        }
-    }
-}
-
-pub fn configure_ordered_system_sets<E: strum::IntoEnumIterator + SystemSet + Clone>(
-    app: &mut App,
-    schedule: impl ScheduleLabel + Clone,
-) {
-    for (before, after) in E::iter().tuple_windows() {
-        app.configure_sets(schedule.clone(), before.before(after));
-    }
-}
-
-pub trait EnumScheduleConfig<T: Schedulable<Metadata = GraphInfo, GroupMetadata = Chain>, Marker>:
-    IntoScheduleConfigs<T, Marker>
-{
-    fn after_all<E: strum::IntoEnumIterator + SystemSet>(self) -> ScheduleConfigs<T> {
-        let mut configs = self.into_configs();
-        for set in E::iter() {
-            configs = configs.after(set);
-        }
-        configs
-    }
-
-    fn before_all<E: strum::IntoEnumIterator + SystemSet>(self) -> ScheduleConfigs<T> {
-        let mut configs = self.into_configs();
-        for set in E::iter() {
-            configs = configs.before(set);
-        }
-        configs
-    }
-}
-
-impl<C, T, Marker> EnumScheduleConfig<T, Marker> for C
-where
-    T: Schedulable<Metadata = GraphInfo, GroupMetadata = Chain>,
-    C: IntoScheduleConfigs<T, Marker>,
-{
-}
-
+// TODO deprecate this function. This style is bad for performance.
 pub fn manage_entity_vec<C, X, NB>(
     list_entity: Entity,
     list: Option<&C>,
@@ -133,106 +63,5 @@ pub fn manage_entity_vec<C, X, NB>(
 
     for entity in entities {
         commands.entity(entity).despawn();
-    }
-}
-
-pub struct RunAsync<R>(Task<R>);
-
-pub fn run_async<R: Send + Sync + 'static>(
-    task: impl Future<Output = R> + Send + 'static,
-) -> RunAsync<R> {
-    let task = IoTaskPool::get().spawn(task);
-    RunAsync(task)
-}
-
-pub fn run_async_local<R: Send + Sync + 'static>(
-    task: impl Future<Output = R> + 'static,
-) -> RunAsync<R> {
-    let task = IoTaskPool::get().spawn_local(task);
-    RunAsync(task)
-}
-
-impl<R: Send + Sync + 'static> RunAsync<R> {
-    // TODO: refactor to support `then: impl FnOnce(R, P)` instead.
-    pub fn then<M>(
-        self,
-        commands: &mut Commands,
-        poll_list: &mut AsyncPollList,
-        then: impl IntoObserverSystem<AsyncResultTrigger<R>, (), M>,
-    ) {
-        let mut task = self.0;
-        let handler = commands.add_observer(then).id();
-        poll_list.0.push(Box::new(move |commands| {
-            match tasks::block_on(tasks::poll_once(&mut task)) {
-                Some(result) => {
-                    commands
-                        .entity(handler)
-                        .trigger(move |entity| AsyncResultTrigger(entity, Some(result)))
-                        .despawn();
-                    AsyncPollResult::Done
-                }
-                _ => AsyncPollResult::Pending,
-            }
-        }));
-    }
-}
-
-#[derive(PartialEq, Eq)]
-enum AsyncPollResult {
-    Done,
-    Pending,
-}
-
-/// Wraps the result of a [`run_async`] task.
-#[derive(EntityEvent)]
-pub struct AsyncResultTrigger<R>(#[event_target] Entity, Option<R>);
-
-impl<R> AsyncResultTrigger<R> {
-    /// # Panics
-    /// Panics if called more than once.
-    pub fn get(&mut self) -> R {
-        self.1.take().expect("AsyncResult.get() should only be called once")
-    }
-}
-
-pub type AsyncResult<'w, 't, R> = observer::On<'w, 't, AsyncResultTrigger<R>>;
-
-#[derive(Resource, Default)]
-pub struct AsyncPollList(Vec<AsyncPoll>);
-
-type AsyncPoll = Box<dyn FnMut(&mut Commands) -> AsyncPollResult + Send + Sync>;
-
-fn poll_async_system(mut poll_list: ResMut<AsyncPollList>, mut commands: Commands) {
-    poll_list.0.extract_if(.., |poll| poll(&mut commands) == AsyncPollResult::Done).for_each(drop);
-}
-
-#[derive(SystemParam)]
-pub struct RateLimit<'w, 's> {
-    time:     Res<'w, Time<time::Virtual>>,
-    last_run: Local<'s, Option<u128>>,
-}
-
-impl RateLimit<'_, '_> {
-    pub fn should_run(&mut self, min_period: Duration) -> Option<NonZero<u128>> {
-        if self.time.is_paused() {
-            return None;
-        }
-
-        let now = self.time.elapsed().as_nanos() / min_period.as_nanos();
-
-        match self.last_run.replace(now) {
-            None => NonZero::new(1),
-            Some(last) => NonZero::new(now - last),
-        }
-    }
-}
-
-pub trait EqAny: Any {
-    fn eq_any(&self, other: &dyn Any) -> bool;
-}
-
-impl<T: Any + PartialEq> EqAny for T {
-    fn eq_any(&self, other: &dyn Any) -> bool {
-        other.downcast_ref::<T>().is_some_and(|value| self == value)
     }
 }

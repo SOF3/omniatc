@@ -46,6 +46,9 @@ fn expire_message_system(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Class {
+    /// An outgoing instruction by the current user
+    /// that has not been acknowledged by the recipient object yet.
+    Outgoing,
     /// Verbose information that does not need acknowledgement,
     /// e.g. handover transmission.
     VerboseInfo,

@@ -4,7 +4,6 @@ use bevy::app::{self, App, Plugin};
 use bevy::camera::Camera2d;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::message::MessageWriter;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
@@ -14,12 +13,13 @@ use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length, Position, Squared, point_segment_closest};
+use omniatc::level::instr::CommandsExt;
 use omniatc::level::object::Object;
 use omniatc::level::route::{
     self, ClosurePathfindContext, PathfindMode, PathfindOptions, Route, pathfind_through_subseq,
 };
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, ground, object, plane, taxi};
+use omniatc::level::{ground, instr, object, plane, taxi};
 use omniatc::{QueryTryLog, try_log, try_log_return};
 use ordered_float::OrderedFloat;
 use store::{TaxiLimits, YawTarget};
@@ -304,7 +304,6 @@ impl SetNavTargetParams<'_, '_> {
 
 #[derive(SystemParam)]
 struct ProposeParams<'w, 's> {
-    instr_writer:     MessageWriter<'w, comm::InstructionMessage>,
     commands:         Commands<'w, 's>,
     margins:          Res<'w, EguiUsedMargins>,
     buttons:          Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
@@ -324,10 +323,7 @@ impl ProposeParams<'_, '_> {
         SetRoute { commit, append: _ }: SetRoute,
     ) {
         if commit {
-            self.instr_writer.write(comm::InstructionMessage {
-                object,
-                body: comm::SetWaypoint { waypoint }.into(),
-            });
+            self.commands.send_instruction(object, instr::SetWaypoint { waypoint });
         } else {
             let target_override_value = preview::AirborneTargetOverride {
                 target: preview::AirborneTarget::Waypoint(waypoint),
@@ -371,10 +367,7 @@ impl ProposeParams<'_, '_> {
         }
 
         if commit {
-            self.instr_writer.write(comm::InstructionMessage {
-                object,
-                body: comm::SetHeading { target }.into(),
-            });
+            self.commands.send_instruction(object, instr::SetHeading { target });
         } else {
             let target_override_value = preview::AirborneTargetOverride {
                 target: preview::AirborneTarget::Yaw(target),
@@ -412,18 +405,14 @@ impl ProposeParams<'_, '_> {
         }
 
         if commit {
-            if !append {
-                self.instr_writer
-                    .write(comm::InstructionMessage { object, body: comm::ClearRoute.into() });
-            }
-            self.instr_writer.write(comm::InstructionMessage {
+            self.commands.send_instruction(
                 object,
-                body: comm::AppendSegment {
-                    segment:    segment_label.clone(),
-                    hold_short: !segment_label.is_apron(),
-                }
-                .into(),
-            });
+                instr::AppendSegment {
+                    clear_existing: !append,
+                    segment:        segment_label.clone(),
+                    hold_short:     !segment_label.is_apron(),
+                },
+            );
         } else {
             let mut required_labels = Vec::new();
             if append {

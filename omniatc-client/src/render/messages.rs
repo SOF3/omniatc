@@ -72,6 +72,10 @@ fn setup_messages_system(
                         egui::TextFormat { color, ..Default::default() },
                     );
 
+                    #[expect(
+                        clippy::unchecked_time_subtraction,
+                        reason = "time.elapsed() is monotonic increasing"
+                    )]
                     job.append(
                         &format!(" [{:.1}s]", (time.elapsed() - message.created).as_secs_f32()),
                         0.,
@@ -97,6 +101,7 @@ fn setup_messages_system(
 
 fn color_from_class(class: message::Class) -> Color {
     match class {
+        message::Class::Outgoing => Color::srgb(0.6, 0.6, 0.8),
         message::Class::Urgent => Color::srgb(1., 0.6, 0.8),
         message::Class::AnomalyInfo => Color::srgb(0.9, 1., 0.6),
         message::Class::NeedAck => Color::srgb(0.6, 0.8, 1.),

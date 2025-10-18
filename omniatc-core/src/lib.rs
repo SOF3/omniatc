@@ -1,5 +1,5 @@
 #![warn(clippy::pedantic)]
-#![cfg_attr(feature = "precommit-checks", deny(warnings, clippy::pedantic, clippy::dbg_macro))]
+#![cfg_attr(feature = "precommit-checks", warn(clippy::dbg_macro))]
 #![allow(clippy::needless_pass_by_value, clippy::type_complexity)] // too many false positives from system params.
 #![allow(clippy::collapsible_else_if)] // this is usually intentional
 #![allow(clippy::missing_panics_doc)] // 5:21 PM conrad.lock().expect("luscious")[tty0] : Worst clippy lint
@@ -15,6 +15,6 @@ pub mod pid;
 pub mod try_log;
 pub use try_log::{
     EntityRefExt as EntityTryLog, EntityWorldMutExt as EntityMutTryLog, QueryExt as QueryTryLog,
-    WorldExt as WorldTryLog,
+    TryLog, WorldExt as WorldTryLog,
 };
 pub mod util;

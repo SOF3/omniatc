@@ -1,12 +1,12 @@
 use bevy::ecs::entity::Entity;
-use bevy::ecs::message::MessageWriter;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Query, Res, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy_egui::egui;
 use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::QueryTryLog;
+use omniatc::level::instr::CommandsExt;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{comm, nav, object};
+use omniatc::level::{instr, nav, object};
 
 use super::Writer;
 use crate::input;
@@ -24,7 +24,7 @@ pub struct ObjectQuery {
 #[derive(SystemParam)]
 pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    instr_writer:   MessageWriter<'w, comm::InstructionMessage>,
+    commands:       Commands<'w, 's>,
     hotkeys:        Res<'w, input::Hotkeys>,
 }
 
@@ -81,16 +81,15 @@ impl Writer for ObjectQuery {
             if slider_alt != initial_alt
                 || (this.target_alt.is_some() && expedite != checkbox_expedite)
             {
-                params.instr_writer.write(comm::InstructionMessage {
-                    object: this.entity,
-                    body:   comm::SetAltitude {
+                params.commands.send_instruction(
+                    this.entity,
+                    instr::SetAltitude {
                         target: nav::TargetAltitude {
                             altitude: Position::from_amsl_feet(slider_alt),
                             expedite: checkbox_expedite,
                         },
-                    }
-                    .into(),
-                });
+                    },
+                );
             }
         });
 

@@ -1,4 +1,5 @@
 use std::any::type_name;
+use std::fmt;
 
 use bevy::ecs::change_detection::Mut;
 use bevy::ecs::component::{Component, Mutable};
@@ -20,7 +21,7 @@ macro_rules! try_log {
     ) => {
         {
             #[allow(clippy::question_mark)]
-            if let Some(value) = $crate::util::TryLog::convert_or_log(
+            if let Some(value) = $crate::TryLog::convert_or_log(
                 $expr,
                 format_args!($must, $($($must_args),*)?),
             ) {
@@ -192,6 +193,35 @@ impl EntityWorldMutExt for EntityWorldMut<'_> {
         } else {
             bevy::log::error!("Expected {:?} to have component {}", id, type_name::<T>());
             None
+        }
+    }
+}
+
+/// An expression that can be used for `$expr` in [`try_log!`](crate::try_log!).
+pub trait TryLog<T> {
+    /// Returns the successful result as `Some`, or log the error with `must`.
+    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T>;
+}
+
+impl<T> TryLog<T> for Option<T> {
+    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T> {
+        if let Some(value) = this {
+            Some(value)
+        } else {
+            bevy::log::error!("{must}");
+            None
+        }
+    }
+}
+
+impl<T, E: fmt::Display> TryLog<T> for Result<T, E> {
+    fn convert_or_log(this: Self, must: impl fmt::Display) -> Option<T> {
+        match this {
+            Ok(value) => Some(value),
+            Err(err) => {
+                bevy::log::error!("{must}: {err}");
+                None
+            }
         }
     }
 }

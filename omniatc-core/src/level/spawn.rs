@@ -105,7 +105,7 @@ impl TriggerParams<'_, '_> {
             Trigger::Disabled => false,
             Trigger::Periodic(period) => match *self.last_spawned {
                 None => true,
-                Some(last) => self.time.elapsed() - last >= period,
+                Some(last) => self.time.elapsed().checked_sub(last).is_some_and(|v| v >= period),
             },
             Trigger::ObjectCount { count: threshold } => {
                 let current_count = self.object_query.iter().len();

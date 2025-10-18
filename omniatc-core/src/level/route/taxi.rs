@@ -354,7 +354,7 @@ pub fn pathfind_through_subseq<'a>(
             }
         },
     )?;
-    bevy::log::debug!("found path with cost {:?}: {:?}", Length::new(cost.0), &nodes);
+    bevy::log::trace!("found path with cost {:?}: {:?}", Length::new(cost.0), &nodes);
 
     Some(Path {
         endpoints: nodes.into_iter().map(|vertex| vertex.endpoint_id).collect(),

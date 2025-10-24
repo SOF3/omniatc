@@ -20,6 +20,8 @@ mod landing;
 pub use landing::*;
 mod navigation;
 pub use navigation::*;
+mod takeoff;
+pub use takeoff::*;
 mod taxi;
 mod trigger;
 pub use taxi::*;
@@ -218,8 +220,15 @@ impl EntityCommand for ReplaceNodes {
     }
 }
 
-// TODO possible optimization: run this in systems with parallelization.
 fn run_current_node(world: &mut World, entity: Entity) {
+    fn replace_route(world: &mut World, entity: Entity, new_nodes: Vec<Node>) {
+        let mut entity_ref = world.entity_mut(entity);
+        let mut route =
+            entity_ref.get_mut::<Route>().expect("route should not be removed by run_current_node");
+        route.clear();
+        route.extend(new_nodes);
+    }
+
     loop {
         {
             // TODO revisit whether we can optimize away unnecessary remove-reinserts.
@@ -247,12 +256,10 @@ fn run_current_node(world: &mut World, entity: Entity) {
                             preset.nodes.clone()
                         });
 
-                        let mut entity_ref = world.entity_mut(entity);
-                        let mut route = entity_ref
-                            .get_mut::<Route>()
-                            .expect("route should not be removed by run_current_node");
-                        route.clear();
-                        route.extend(new_nodes);
+                        replace_route(world, entity, new_nodes);
+                    }
+                    RunNodeResult::ReplaceWithNodes(new_nodes) => {
+                        replace_route(world, entity, new_nodes);
                     }
                 },
             }
@@ -477,6 +484,8 @@ enum RunNodeResult {
     NodeDone,
     /// The entire route should be aborted and replaced with the specified preset.
     ReplaceWithPreset(Option<Entity>),
+    /// The entire route should be aborted and replaced with the specified nodes.
+    ReplaceWithNodes(Vec<Node>),
 }
 
 /// The horizontal direction to navigate towards.
@@ -509,10 +518,9 @@ pub enum Node {
     AlignRunway(AlignRunwayNode),
     ShortFinal(ShortFinalNode),
     VisualLanding(VisualLandingNode),
+    Takeoff(TakeoffNode),
     Taxi(TaxiNode),
 }
-
-pub fn node_vec(node: impl Into<Node>) -> Vec<Node> { Vec::from([node.into()]) }
 
 #[derive(Component, Clone)]
 pub struct Preset {

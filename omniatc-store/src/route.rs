@@ -55,6 +55,24 @@ pub enum RouteNode {
         runway:          RunwayRef,
         /// Preset to switch to upon missed approach.
         goaround_preset: Option<RoutePresetRef>,
+        /// Current phase of the landing.
+        ///
+        /// When used as a route template,
+        /// this can be used to allow visual approach without ILS.
+        #[serde(default)]
+        current_phase:   LandingPhase,
+    },
+    /// Take off from a runway.
+    RunwayTakeoff {
+        /// Runway to line up on.
+        runway:          RunwayRef,
+        /// Initial altitude clearance after takeoff.
+        target_altitude: Position<f32>,
+    },
+    /// Line up on a runway for takeoff.
+    RunwayLineup {
+        /// Runway to line up on.
+        runway: RunwayRef,
     },
     /// Taxi to a segment on the ground.
     ///
@@ -78,6 +96,21 @@ pub enum RouteNode {
         /// Segment to hold short of.
         segment: SegmentRef,
     },
+    /// Wait for explicit clearance from ATC before proceeding to the next node.
+    WaitForClearance,
+}
+
+/// Phase of landing, used to load aircraft in the middle of a landing.
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum LandingPhase {
+    /// The aircraft is only navigating based on ILS.
+    #[default]
+    Align,
+    /// The aircraft is on short final and started reducing to landing speed.
+    ShortFinal,
+    /// The aircraft has acquired visual contact with the runway.
+    Visual,
 }
 
 /// How to handle proximity to a waypoint when navigating to it.

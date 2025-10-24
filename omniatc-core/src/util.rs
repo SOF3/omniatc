@@ -11,6 +11,8 @@ pub use async_task::{
 };
 mod eq_any;
 pub use eq_any::EqAny;
+mod iter;
+pub use iter::TakeLast;
 mod rate_limit;
 pub use rate_limit::RateLimit;
 mod query;

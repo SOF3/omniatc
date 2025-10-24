@@ -72,10 +72,17 @@ impl Writer for ObjectQuery {
                 }
             }
         } else if let Some(ground) = this.ground {
-            ui.label(format!(
-                "Target speed: {:.0} kt",
-                ground.target_speed.magnitude_exact().into_knots()
-            ));
+            match ground.target_speed {
+                object::OnGroundTargetSpeed::Exact(speed) => {
+                    ui.label(format!(
+                        "Target speed: {:.0} kt",
+                        speed.magnitude_exact().into_knots()
+                    ));
+                }
+                object::OnGroundTargetSpeed::TakeoffRoll => {
+                    ui.label("Rolling to takeoff");
+                }
+            }
         }
     }
 }

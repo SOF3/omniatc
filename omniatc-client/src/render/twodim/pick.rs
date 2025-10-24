@@ -16,7 +16,8 @@ use math::{Angle, Length, Position, Squared, point_segment_closest};
 use omniatc::level::instr::CommandsExt;
 use omniatc::level::object::Object;
 use omniatc::level::route::{
-    self, ClosurePathfindContext, PathfindMode, PathfindOptions, Route, pathfind_through_subseq,
+    self, ClosurePathfindContext, PathfindMode, PathfindOptions, Route, TaxiStopMode,
+    pathfind_through_subseq,
 };
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, instr, object, plane, taxi};
@@ -410,7 +411,11 @@ impl ProposeParams<'_, '_> {
                 instr::AppendSegment {
                     clear_existing: !append,
                     segment:        segment_label.clone(),
-                    hold_short:     !segment_label.is_apron(),
+                    stop_mode:      match segment_label {
+                        ground::SegmentLabel::Taxiway { .. } => TaxiStopMode::LineUp,
+                        ground::SegmentLabel::RunwayPair(_) => TaxiStopMode::HoldShort,
+                        ground::SegmentLabel::Apron { .. } => TaxiStopMode::Exhaust,
+                    },
                 },
             );
         } else {
@@ -420,7 +425,9 @@ impl ProposeParams<'_, '_> {
                     .into_iter()
                     .flat_map(|route| {
                         route.iter().filter_map(|node| match node {
-                            route::Node::Taxi(node) => Some(&node.label),
+                            route::Node::Taxi(node) => {
+                                Some(route::SubseqItem { label: &node.label, direction: None })
+                            }
                             _ => None,
                         })
                     })

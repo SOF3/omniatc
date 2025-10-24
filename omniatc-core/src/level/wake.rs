@@ -31,7 +31,7 @@ use bevy::math::Vec3;
 use bevy::time::{self, Time};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use math::{Length, Position, Speed};
-use smallvec::SmallVec;
+use wordvec::WordVec;
 
 use super::{SystemSets, object, wind};
 use crate::QueryTryLog;
@@ -125,7 +125,7 @@ fn wind_move_vortex_system(
 
 #[derive(Default, Resource)]
 struct VortexIndex {
-    index: HashMap<[i32; 3], SmallVec<[Entity; 1]>>,
+    index: HashMap<[i32; 3], WordVec<Entity, 1>>,
 }
 
 impl VortexIndex {

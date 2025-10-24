@@ -1,6 +1,6 @@
 use std::cell::Cell;
-use std::iter;
 use std::time::Duration;
+use std::{fmt, iter, mem};
 
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -13,24 +13,60 @@ use pathfinding::prelude::dijkstra;
 
 use super::{Node, NodeKind, Route, RunNodeResult, trigger};
 use crate::level::{ground, message, object, taxi};
+use crate::util::TakeLast;
 use crate::{EntityTryLog, WorldTryLog};
 
 #[cfg(test)]
 mod tests;
 
+/// Finds the shortest path to a segment with the specified label.
+///
+/// # Completion condition
+/// Completes when the object enters a segment with the specified label.
+///
+/// # Interaction with subsequent nodes
+/// If immediately followed by other [`TaxiNode`]s,
+/// the shortest path traversing all specified labels in order is used.
+///
+/// # Prerequisites
+/// The object must be on ground.
 #[derive(Clone)]
 pub struct TaxiNode {
     /// Taxi via `label`.
     ///
     /// When multiple contiguous `TaxiNode`s are planned,
     /// the shortest possible path satisfying all labels is used.
-    pub label:      ground::SegmentLabel,
-    /// If `true`, the object will no enter the intersection reaching the segments in this node.
-    /// If `false`, the object will enter the intersection and taxi to the first segment matching
-    /// this node.
+    pub label:     ground::SegmentLabel,
+    /// Only consider the segment as matched when approaching from this direction.
+    ///
+    /// This does not prevent the segment from being used on the opposite direction,
+    /// but ensures that the shortest path that eventually uses the segment in this direction
+    /// is selected.
+    pub direction: Option<ground::SegmentDirection>,
+    /// Where to stop at if this is the last `TaxiNode` in succession.
     ///
     /// No effect if the node immediately following this one is also a `TaxiNode`.
-    pub hold_short: bool,
+    pub stop:      TaxiStopMode,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TaxiStopMode {
+    /// Hold before entering the intersection.
+    HoldShort,
+    /// Hold immediately after entering the intersection.
+    LineUp,
+    /// Hold right before leaving the intersection.
+    Exhaust,
+}
+
+impl TaxiStopMode {
+    pub fn message(&self, segment_name: impl fmt::Display) -> String {
+        match self {
+            Self::HoldShort => format!("Hold short of {segment_name}"),
+            Self::LineUp => format!("Line up on {segment_name}"),
+            Self::Exhaust => format!("Taxi to {segment_name}"),
+        }
+    }
 }
 
 impl NodeKind for TaxiNode {
@@ -62,7 +98,26 @@ impl NodeKind for TaxiNode {
                 object.insert((trigger::TaxiTargetResolution, next_segments));
                 RunNodeResult::PendingTrigger
             } else {
-                target.action = taxi::TargetAction::HoldShort;
+                #[expect(clippy::match_same_arms, reason = "different explanations")]
+                {
+                    target.action = match self.stop {
+                        // The end of the current segment intersects with the final HoldShort node,
+                        // so just stop at the end of the current segment.
+                        TaxiStopMode::HoldShort => {
+                            taxi::TargetAction::Hold { kind: taxi::HoldKind::SegmentEnd }
+                        }
+                        // The current segment is the segment requested by the final LineUp node,
+                        // so we can align and stop immediately.
+                        TaxiStopMode::LineUp => {
+                            taxi::TargetAction::Hold { kind: taxi::HoldKind::WhenAligned }
+                        }
+                        // The current segment is the segment requested by the final Exhaust node,
+                        // so taxi to the end of this segment.
+                        TaxiStopMode::Exhaust => {
+                            taxi::TargetAction::Hold { kind: taxi::HoldKind::SegmentEnd }
+                        }
+                    };
+                }
                 RunNodeResult::NodeDone
             }
         } else {
@@ -91,7 +146,8 @@ impl NodeKind for TaxiNode {
 
 #[derive(Component)]
 pub struct PossiblePaths {
-    pub paths: Vec<PossiblePath>,
+    pub paths:     Vec<PossiblePath>,
+    pub stop_mode: TaxiStopMode,
 }
 
 pub struct PossiblePath {
@@ -114,32 +170,34 @@ impl PossiblePath {
 }
 
 /// Performs pathfinding to determine the priority of next segments to go to.
+///
+/// Returns `None` if the current node is completed and
+/// the object should stop on the current segment.
+/// Otherwise, returns a list of possible next segments to switch to
+/// when the current segment is exhausted.
 fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
     let taxi_limits = object.log_get::<taxi::Limits>()?;
     let ground = object.log_get::<object::OnGround>()?;
-    let segment = world.log_get::<ground::Segment>(ground.segment)?;
-    let segment_label = world.log_get::<ground::SegmentLabel>(ground.segment)?;
-    let (_, target_endpoint_id) = segment.by_direction(ground.direction);
+    let current_segment = world.log_get::<ground::Segment>(ground.segment)?;
+    let current_segment_label = world.log_get::<ground::SegmentLabel>(ground.segment)?;
+    let (_, target_endpoint_id) = current_segment.by_direction(ground.direction);
     let target_endpoint = world.log_get::<ground::Endpoint>(target_endpoint_id)?;
 
     let route =
         object.get::<Route>().expect("run_as_current_node must be called from a route handler");
-    let mut hold_short = false;
-    let subseq_labels: Vec<_> = route
+    let (subseq, TakeLast(stop_mode)): (Vec<_>, _) = route
         .iter()
         .map(|node| if let Node::Taxi(taxi) = node { Some(taxi) } else { None })
         .while_some()
-        .map(|node| {
-            hold_short = node.hold_short;
-            &node.label
-        })
-        .collect();
+        .map(|node| (SubseqItem { label: &node.label, direction: node.direction }, node.stop))
+        .unzip();
     assert!(
-        !subseq_labels.is_empty(),
-        "subseq_labels is must contain at least the label from the current executing TaxiNode"
+        !subseq.is_empty(),
+        "subseq is must contain at least the label from the current executing TaxiNode"
     );
+    let stop_mode = stop_mode.expect("iterator was checked nonempty");
 
-    if subseq_labels[0] == segment_label {
+    if subseq[0].matches(current_segment_label, ground.direction) {
         // The current node requests the current segment label,
         // so this node is already completed.
         return None;
@@ -153,12 +211,21 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
 
         let next_segment = world.log_get::<ground::Segment>(next_segment_id)?;
         let next_segment_label = world.log_get::<ground::SegmentLabel>(next_segment_id)?;
+        let Some(next_segment_direction) = next_segment.direction_from(target_endpoint_id) else {
+            bevy::log::error!(
+                "Segment {next_segment_id:?} is in the adjacency of endpoint \
+                 {target_endpoint_id:?} but does not include it as an endpoint"
+            );
+            return None;
+        };
         let next_endpoint_id = next_segment.other_endpoint(target_endpoint_id)?;
         let next_endpoint = world.log_get::<ground::Endpoint>(next_endpoint_id)?;
 
-        if [next_segment_label] == subseq_labels[..] {
+        if let [first_si] = subseq[..]
+            && first_si.matches(next_segment_label, next_segment_direction)
+        {
             // This segment already satisfies the subsequence requirement.
-            if hold_short {
+            if stop_mode == TaxiStopMode::HoldShort {
                 // Just hold short at the current endpoint.
                 return None;
             }
@@ -170,17 +237,23 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
                 },
             ));
         } else {
-            let mut subseq_labels = &subseq_labels[..];
-            if Some(next_segment_label) == subseq_labels.first().copied() {
-                subseq_labels = &subseq_labels[1..];
+            let mut subseq = &subseq[..];
+            if let Some(si) = subseq.first()
+                && si.matches(next_segment_label, next_segment_direction)
+            {
+                subseq = &subseq[1..];
             }
 
             if let Some(path) = pathfind_through_subseq(
                 world,
                 next_segment_id,
                 next_endpoint_id,
-                subseq_labels,
-                if hold_short { PathfindMode::SegmentStart } else { PathfindMode::SegmentEnd },
+                subseq,
+                if stop_mode == TaxiStopMode::Exhaust {
+                    PathfindMode::SegmentEnd
+                } else {
+                    PathfindMode::SegmentStart
+                },
                 PathfindOptions { min_width: Some(taxi_limits.width), ..Default::default() },
             ) {
                 next_segments.push((next_segment_id, path));
@@ -200,7 +273,26 @@ fn recompute_action(world: &World, object: EntityRef) -> Option<PossiblePaths> {
                 length: path.cost,
             })
             .collect(),
+        stop_mode,
     })
+}
+
+/// An item in the required subsequence
+#[derive(Debug, Clone, Copy)]
+pub struct SubseqItem<'a> {
+    pub label:     &'a ground::SegmentLabel,
+    pub direction: Option<ground::SegmentDirection>,
+}
+
+impl SubseqItem<'_> {
+    #[must_use]
+    pub fn matches(
+        &self,
+        label: &ground::SegmentLabel,
+        direction: ground::SegmentDirection,
+    ) -> bool {
+        self.label == label && self.direction.is_none_or(|target| target == direction)
+    }
 }
 
 /// World getters required for pathfinding.
@@ -236,6 +328,144 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct DijkstraVertex {
+    endpoint_id:  Entity,
+    label_offset: usize,
+    from_segment: Entity,
+}
+
+struct PathfindState<'a, 'subseq, Ctx> {
+    ctx:                      Ctx,
+    failed:                   Cell<bool>,
+    initial_dest_endpoint_id: Entity,
+    subseq_labels:            &'a [SubseqItem<'subseq>],
+    options:                  PathfindOptions,
+}
+
+impl<'ctx, Ctx: PathfindContext<'ctx>> PathfindState<'_, '_, Ctx> {
+    fn endpoint(&self, entity: Entity) -> Option<&'ctx ground::Endpoint> {
+        if let Some(value) = self.ctx.endpoint(entity) {
+            Some(value)
+        } else {
+            self.failed.set(true);
+            None
+        }
+    }
+
+    fn segment(
+        &self,
+        entity: Entity,
+    ) -> Option<(&'ctx ground::Segment, &'ctx ground::SegmentLabel)> {
+        if let Some(value) = self.ctx.segment(entity) {
+            Some(value)
+        } else {
+            self.failed.set(true);
+            None
+        }
+    }
+
+    fn successors(
+        &self,
+        source: DijkstraVertex,
+    ) -> Option<Vec<(DijkstraVertex, OrderedFloat<f32>)>> {
+        let source_endpoint = self.endpoint(source.endpoint_id)?;
+        let successors =
+            source_endpoint.adjacency.iter().copied().filter_map(move |succ_segment_id| {
+                if succ_segment_id == source.from_segment {
+                    // do not U-turn
+                    return None;
+                }
+
+                let (succ_segment, succ_label) = self.segment(succ_segment_id)?;
+                let Some(succ_direction) = succ_segment.direction_from(source.endpoint_id) else {
+                    bevy::log::error!(
+                        "Segment {succ_segment_id:?} is in the adjacency of endpoint {:?} but \
+                         does not include it as an endpoint",
+                        source.endpoint_id,
+                    );
+                    self.failed.set(true);
+                    return None;
+                };
+                if source.endpoint_id == self.initial_dest_endpoint_id
+                    && let Some(initial_speed) = self.options.initial_speed
+                    && succ_segment.max_speed < initial_speed
+                {
+                    return None;
+                }
+
+                if let Some(min_width) = self.options.min_width
+                    && succ_segment.width < min_width
+                {
+                    return None;
+                }
+
+                let dest_endpoint_id = succ_segment
+                    .other_endpoint(source.endpoint_id)
+                    .expect("adjacency segment of endpoint must contain itself");
+                let dest_endpoint = self.endpoint(dest_endpoint_id)?;
+                let distance = source_endpoint.position.distance_exact(dest_endpoint.position);
+                let cost = OrderedFloat(distance.0);
+
+                let next_label_offset = if let Some(si) =
+                    self.subseq_labels.get(source.label_offset)
+                    && si.matches(succ_label, succ_direction)
+                {
+                    source.label_offset + 1
+                } else {
+                    source.label_offset
+                };
+
+                Some((
+                    DijkstraVertex {
+                        endpoint_id:  dest_endpoint_id,
+                        label_offset: next_label_offset,
+                        from_segment: succ_segment_id,
+                    },
+                    cost,
+                ))
+            });
+        Some(successors.collect())
+    }
+
+    fn is_terminal(&self, vertex: DijkstraVertex, mode: PathfindMode) -> bool {
+        if self.failed.get() {
+            return false;
+        }
+
+        match mode {
+            PathfindMode::SegmentStart => {
+                if vertex.label_offset + 1 == self.subseq_labels.len() {
+                    let endpoint = self
+                        .ctx
+                        .endpoint(vertex.endpoint_id)
+                        .expect("successors only generates checked endpoints");
+                    let last_si = self.subseq_labels.last().expect("subseq_labels is non-empty");
+                    endpoint.adjacency.iter().any(|&segment_id| {
+                        if let Some((segment, label)) = self.ctx.segment(segment_id)
+                            && let Some(dir) = segment.direction_from(vertex.endpoint_id)
+                        {
+                            last_si.matches(label, dir)
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            }
+            PathfindMode::SegmentEnd => vertex.label_offset == self.subseq_labels.len(),
+            PathfindMode::Endpoint(dest) => {
+                vertex.label_offset == self.subseq_labels.len() && dest == vertex.endpoint_id
+            }
+            PathfindMode::Segment(_) => {
+                vertex.label_offset == self.subseq_labels.len()
+                    && mode == PathfindMode::Segment(vertex.from_segment)
+            }
+        }
+    }
+}
+
 /// Finds the shortest path starting from `initial_segment_id` through `initial_dest_endpoint_id`,
 /// such that `subseq_labels` is an ordered subsequence of the labels of the segments in the path.
 ///
@@ -244,122 +474,61 @@ pub fn pathfind_through_subseq<'a>(
     ctx: impl PathfindContext<'a>,
     initial_segment_id: Entity,
     initial_dest_endpoint_id: Entity,
-    subseq_labels: &[impl AsRef<ground::SegmentLabel>],
+    subseq_labels: &[SubseqItem],
     mode: PathfindMode,
     options: PathfindOptions,
 ) -> Option<Path> {
-    macro_rules! get_or_fail {
-        ($ctx:ident, $failed:ident, $method:ident, $entity:expr) => {
-            match $ctx.$method($entity) {
-                Some(value) => value,
-                None => {
-                    $failed.set(true);
-                    return None;
-                }
-            }
-        };
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    struct DijkstraVertex {
-        endpoint_id:          Entity,
-        label_offset:         usize,
-        matches_last_segment: bool,
-    }
-
-    let failed = &Cell::new(false);
-
-    let successors = |source_endpoint_id: Entity, label_offset: usize| {
-        let source = get_or_fail!(ctx, failed, endpoint, source_endpoint_id);
-        let successors = source.adjacency.iter().copied().filter_map(move |segment_id| {
-            if segment_id == initial_segment_id {
-                // do not repeat the segment we came from.
-                return None;
-            }
-
-            let (segment, label) = get_or_fail!(ctx, failed, segment, segment_id);
-            if source_endpoint_id == initial_dest_endpoint_id
-                && let Some(initial_speed) = options.initial_speed
-                && segment.max_speed < initial_speed
-            {
-                return None;
-            }
-
-            if let Some(min_width) = options.min_width
-                && segment.width < min_width
-            {
-                return None;
-            }
-
-            let dest_endpoint_id = segment
-                .other_endpoint(source_endpoint_id)
-                .expect("adjacency segment of endpoint must contain itself");
-            let dest_endpoint = get_or_fail!(ctx, failed, endpoint, dest_endpoint_id);
-            let distance = source.position.distance_exact(dest_endpoint.position);
-            let cost = OrderedFloat(distance.0);
-
-            let next_label_offset =
-                if subseq_labels.get(label_offset).map(AsRef::as_ref) == Some(label) {
-                    label_offset + 1
-                } else {
-                    label_offset
-                };
-
-            Some((
-                DijkstraVertex {
-                    endpoint_id:          dest_endpoint_id,
-                    label_offset:         next_label_offset,
-                    matches_last_segment: mode == PathfindMode::Segment(segment_id),
-                },
-                cost,
-            ))
-        });
-        Some(successors)
+    let state = &PathfindState {
+        ctx,
+        failed: Cell::new(false),
+        initial_dest_endpoint_id,
+        subseq_labels,
+        options,
     };
 
     let (nodes, cost) = dijkstra(
         &DijkstraVertex {
-            endpoint_id:          initial_dest_endpoint_id,
-            label_offset:         0,
-            matches_last_segment: false,
+            endpoint_id:  initial_dest_endpoint_id,
+            label_offset: 0,
+            from_segment: initial_segment_id,
         },
-        move |&vertex| successors(vertex.endpoint_id, vertex.label_offset).into_iter().flatten(),
-        |&vertex| {
-            if failed.get() {
-                return false;
-            }
-
-            match mode {
-                PathfindMode::SegmentStart => {
-                    if vertex.label_offset == subseq_labels.len() - 1 {
-                        let endpoint = ctx
-                            .endpoint(vertex.endpoint_id)
-                            .expect("successors only generates checked endpoints");
-                        let last_label =
-                            subseq_labels.last().expect("subseq_labels is non-empty").as_ref();
-                        endpoint.adjacency.iter().any(|&segment_id| {
-                            ctx.segment(segment_id).is_some_and(|(_, label)| label == last_label)
-                        })
-                    } else {
-                        false
-                    }
-                }
-                PathfindMode::SegmentEnd => vertex.label_offset == subseq_labels.len(),
-                PathfindMode::Endpoint(dest) => {
-                    vertex.label_offset == subseq_labels.len() && dest == vertex.endpoint_id
-                }
-                PathfindMode::Segment(_) => {
-                    vertex.label_offset == subseq_labels.len() && vertex.matches_last_segment
-                }
-            }
-        },
+        move |&vertex| state.successors(vertex).into_iter().flatten(),
+        |&vertex| state.is_terminal(vertex, mode),
     )?;
-    bevy::log::trace!("found path with cost {:?}: {:?}", Length::new(cost.0), &nodes);
+    bevy::log::trace!(
+        "request {subseq_labels:?}, found path with cost {:?}: {}",
+        Length::new(cost.0).into_meters(),
+        DisplayPath { nodes: &nodes, ctx: &ctx }
+    );
 
     Some(Path {
         endpoints: nodes.into_iter().map(|vertex| vertex.endpoint_id).collect(),
         cost:      Length::new(cost.0),
     })
+}
+
+struct DisplayPath<'a, Ctx> {
+    nodes: &'a [DijkstraVertex],
+    ctx:   &'a Ctx,
+}
+
+impl<'b, Ctx: PathfindContext<'b>> fmt::Display for DisplayPath<'_, Ctx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut label_offset = 0;
+        write!(f, "START")?;
+        for node in self.nodes {
+            write!(
+                f,
+                " -- {:?} --> to endpoint {:?}",
+                self.ctx.segment(node.from_segment).map(|(_, lbl)| lbl),
+                node.endpoint_id,
+            )?;
+            if mem::replace(&mut label_offset, node.label_offset) != node.label_offset {
+                write!(f, " [label] ")?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Destination mode for [`pathfind_through_subseq`].
@@ -418,7 +587,7 @@ pub enum PathfindMode {
 }
 
 /// Optional limits for [`pathfind_through_subseq`].
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct PathfindOptions {
     /// - If `Some`, the *first* segment after `initial_dest_endpoint_id`
     ///   must have a `max_speed` greater than or equal to `current_speed`.

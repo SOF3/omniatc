@@ -108,6 +108,11 @@ pub struct NavLimits {
     /// Max absolute rate of change of yaw speed.
     pub max_yaw_accel: AngularAccel,
 
+    // Takeoff
+    /// The takeoff airspeed.
+    pub takeoff_speed: Speed<f32>,
+
+    // Landing
     /// Distance from runway threshold at which the aircraft
     /// must start reducing to `short_final_speed`.
     pub short_final_dist:  Length<f32>,

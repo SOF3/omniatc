@@ -9,7 +9,7 @@ use omniatc::level::instr::{self, CommandsExt};
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::RunwayOf;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{ground, nav, taxi};
+use omniatc::level::{ground, nav, object, taxi};
 use store::WaypointProximity;
 
 use super::Writer;
@@ -22,6 +22,7 @@ pub struct ObjectQuery {
     route_id:        Option<&'static route::Id>,
     target_waypoint: Option<&'static nav::TargetWaypoint>,
     taxi_target:     Option<&'static taxi::Target>,
+    on_ground:       Option<&'static object::OnGround>,
     entity:          Entity,
 }
 
@@ -60,7 +61,7 @@ impl Writer for ObjectQuery {
         }
 
         if let Some(target) = this.taxi_target {
-            write_taxi_target(ui, target, params);
+            write_taxi_target(ui, target, params, this.on_ground);
         }
 
         if let Some(route) = this.route {
@@ -154,12 +155,21 @@ fn write_route_options(
     });
 }
 
-fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRouteParams) {
-    match target.action {
-        taxi::TargetAction::HoldShort => {
-            ui.label("Hold short at the next intersection");
+fn write_taxi_target(
+    ui: &mut egui::Ui,
+    target: &taxi::Target,
+    params: &WriteRouteParams,
+    on_ground: Option<&object::OnGround>,
+) {
+    match (&target.action, on_ground) {
+        (&taxi::TargetAction::Takeoff { runway }, _) => {
+            let waypoint_name = match params.waypoint_query.log_get(runway) {
+                None => "",
+                Some(waypoint) => &waypoint.name,
+            };
+            ui.label(format!("Taking off from runway {waypoint_name}"));
         }
-        taxi::TargetAction::Taxi { ref options } => {
+        (taxi::TargetAction::Taxi { options }, _) => {
             let label_strs = options
                 .iter()
                 .filter_map(|&segment| {
@@ -167,7 +177,18 @@ fn write_taxi_target(ui: &mut egui::Ui, target: &taxi::Target, params: &WriteRou
                     Some(label.display_segment_label(&params.waypoint_query))
                 })
                 .join(" or ");
-            ui.label(format!("Turn to {label_strs}"));
+            ui.label(format!("Turning to {label_strs}"));
+        }
+        (taxi::TargetAction::Hold { kind: _ }, Some(on_ground))
+            if on_ground.target_speed.is_holding() =>
+        {
+            ui.label("Holding, waiting for clearance");
+        }
+        (taxi::TargetAction::Hold { kind: taxi::HoldKind::WhenAligned }, _) => {
+            ui.label("Aligning heading");
+        }
+        (taxi::TargetAction::Hold { kind: taxi::HoldKind::SegmentEnd }, _) => {
+            ui.label("Holding short of the next intersection");
         }
     }
 }
@@ -248,17 +269,10 @@ fn write_route_node(
             ));
         }
         route::Node::Taxi(node) => {
-            if node.hold_short {
-                ui.label(format!(
-                    "Hold short at {}",
-                    node.label.display_segment_label(&params.waypoint_query)
-                ));
-            } else {
-                ui.label(format!(
-                    "Taxi via {}",
-                    node.label.display_segment_label(&params.waypoint_query)
-                ));
-            }
+            ui.label(node.stop.message(node.label.display_segment_label(&params.waypoint_query)));
+        }
+        route::Node::Takeoff(_) => {
+            ui.label("Take off");
         }
     }
 }

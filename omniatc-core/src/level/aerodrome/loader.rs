@@ -71,11 +71,19 @@ pub fn spawn(
                 );
                 runway_entities.insert(
                     runway_pair.forward.name.clone(),
-                    PairedSpawnedRunway { runway: forward, paired: backward.runway },
+                    PairedSpawnedRunway {
+                        runway:    forward,
+                        paired:    backward.runway,
+                        direction: ground::SegmentDirection::AlphaToBeta,
+                    },
                 );
                 runway_entities.insert(
                     runway_pair.backward.name.clone(),
-                    PairedSpawnedRunway { runway: backward, paired: forward.runway },
+                    PairedSpawnedRunway {
+                        runway:    backward,
+                        paired:    forward.runway,
+                        direction: ground::SegmentDirection::BetaToAlpha,
+                    },
                 );
             }
 
@@ -246,9 +254,11 @@ pub struct SpawnedRunway {
 /// A pair of runway entities on opposite directions for the same physical runway.
 pub struct PairedSpawnedRunway {
     /// The runway entity resolved directly.
-    pub runway: SpawnedRunway,
+    pub runway:    SpawnedRunway,
     /// The other runway in the pair.
-    pub paired: Entity,
+    pub paired:    Entity,
+    /// The segment direction of the matched runway.
+    pub direction: ground::SegmentDirection,
 }
 
 impl PairedSpawnedRunway {

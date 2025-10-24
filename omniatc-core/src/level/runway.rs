@@ -45,6 +45,9 @@ pub struct Runway {
     /// for some `0 <= k < 1`
     /// such that braking over `(1 - k) * landing_length.length()`
     /// allows the plane to reduce to taxi speed.
+    ///
+    /// The ending point of landing length
+    /// is also used for calculating the takeoff distance.
     pub landing_length: Length<Vec2>,
 
     /// Starting point of the rendered runway.

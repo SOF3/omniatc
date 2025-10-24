@@ -7,7 +7,8 @@ use bevy::ecs::world::World;
 use either::Either;
 
 use crate::level::aerodrome::loader::AerodromeMap;
-use crate::level::route;
+use crate::level::ground;
+use crate::level::route::{self, TaxiStopMode};
 use crate::level::waypoint::loader::WaypointMap;
 use crate::load::{self, StoredEntity};
 
@@ -82,39 +83,70 @@ pub fn convert_route<'a>(
                     distance,
                     proximity,
                     altitude,
-                } => route::node_vec(route::DirectWaypointNode {
+                } => node_vec(route::DirectWaypointNode {
                     waypoint: waypoints.resolve_ref(aerodromes, waypoint)?,
                     distance,
                     proximity,
                     altitude,
                 }),
                 store::RouteNode::SetAirSpeed { goal, error } => {
-                    route::node_vec(route::SetAirspeedNode { speed: goal, error })
+                    node_vec(route::SetAirspeedNode { speed: goal, error })
                 }
                 store::RouteNode::StartPitchToAltitude { goal, error, expedite } => {
-                    route::node_vec(route::StartSetAltitudeNode { altitude: goal, error, expedite })
+                    node_vec(route::StartSetAltitudeNode { altitude: goal, error, expedite })
                 }
-                store::RouteNode::RunwayLanding { ref runway, ref goaround_preset } => {
+                store::RouteNode::RunwayLanding {
+                    ref runway,
+                    ref goaround_preset,
+                    current_phase,
+                } => {
                     let runway = aerodromes.resolve_runway_ref(runway)?.runway.runway;
                     let goaround_preset = if let Some(goaround_preset) = goaround_preset {
                         Some(route_presets.resolve(goaround_preset)?)
                     } else {
                         None
                     };
-                    Vec::<route::Node>::from([
-                        route::AlignRunwayNode { runway, expedite: true, goaround_preset }.into(),
-                        route::ShortFinalNode { runway, goaround_preset }.into(),
-                        route::VisualLandingNode { runway, goaround_preset }.into(),
-                    ])
+
+                    let mut out_nodes = Vec::<route::Node>::with_capacity(3);
+                    if let store::LandingPhase::Align = current_phase {
+                        out_nodes.push(
+                            route::AlignRunwayNode { runway, expedite: true, goaround_preset }
+                                .into(),
+                        );
+                    }
+                    if let store::LandingPhase::Align | store::LandingPhase::ShortFinal =
+                        current_phase
+                    {
+                        out_nodes.push(route::ShortFinalNode { runway, goaround_preset }.into());
+                    }
+                    out_nodes.push(route::VisualLandingNode { runway, goaround_preset }.into());
+                    out_nodes
                 }
-                store::RouteNode::Taxi { ref segment } => route::node_vec(route::TaxiNode {
-                    label:      aerodromes.resolve_segment(segment)?,
-                    hold_short: false,
+                store::RouteNode::RunwayTakeoff { runway: _, target_altitude } => {
+                    node_vec(route::TakeoffNode { target_altitude })
+                }
+                store::RouteNode::RunwayLineup { ref runway } => {
+                    let runway_pair = aerodromes.resolve_runway_ref(runway)?;
+                    node_vec(route::TaxiNode {
+                        label:     ground::SegmentLabel::RunwayPair([
+                            runway_pair.runway.runway,
+                            runway_pair.paired,
+                        ]),
+                        direction: Some(runway_pair.direction),
+                        stop:      TaxiStopMode::LineUp,
+                    })
+                }
+                store::RouteNode::Taxi { ref segment } => node_vec(route::TaxiNode {
+                    label:     aerodromes.resolve_segment(segment)?,
+                    direction: None,
+                    stop:      TaxiStopMode::Exhaust,
                 }),
-                store::RouteNode::HoldShort { ref segment } => route::node_vec(route::TaxiNode {
-                    label:      aerodromes.resolve_segment(segment)?,
-                    hold_short: true,
+                store::RouteNode::HoldShort { ref segment } => node_vec(route::TaxiNode {
+                    label:     aerodromes.resolve_segment(segment)?,
+                    direction: None,
+                    stop:      TaxiStopMode::HoldShort,
                 }),
+                store::RouteNode::WaitForClearance => node_vec(route::StandbyNode),
             })
         })
         .flat_map(|result| match result {
@@ -122,3 +154,5 @@ pub fn convert_route<'a>(
             Err(err) => Either::Right(iter::once(Err(err))),
         })
 }
+
+fn node_vec(node: impl Into<route::Node>) -> Vec<route::Node> { Vec::from([node.into()]) }

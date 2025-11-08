@@ -18,16 +18,16 @@ use bevy::time::{self, Time, Timer, TimerMode};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
 use math::{
-    Heading, Length, PRESSURE_DENSITY_ALTITUDE_POW, Position, STANDARD_LAPSE_RATE,
-    STANDARD_SEA_LEVEL_TEMPERATURE, Speed, TAS_DELTA_PER_NM, TROPOPAUSE_ALTITUDE, range_steps,
-    solve_expected_ground_speed,
+    Accel, AngularSpeed, Heading, Length, PRESSURE_DENSITY_ALTITUDE_POW, Position,
+    STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE, Speed, TAS_DELTA_PER_NM,
+    TROPOPAUSE_ALTITUDE, range_steps, solve_expected_ground_speed,
 };
 use store::Score;
 
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
-use crate::level::dest;
+use crate::level::{dest, plane};
 use crate::try_log::EntityWorldMutExt;
 
 pub mod loader;
@@ -156,6 +156,24 @@ pub struct SetAirborneCommand;
 
 impl EntityCommand for SetAirborneCommand {
     fn apply(self, mut entity: EntityWorldMut) {
+        let entity_id = entity.id();
+        entity.world_scope(|world| {
+            let mut state = SystemState::<
+                Query<(&mut plane::Control, &TaxiStatus, Option<&nav::Limits>)>,
+            >::new(world);
+            let mut query = state.get_mut(world);
+            if let Ok((mut plane_control, taxi_status, nav_limits)) = query.get_mut(entity_id) {
+                plane_control.heading = taxi_status.heading;
+                plane_control.yaw_speed = AngularSpeed::ZERO;
+
+                if let Some(nav_limits) = nav_limits {
+                    plane_control.horiz_accel = nav_limits.0.std_climb.accel;
+                } else {
+                    plane_control.horiz_accel = Accel::ZERO;
+                }
+            }
+        });
+
         entity.remove::<OnGround>();
 
         let (position, ground_speed) = {
@@ -170,7 +188,6 @@ impl EntityCommand for SetAirborneCommand {
 
         let airspeed = ground_speed - wind.horizontally();
         entity.insert(Airborne { airspeed, true_airspeed: airspeed });
-        // TODO insert/remove nav::VelocityTarget?
     }
 }
 
@@ -194,7 +211,7 @@ pub struct OnGround {
     ///
     /// The Aviate phase updates [`Object::ground_speed`] to attain this target speed subject to
     /// taxi limits.
-    pub target_speed: Speed<f32>,
+    pub target_speed: OnGroundTargetSpeed,
 }
 
 impl OnGround {
@@ -207,6 +224,49 @@ impl OnGround {
             ground::SegmentDirection::AlphaToBeta => segment.beta,
             ground::SegmentDirection::BetaToAlpha => segment.alpha,
         })
+    }
+}
+
+pub enum OnGroundTargetSpeed {
+    /// Attempt to reach an exact speed.
+    Exact(Speed<f32>),
+    /// Accelerate unrestricted. Used for takeoff.
+    TakeoffRoll,
+}
+
+impl OnGroundTargetSpeed {
+    /// Whether the target speed is unrestricted for takeoff.
+    #[must_use]
+    pub fn is_takeoff_roll(&self) -> bool { matches!(self, OnGroundTargetSpeed::TakeoffRoll) }
+
+    /// Whether the target speed is zero.
+    ///
+    /// This is an exact float match, which only returns true when
+    /// the target speed is explicitly set to zero
+    /// rather than a computed value that approximates to zero.
+    #[must_use]
+    pub fn is_holding(&self) -> bool {
+        matches!(self, OnGroundTargetSpeed::Exact(speed) if speed.is_zero())
+    }
+}
+
+impl PartialEq<Speed<f32>> for OnGroundTargetSpeed {
+    fn eq(&self, other: &Speed<f32>) -> bool {
+        match self {
+            OnGroundTargetSpeed::Exact(speed) => speed.eq(other),
+            // Takeoff roll is never equal to any finite speed.
+            OnGroundTargetSpeed::TakeoffRoll => false,
+        }
+    }
+}
+
+impl PartialOrd<Speed<f32>> for OnGroundTargetSpeed {
+    fn partial_cmp(&self, other: &Speed<f32>) -> Option<std::cmp::Ordering> {
+        match self {
+            OnGroundTargetSpeed::Exact(speed) => speed.partial_cmp(other),
+            // Takeoff roll is always greater than any finite speed.
+            OnGroundTargetSpeed::TakeoffRoll => Some(std::cmp::Ordering::Greater),
+        }
     }
 }
 
@@ -254,7 +314,7 @@ impl EntityCommand for SetOnGroundCommand {
             OnGround {
                 segment:      self.segment,
                 direction:    self.direction,
-                target_speed: Speed::ZERO,
+                target_speed: OnGroundTargetSpeed::Exact(Speed::ZERO),
             },
             TaxiStatus { heading },
         ));

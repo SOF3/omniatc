@@ -26,9 +26,9 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
-use math::{CanSqrt, Length, Position, Speed, point_line_closest};
+use math::{Angle, CanSqrt, Heading, Length, Position, Speed, point_line_closest};
 use ordered_float::OrderedFloat;
-use smallvec::SmallVec;
+use wordvec::WordVec;
 
 use super::object::Object;
 use super::{SystemSets, ground, object};
@@ -47,7 +47,12 @@ const MIN_POSITIVE_SPEED: Speed<f32> = Speed::from_knots(2.);
 /// it is considered to be on the centerline,
 /// and it will head directly towards the target endpoint
 /// instead of pursuing the centerline.
-const NEGLIGIBLE_DEVIATION: Length<f32> = Length::from_meters(1.0);
+const NEGLIGIBLE_DEVIATION_LENGTH: Length<f32> = Length::from_meters(1.0);
+
+/// If an object is within this angle of deviation from the segment heading,
+/// it is considered to be aligned with the segment.
+/// This affects [`HoldKind::WhenAligned`] execution.
+const NEGLIGIBLE_DEVIATION_ANGLE: Angle = Angle::from_degrees(5.0);
 
 /// If the object is expected to diverge from the centerline beyond this distance,
 /// the object will not accelerate beyond `MIN_POSITIVE_SPEED`.
@@ -65,7 +70,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(app::Update, maintain_dir.in_set(SystemSets::Aviate));
+        app.add_systems(app::Update, maintain_dir_system.in_set(SystemSets::Aviate));
         app.add_systems(app::Update, target_path_system.in_set(SystemSets::Navigate));
         app.add_message::<TargetResolutionMessage>();
     }
@@ -79,7 +84,7 @@ impl ops::Deref for Limits {
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
-fn maintain_dir(
+fn maintain_dir_system(
     time: Res<Time<time::Virtual>>,
     object_query: Query<(Entity, &mut Object, &object::OnGround, &mut object::TaxiStatus, &Limits)>,
     segment_query: Query<&ground::Segment>,
@@ -144,7 +149,10 @@ fn maintain_dir_for_object(
     limits: &Limits,
     [start_endpoint, target_endpoint]: [Position<Vec2>; 2],
 ) {
-    let reversed = ground.target_speed.is_negative();
+    let reversed = match ground.target_speed {
+        object::OnGroundTargetSpeed::Exact(speed) => speed.is_negative(),
+        object::OnGroundTargetSpeed::TakeoffRoll => false,
+    };
 
     let current_speed =
         object.ground_speed.horizontal().project_onto_dir(taxi_status.heading.into_dir2());
@@ -176,7 +184,7 @@ fn maintain_dir_for_object(
 
     // Whether the current heading is facing towards the centerline.
     // Always true if the object is negligibly near the centerline.
-    let is_towards_centerline = object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION
+    let is_towards_centerline = object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION_LENGTH
         || current_heading.into_dir2().dot(object_to_line_ortho.0) >= 0.0;
 
     // Amount of turn required to face the target heading, signed.
@@ -194,7 +202,7 @@ fn maintain_dir_for_object(
     // Direct heading from object to target endpoint.
     let direct_heading = (target_endpoint - object.position.horizontal()).heading();
 
-    let turn_towards = if object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION {
+    let turn_towards = if object_to_line_ortho.magnitude_cmp() < NEGLIGIBLE_DEVIATION_LENGTH {
         // Do not overcorrect if the deviation from the centerline is negligible.
         TurnTowards::TargetEndpoint
     } else if direct_heading.is_between(current_heading, object_to_line_ortho.heading()) {
@@ -248,8 +256,7 @@ fn maintain_dir_for_object(
     let max_turn = limits.turn_rate * time.delta();
     let new_heading = current_heading.restricted_turn(desired_heading, max_turn);
 
-    let mut desired_corrected_speed = ground.target_speed.abs();
-    if current_corrected_speed.is_positive() {
+    let should_brake = if current_corrected_speed.is_positive() {
         // desired is always positive anyway
         // cross centerline and diverge beyond threshold
         let crossing_diverge =
@@ -259,21 +266,27 @@ fn maintain_dir_for_object(
             && object_to_line_ortho.magnitude_cmp()
                 > SLOW_TURN_OVERSHOOT_TOLERANCE - convergence_dist;
 
-        if crossing_diverge || continue_diverge {
-            // In either case, the object will cross the centerline significantly
-            // before it can turn towards the target heading,
-            // so slow down further.
-            desired_corrected_speed = MIN_POSITIVE_SPEED;
+        // In either case, the object will cross the centerline significantly
+        // before it can turn towards the target heading,
+        // so slow down further.
+        crossing_diverge || continue_diverge
+    } else {
+        false
+    };
+
+    let new_speed = match ground.target_speed {
+        _ if should_brake => {
+            limited_taxi_speed(reversed, MIN_POSITIVE_SPEED, current_speed, limits, time)
         }
-    }
-    let desired_speed = if reversed { -desired_corrected_speed } else { desired_corrected_speed };
-    let speed_deviation = desired_speed - current_speed;
-    let accel_limit = match (current_speed.is_positive(), speed_deviation.is_positive()) {
-        (true, true) | (false, false) => limits.accel,
-        (true, false) | (false, true) => limits.base_braking,
-    } * time.delta();
-    let new_speed = (current_speed + speed_deviation.clamp(-accel_limit, accel_limit))
-        .clamp(limits.min_speed, limits.max_speed);
+
+        object::OnGroundTargetSpeed::Exact(target_speed) => {
+            limited_taxi_speed(reversed, target_speed.abs(), current_speed, limits, time)
+        }
+        object::OnGroundTargetSpeed::TakeoffRoll => {
+            let speed_change = limits.accel * time.delta();
+            current_speed + speed_change
+        }
+    };
 
     let desired_velocity = new_speed * new_heading;
     object.ground_speed = desired_velocity.horizontally();
@@ -281,6 +294,28 @@ fn maintain_dir_for_object(
 
     // TODO check for other objects on the segment.
     // Control speed such that the braking distance is shorter than the separation between objects.
+}
+
+fn limited_taxi_speed(
+    reversed: bool,
+    mut desired_speed: Speed<f32>,
+    current_speed: Speed<f32>,
+    limits: &Limits,
+    time: &Time<time::Virtual>,
+) -> Speed<f32> {
+    if reversed {
+        desired_speed = -desired_speed;
+    }
+    let speed_deviation = desired_speed - current_speed;
+
+    let accel_limit = match (current_speed.is_positive(), speed_deviation.is_positive()) {
+        (true, true) | (false, false) => limits.accel,
+        (true, false) | (false, true) => limits.base_braking,
+    } * time.delta();
+
+    let speed_change = speed_deviation.clamp(-accel_limit, accel_limit);
+    let unlimited_speed = current_speed + speed_change;
+    unlimited_speed.clamp(limits.min_speed, limits.max_speed)
 }
 
 /// The next planned segment for an object.
@@ -300,12 +335,25 @@ pub struct Target {
 
 #[derive(Clone)]
 pub enum TargetAction {
+    /// Taxi along the runway with maximum acceleration.
+    Takeoff { runway: Entity },
     /// Taxi to the first segment if available,
     /// otherwise to the next available segment.
     /// If all segments are unavailable, the object will hold at the end of the current segment.
-    Taxi { options: SmallVec<[Entity; 2]> },
+    Taxi { options: WordVec<Entity, 1> },
     /// Hold at the end of the current segment.
-    HoldShort,
+    Hold { kind: HoldKind },
+}
+
+/// Whether to hold as soon as possible or until the end.
+#[derive(Clone, Copy)]
+pub enum HoldKind {
+    /// Hold as long as the object is aligned with the segment,
+    /// used for lining up before takeoff.
+    WhenAligned,
+    /// Hold before the end of the current segment,
+    /// effectively holding short of the intersection.
+    SegmentEnd,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -373,15 +421,21 @@ impl TargetPathParams<'_, '_> {
         let (action, resolution_mut) = match target {
             Some(Target { action, resolution: resolution @ None }) => (&*action, Some(resolution)),
             None | Some(Target { action: _, resolution: Some(_) }) => {
-                (&TargetAction::HoldShort, None)
+                (&TargetAction::Hold { kind: HoldKind::SegmentEnd }, None)
             }
         };
 
-        let resolution = match action {
-            TargetAction::Taxi { options } => {
+        let resolution = match *action {
+            TargetAction::Takeoff { runway: _ } => {
+                ground.target_speed = object::OnGroundTargetSpeed::TakeoffRoll;
+                None // no resolution from the taxi plugin
+            }
+            TargetAction::Taxi { ref options } => {
                 self.action_taxi(object, limits, ground, taxi_status, options)
             }
-            TargetAction::HoldShort => self.action_hold_short(object, limits, ground),
+            TargetAction::Hold { kind } => {
+                self.action_hold_short(object, limits, ground, taxi_status, kind)
+            }
         };
         if let Some(resolution_mut) = resolution_mut {
             if resolution.is_some() != resolution_mut.is_some() {
@@ -431,7 +485,12 @@ impl TargetPathParams<'_, '_> {
         }
 
         // All options are inoperable, just hold.
-        self.hold_before_endpoint(object, limits, ground, intersection_endpoint);
+        self.hold_before_endpoint(
+            object,
+            limits,
+            ground,
+            self.endpoint_query.log_get(intersection_endpoint)?,
+        );
         if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
             Some(TargetResolution::Inoperable)
         } else {
@@ -445,15 +504,24 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
+        taxi_status: &object::TaxiStatus,
+        kind: HoldKind,
     ) -> Option<TargetResolution> {
         let current_segment = self.segment_query.log_get(ground.segment)?;
+        let (from_endpoint_id, to_endpoint_id) = current_segment.by_direction(ground.direction);
+        let [from_endpoint, to_endpoint] =
+            self.endpoint_query.log_get_many([from_endpoint_id, to_endpoint_id])?;
 
-        self.hold_before_endpoint(
-            object,
-            limits,
-            ground,
-            current_segment.by_direction(ground.direction).1,
-        );
+        match kind {
+            HoldKind::WhenAligned => Self::hold_when_aligned(
+                ground,
+                object,
+                taxi_status,
+                from_endpoint.position,
+                to_endpoint.position,
+            ),
+            HoldKind::SegmentEnd => self.hold_before_endpoint(object, limits, ground, to_endpoint),
+        }
         if object.ground_speed.magnitude_cmp() < NEGLIGIBLE_SPEED {
             Some(TargetResolution::Completed(0))
         } else {
@@ -531,7 +599,7 @@ impl TargetPathParams<'_, '_> {
             if object_dist > decel_distance * DECEL_BUFFER {
                 // We can continue at the current speed on the original segment
                 // until decel_distance from the intersection threshold.
-                ground.target_speed = current_segment.max_speed;
+                ground.target_speed = object::OnGroundTargetSpeed::Exact(current_segment.max_speed);
                 return Some(TurnResult::Later);
             }
 
@@ -546,7 +614,7 @@ impl TargetPathParams<'_, '_> {
 
             // We are too fast to turn, so we have to reduce speed.
             // We still haven't accepted nor rejected this segment yet.
-            ground.target_speed = max_turn_speed;
+            ground.target_speed = object::OnGroundTargetSpeed::Exact(max_turn_speed);
             return Some(TurnResult::Later);
         }
 
@@ -563,15 +631,35 @@ impl TargetPathParams<'_, '_> {
         if object_dist > turn_distance {
             // We can continue on the original segment until turn_distance from the intersection
             // point.
-            ground.target_speed = current_segment.max_speed;
+            ground.target_speed = object::OnGroundTargetSpeed::Exact(current_segment.max_speed);
             return Some(TurnResult::Later);
         }
 
         ground.segment = next_segment_id;
-        ground.target_speed = next_segment.max_speed;
+        ground.target_speed = object::OnGroundTargetSpeed::Exact(next_segment.max_speed);
         ground.direction =
             next_segment.direction_from(intersect_endpoint).expect("checked in other_endpoint");
         Some(TurnResult::Completed)
+    }
+
+    fn hold_when_aligned(
+        ground: &mut object::OnGround,
+        object: &Object,
+        taxi_status: &object::TaxiStatus,
+        from_position: Position<Vec2>,
+        to_position: Position<Vec2>,
+    ) {
+        let segment_heading = Heading::from_vec2((to_position - from_position).0);
+
+        let heading_deviation = taxi_status.heading.closest_distance(segment_heading).abs();
+        if heading_deviation < NEGLIGIBLE_DEVIATION_ANGLE {
+            let object_position = object.position.horizontal();
+            let closest_on_segment =
+                point_line_closest(object_position, from_position, to_position);
+            if object_position.distance_cmp(closest_on_segment) < NEGLIGIBLE_DEVIATION_LENGTH {
+                ground.target_speed = object::OnGroundTargetSpeed::Exact(Speed::ZERO);
+            }
+        }
     }
 
     /// Decelerate to stop before the width of the endpoint intersection.
@@ -580,10 +668,8 @@ impl TargetPathParams<'_, '_> {
         object: &Object,
         limits: &Limits,
         ground: &mut object::OnGround,
-        endpoint: Entity,
+        endpoint: &ground::Endpoint,
     ) {
-        let Some(endpoint) = self.endpoint_query.log_get(endpoint) else { return };
-
         // Use endpoint width as the required distance from the endpoint.
         let intersection_width = endpoint
             .adjacency
@@ -608,7 +694,7 @@ impl TargetPathParams<'_, '_> {
             return;
         }
 
-        ground.target_speed = Speed::ZERO;
+        ground.target_speed = object::OnGroundTargetSpeed::Exact(Speed::ZERO);
     }
 
     fn endpoint_width(&self, endpoint: Entity) -> Option<Length<f32>> {

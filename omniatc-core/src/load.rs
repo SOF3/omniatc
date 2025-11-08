@@ -11,9 +11,7 @@ use bevy::ecs::system::Command as BevyCommand;
 use bevy::ecs::world::World;
 use math::sweep;
 
-use crate::level::route::{self};
-use crate::level::waypoint::{self};
-use crate::level::{aerodrome, object, score, spawn, wind};
+use crate::level::{aerodrome, object, route, score, spawn, waypoint, wind};
 
 pub struct Plug;
 

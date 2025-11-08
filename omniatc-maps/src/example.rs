@@ -50,6 +50,7 @@ pub fn a359_nav_limits() -> store::NavLimits {
         accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
         drag_coef:         3. / 500. / 500.,
         max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
+        takeoff_speed:     Speed::from_knots(150.),
         short_final_dist:  Length::from_nm(4.),
         short_final_speed: Speed::from_knots(150.),
     }
@@ -83,6 +84,7 @@ fn route_retry_18r() -> Vec<store::RouteNode> {
                 runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
+            current_phase:   store::LandingPhase::Align,
         },
     ]
     .into_iter()
@@ -125,6 +127,7 @@ fn route_dwind_18l() -> Vec<store::RouteNode> {
                 runway_name: "18L".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
+            current_phase:   store::LandingPhase::Align,
         },
     ]
     .into_iter()
@@ -167,6 +170,7 @@ fn route_dwind_18r() -> Vec<store::RouteNode> {
                 runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
+            current_phase:   store::LandingPhase::Align,
         },
     ]
     .into_iter()
@@ -203,6 +207,7 @@ fn route_polar_18l() -> Vec<store::RouteNode> {
                 runway_name: "18L".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
+            current_phase:   store::LandingPhase::Align,
         },
     ]
     .into_iter()
@@ -239,6 +244,7 @@ fn route_polar_18r() -> Vec<store::RouteNode> {
                 runway_name: "18R".into(),
             },
             goaround_preset: Some("RETRY.RETRY18R".into()),
+            current_phase:   store::LandingPhase::Align,
         },
     ]
     .into_iter()
@@ -282,6 +288,64 @@ fn route_taxi_runway_west_to_tango() -> Vec<store::RouteNode> {
     .into()
 }
 
+fn route_takeoff_18r() -> Vec<store::RouteNode> {
+    [
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("A".into()),
+            },
+        },
+        store::RouteNode::Taxi {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Taxiway("A1".into()),
+            },
+        },
+        store::RouteNode::HoldShort {
+            segment: store::SegmentRef {
+                aerodrome: "MAIN".into(),
+                label:     store::SegmentLabel::Runway("18R".into()),
+            },
+        },
+        store::RouteNode::WaitForClearance,
+        store::RouteNode::RunwayLineup {
+            runway: store::RunwayRef { aerodrome: "MAIN".into(), runway_name: "18R".into() },
+        },
+        store::RouteNode::WaitForClearance,
+        store::RouteNode::RunwayTakeoff {
+            runway:          store::RunwayRef {
+                aerodrome:   "MAIN".into(),
+                runway_name: "18R".into(),
+            },
+            target_altitude: Position::from_amsl_feet(4000.),
+        },
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn route_sid_exits_18r() -> Vec<store::RouteNode> {
+    let mut route = route_takeoff_18r();
+    route.extend([
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("CLIFF".into()),
+            distance:  Length::from_nm(1.),
+            proximity: WaypointProximity::FlyOver,
+            altitude:  None,
+        },
+        store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
+        store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("EXITS".into()),
+            distance:  Length::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  Some(Position::from_amsl_feet(4000.)),
+        },
+    ]);
+    route
+}
+
+const MAIN_AERODROME_ELEVATION: Position<f32> = Position::from_amsl_feet(300.0);
 const RIGHT_RUNWAY_OFFSET: Length<f32> = Length::from_nm(1.0);
 const RUNWAY_LENGTH: Length<f32> = Length::from_meters(3000.0);
 const RUNWAY_WIDTH: Length<f32> = Length::from_meters(100.0);
@@ -382,7 +446,7 @@ pub fn file() -> store::File {
             aerodromes:    [store::Aerodrome {
                 code:           "MAIN".into(),
                 full_name:      "Main Airport".into(),
-                elevation:      Position::from_amsl_feet(300.),
+                elevation:      MAIN_AERODROME_ELEVATION,
                 ground_network: store::GroundNetwork {
                     taxiways:    [
                         store::Taxiway {
@@ -614,6 +678,20 @@ pub fn file() -> store::File {
                     .into(),
                 },
                 store::Waypoint {
+                    name:      "CLIFF".into(),
+                    position:  Position::from_origin_nm(0., -6.),
+                    elevation: None,
+                    visual:    None,
+                    navaids:   [].into(),
+                },
+                store::Waypoint {
+                    name:      "SHADE".into(),
+                    position:  Position::from_origin_nm(7., -8.),
+                    elevation: None,
+                    visual:    None,
+                    navaids:   [].into(),
+                },
+                store::Waypoint {
                     name:      "DWIND".into(),
                     position:  Position::from_origin_nm(8., 0.),
                     elevation: None,
@@ -707,7 +785,7 @@ pub fn file() -> store::File {
                     gen_name: [
                         (
                             store::NameGenerator::Airline {
-                                prefix:          "ABC".into(),
+                                prefix:          "RND".into(),
                                 digits:          3,
                                 trailing_letter: None,
                             },
@@ -715,7 +793,7 @@ pub fn file() -> store::File {
                         ),
                         (
                             store::NameGenerator::Airline {
-                                prefix:          "ADE".into(),
+                                prefix:          "FRT".into(),
                                 digits:          3,
                                 trailing_letter: Some("XYZ".into()),
                             },
@@ -880,7 +958,7 @@ pub fn file() -> store::File {
                     vert_rate:        Speed::from_fpm(1000.),
                     expedite:         false,
                     target_altitude:  Some(store::TargetAltitude {
-                        altitude: Position::from_amsl_feet(30000.),
+                        altitude: MAIN_AERODROME_ELEVATION,
                         expedite: false,
                     }),
                     target_glide:     None,
@@ -897,7 +975,7 @@ pub fn file() -> store::File {
                     dest:             store::Destination::Parking { aerodrome: "MAIN".into() },
                     completion_score: Score(5),
                     position:         Position::from_origin_nm(1., 0.),
-                    altitude:         Position::from_amsl_feet(300.),
+                    altitude:         MAIN_AERODROME_ELEVATION,
                     ground_speed:     Speed::from_knots(140.),
                     ground_dir:       Heading::SOUTH,
                     vert_rate:        Speed::ZERO,
@@ -917,6 +995,43 @@ pub fn file() -> store::File {
                     },
                 }),
                 route:       store::Route { id: None, nodes: route_taxi_runway_east_to_tango() },
+            }),
+            store::Object::Plane(store::Plane {
+                aircraft:    store::BaseAircraft {
+                    name:             "DEP256".into(),
+                    dest:             store::Destination::Departure {
+                        min_altitude:       Some(Position::from_amsl_feet(18000.)),
+                        waypoint_proximity: Some((
+                            store::WaypointRef::Named("EXITS".into()),
+                            Length::from_nm(1.),
+                        )),
+                    },
+                    completion_score: Score(5),
+                    position:         TOP_LEFT_ORIGIN
+                        + Length::from_components(
+                            FIRST_TAXIWAY_OFFSET.midpoint(SECOND_TAXIWAY_OFFSET),
+                            -HORIZONTAL_TAXIWAY_OFFSET,
+                        ),
+                    altitude:         MAIN_AERODROME_ELEVATION,
+                    ground_speed:     Speed::ZERO,
+                    ground_dir:       Heading::WEST,
+                    vert_rate:        Speed::ZERO,
+                },
+                control:     store::PlaneControl {
+                    heading:     Heading::WEST,
+                    yaw_speed:   AngularSpeed::ZERO,
+                    horiz_accel: Accel::ZERO,
+                },
+                object_type: store::ObjectTypeRef("A359".into()),
+                taxi_limits: a359_taxi_limits(),
+                nav_limits:  a359_nav_limits(),
+                nav_target:  store::NavTarget::Ground(store::GroundNavTarget {
+                    segment: store::SegmentRef {
+                        aerodrome: "MAIN".into(),
+                        label:     store::SegmentLabel::Taxiway("T".into()),
+                    },
+                }),
+                route:       store::Route { id: None, nodes: route_sid_exits_18r() },
             }),
         ]
         .into(),

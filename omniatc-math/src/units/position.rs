@@ -39,7 +39,7 @@ impl Position<f32> {
     pub const SEA_LEVEL: Self = Self(Length::new(0.));
 
     #[must_use]
-    pub fn from_amsl_feet(z: f32) -> Self { Position(Length::from_feet(z)) }
+    pub const fn from_amsl_feet(z: f32) -> Self { Position(Length::from_feet(z)) }
 }
 
 impl Position<Vec2> {

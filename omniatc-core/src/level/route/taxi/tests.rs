@@ -4,7 +4,7 @@ use bevy::ecs::world::World;
 use math::{Length, Position, Speed};
 
 use crate::level::ground;
-use crate::level::route::{PathfindMode, PathfindOptions, pathfind_through_subseq};
+use crate::level::route::{PathfindMode, PathfindOptions, SubseqItem, pathfind_through_subseq};
 
 const WIDE_SEGMENT: Length<f32> = Length::from_meters(100.0);
 const NARROW_SEGMENT: Length<f32> = Length::from_meters(50.0);
@@ -20,11 +20,11 @@ const ELEVATION: Position<f32> = Position::SEA_LEVEL;
 
 /// ```text
 /// X ----- p(10) ----- Y -- p(1) -- Z
-/// |                               /
-/// q(8)                        r(10)
-/// |                            /
-/// |                           /
-/// A -- s(3) -- B -- s(2) -- C
+/// |                              /   \
+/// q(8)                        r(10)  u(10)
+/// |                            /       \
+/// |                           /         \
+/// A -- s(3) -- B -- s(2) -- C -- s(12) -- M
 ///              |
 ///            t(100)
 ///              |
@@ -43,6 +43,7 @@ fn prepare_world(world: &mut World) -> Prepared {
         x: Entity::PLACEHOLDER,
         y: Entity::PLACEHOLDER,
         z: Entity::PLACEHOLDER,
+        m: Entity::PLACEHOLDER,
     };
 
     for (id, x, y) in [
@@ -53,6 +54,7 @@ fn prepare_world(world: &mut World) -> Prepared {
         (&mut endpoints.x, 0.0, 8.0),
         (&mut endpoints.y, 10.0, 8.0),
         (&mut endpoints.z, 11.0, 8.0),
+        (&mut endpoints.m, 17.0, 0.0),
     ] {
         *id = commands
             .spawn_empty()
@@ -71,6 +73,8 @@ fn prepare_world(world: &mut World) -> Prepared {
         cz: Entity::PLACEHOLDER,
         xy: Entity::PLACEHOLDER,
         yz: Entity::PLACEHOLDER,
+        cm: Entity::PLACEHOLDER,
+        zm: Entity::PLACEHOLDER,
     };
     for (id, alpha, beta, width, max_speed, name) in [
         (&mut segments.bd, endpoints.b, endpoints.d, NARROW_SEGMENT, SLOW_SEGMENT, "t"),
@@ -80,6 +84,8 @@ fn prepare_world(world: &mut World) -> Prepared {
         (&mut segments.cz, endpoints.c, endpoints.z, NARROW_SEGMENT, SLOW_SEGMENT, "r"),
         (&mut segments.xy, endpoints.x, endpoints.y, WIDE_SEGMENT, FAST_SEGMENT, "p"),
         (&mut segments.yz, endpoints.y, endpoints.z, NARROW_SEGMENT, SLOW_SEGMENT, "p"),
+        (&mut segments.cm, endpoints.c, endpoints.m, NARROW_SEGMENT, SLOW_SEGMENT, "s"),
+        (&mut segments.zm, endpoints.z, endpoints.m, NARROW_SEGMENT, SLOW_SEGMENT, "u"),
     ] {
         *id = commands
             .spawn_empty()
@@ -117,6 +123,7 @@ struct PreparedEndpoints {
     x: Entity,
     y: Entity,
     z: Entity,
+    m: Entity,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -128,6 +135,8 @@ struct PreparedSegments {
     cz: Entity,
     xy: Entity,
     yz: Entity,
+    cm: Entity,
+    zm: Entity,
 }
 
 #[test]
@@ -140,8 +149,14 @@ fn pathfind_segment_start() {
         prepared.segments.bd,
         prepared.endpoints.b,
         &[
-            ground::SegmentLabel::Taxiway { name: "s".into() },
-            ground::SegmentLabel::Taxiway { name: "p".into() },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: None,
+            },
         ],
         PathfindMode::SegmentStart,
         PathfindOptions { min_width: Some(NARROW_OBJECT), initial_speed: Some(SLOW_OBJECT) },
@@ -164,8 +179,14 @@ fn pathfind_segment_end() {
         prepared.segments.bd,
         prepared.endpoints.b,
         &[
-            ground::SegmentLabel::Taxiway { name: "s".into() },
-            ground::SegmentLabel::Taxiway { name: "p".into() },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: None,
+            },
         ],
         PathfindMode::SegmentEnd,
         PathfindOptions { min_width: Some(NARROW_OBJECT), initial_speed: Some(SLOW_OBJECT) },
@@ -193,8 +214,14 @@ fn pathfind_dest_endpoint() {
         prepared.segments.bd,
         prepared.endpoints.b,
         &[
-            ground::SegmentLabel::Taxiway { name: "s".into() },
-            ground::SegmentLabel::Taxiway { name: "p".into() },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: None,
+            },
         ],
         PathfindMode::Endpoint(prepared.endpoints.y),
         PathfindOptions { min_width: Some(NARROW_OBJECT), initial_speed: Some(SLOW_OBJECT) },
@@ -222,8 +249,14 @@ fn pathfind_speed_restricted() {
         prepared.segments.bd,
         prepared.endpoints.b,
         &[
-            ground::SegmentLabel::Taxiway { name: "s".into() },
-            ground::SegmentLabel::Taxiway { name: "p".into() },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: None,
+            },
         ],
         PathfindMode::Endpoint(prepared.endpoints.y),
         PathfindOptions { min_width: None, initial_speed: Some(FAST_OBJECT) },
@@ -251,8 +284,14 @@ fn pathfind_width_restricted() {
         prepared.segments.bd,
         prepared.endpoints.b,
         &[
-            ground::SegmentLabel::Taxiway { name: "s".into() },
-            ground::SegmentLabel::Taxiway { name: "p".into() },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: None,
+            },
         ],
         PathfindMode::Endpoint(prepared.endpoints.y),
         PathfindOptions { min_width: Some(WIDE_OBJECT), initial_speed: None },
@@ -268,4 +307,49 @@ fn pathfind_width_restricted() {
         ]
     );
     assert!((path.cost - Length::from_nm(21.0)).abs() < Length::from_nm(0.0001));
+}
+
+#[test]
+fn pathfind_directed() {
+    let mut app = App::new();
+    let prepared = prepare_world(app.world_mut());
+
+    let path = pathfind_through_subseq(
+        app.world(),
+        prepared.segments.bd,
+        prepared.endpoints.b,
+        &[
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "s".into() },
+                direction: Some(ground::SegmentDirection::BetaToAlpha),
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "q".into() },
+                direction: None,
+            },
+            SubseqItem {
+                label:     &ground::SegmentLabel::Taxiway { name: "p".into() },
+                direction: Some(ground::SegmentDirection::BetaToAlpha),
+            },
+        ],
+        PathfindMode::SegmentEnd,
+        PathfindOptions { min_width: None, initial_speed: None },
+    )
+    .unwrap();
+    assert_eq!(
+        path.endpoints,
+        vec![
+            prepared.endpoints.b,
+            prepared.endpoints.a,
+            prepared.endpoints.x,
+            prepared.endpoints.y,
+            prepared.endpoints.z,
+            prepared.endpoints.c,
+            prepared.endpoints.m,
+            prepared.endpoints.z,
+            prepared.endpoints.y,
+        ]
+    );
+    let expect_cost = Length::from_nm(3.0 + 8.0 + 10.0 + 1.0 + 10.0 + 12.0 + 10.0 + 1.0);
+    assert!((path.cost - expect_cost).abs() < Length::from_nm(0.0001));
 }

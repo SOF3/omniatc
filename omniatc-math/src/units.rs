@@ -666,8 +666,11 @@ where
     pub fn dir(self) -> Result<Dir2, InvalidDirectionError> { Dir2::new(self.0) }
 
     #[must_use]
-    pub fn normalize_to_magnitude(self, magnitude: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
-        Self(self.0.normalize_or_zero() * magnitude.0, PhantomData)
+    pub fn normalize_to_magnitude<RDt, RPow>(
+        self,
+        magnitude: Quantity<f32, LengthBase, RDt, RPow>,
+    ) -> Quantity<Vec2, LengthBase, RDt, RPow> {
+        Quantity(self.0.normalize_or_zero() * magnitude.0, PhantomData)
     }
 
     /// Returns a `Vec3` such that
@@ -794,8 +797,11 @@ where
     }
 
     #[must_use]
-    pub fn normalize_to_magnitude(self, magnitude: Quantity<f32, LengthBase, Dt, Pow>) -> Self {
-        Self(self.0.normalize_or_zero() * magnitude.0, PhantomData)
+    pub fn normalize_to_magnitude<RDt, RPow>(
+        self,
+        magnitude: Quantity<f32, LengthBase, RDt, RPow>,
+    ) -> Quantity<Vec3, LengthBase, RDt, RPow> {
+        Quantity(self.0.normalize_or_zero() * magnitude.0, PhantomData)
     }
 
     #[must_use]

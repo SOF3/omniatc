@@ -17,6 +17,7 @@ use wordvec::WordVec;
 
 use super::{SystemSets, nav, route};
 use crate::level::object::Object;
+use crate::level::route::TaxiStopMode;
 use crate::level::waypoint::Waypoint;
 use crate::level::{ground, message, object};
 use crate::{EntityMutTryLog, EntityTryLog};
@@ -279,7 +280,7 @@ impl Kind for SelectRoute {
 pub struct AppendSegment {
     pub clear_existing: bool,
     pub segment:        ground::SegmentLabel,
-    pub hold_short:     bool,
+    pub stop_mode:      TaxiStopMode,
 }
 
 impl Kind for AppendSegment {
@@ -289,29 +290,26 @@ impl Kind for AppendSegment {
         }
 
         let label = self.segment.clone();
-        let hold_short = self.hold_short;
+        let stop_mode = self.stop_mode;
         entity.queue(move |mut entity: EntityWorldMut| {
             entity.insert_if_new(route::Route::default());
             let mut route = entity.get_mut::<route::Route>().expect("just inserted");
-            if let Some(route::Node::Taxi(route::TaxiNode {
-                label: _,
-                hold_short: hold_short @ true,
-            })) = route.last_mut()
+            if let Some(route::Node::Taxi(route::TaxiNode { stop: stop_mode, .. })) =
+                route.last_mut()
             {
-                *hold_short = false;
+                *stop_mode = TaxiStopMode::Exhaust;
             }
-            route.push(route::Node::Taxi(route::TaxiNode { label, hold_short }));
+            route.push(route::Node::Taxi(route::TaxiNode {
+                label,
+                direction: None,
+                stop: stop_mode,
+            }));
         });
         entity.queue(route::RunCurrentNode);
     }
 
     fn format_message(&self, world: &World, _object: Entity) -> String {
-        let segment_name = self.segment.display_segment_label(world);
-        let append_message = if self.hold_short {
-            format!("Hold short of {segment_name}")
-        } else {
-            format!("Taxi to {segment_name}")
-        };
+        let append_message = self.stop_mode.message(self.segment.display_segment_label(world));
         if self.clear_existing {
             format!("Cancel current path, {append_message}")
         } else {

@@ -61,6 +61,16 @@ pub struct EndpointOf(pub Entity);
 #[derive(Component)]
 pub struct SegmentOfRunway(pub [Entity; 2]);
 
+impl SegmentOfRunway {
+    #[must_use]
+    pub fn by_direction(&self, direction: SegmentDirection) -> Entity {
+        match direction {
+            SegmentDirection::AlphaToBeta => self.0[0],
+            SegmentDirection::BetaToAlpha => self.0[1],
+        }
+    }
+}
+
 /// The segments owned by a runway.
 ///
 /// Component on runway entities.
@@ -78,8 +88,16 @@ pub struct RunwaySegments(pub Vec<Entity>);
 #[derive(Component)]
 pub struct Segment {
     /// An [`Endpoint`] entity.
+    ///
+    /// - For runway pairs, `alpha` is the side closer to the forward runway start.
+    /// - For aprons, `alpha` is the apron position,
+    ///   while `beta` is the intersection between the extended apron and the connected taxiway.
     pub alpha:     Entity,
     /// An [`Endpoint`] entity.
+    ///
+    /// - For runway pairs, `beta` is the side closer to the backward runway start.
+    /// - For aprons, `beta` is the intersection between the connecting taxiway
+    ///   and the extended apron backward ray.
     pub beta:      Entity,
     pub width:     Length<f32>,
     pub max_speed: Speed<f32>,

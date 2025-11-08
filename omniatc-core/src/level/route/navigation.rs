@@ -11,6 +11,10 @@ use crate::level::object::{self, Object};
 use crate::level::waypoint::Waypoint;
 
 /// Stay in this node until explicitly completed by user command.
+///
+/// # Completion condition
+/// This node never completes on its own.
+/// It must be explicitly ended by user command.
 #[derive(Clone, Copy)]
 pub struct StandbyNode;
 
@@ -24,7 +28,15 @@ impl NodeKind for StandbyNode {
 
 /// Head towards a waypoint.
 ///
+/// # Completion conditions
 /// This node completes when `distance` OR `proximity` is satisfied.
+///
+/// # Interaction with preceding nodes
+/// If `altitude` is set, the object would start moving towards the specified altitude
+/// at standard rate even before this node starts executing.
+///
+/// # Prerequisites
+/// The object must be airborne.
 #[derive(Clone, Copy)]
 pub struct DirectWaypointNode {
     /// Waypoint to fly towards.
@@ -98,6 +110,13 @@ impl NodeKind for DirectWaypointNode {
 ///
 /// When the object is not yet airborne, this would control the expected airspeed
 /// if the object is immediately airborne.
+///
+/// # Completion condition
+/// This node completes when the current airspeed approaches the desired speed within `error`,
+/// or immediately if `error` is `None`.
+///
+/// # Prerequisites
+/// The object must be airborne.
 #[derive(Clone, Copy)]
 pub struct SetAirspeedNode {
     /// Desired speed to set.
@@ -136,6 +155,13 @@ impl NodeKind for SetAirspeedNode {
 }
 
 /// Start pitching to reach the given altitude.
+///
+/// # Completion condition
+/// This node completes when the current altitude approaches the desired altitude within `error`,
+/// or immediately if `error` is `None`.
+///
+/// # Prerequisites
+/// The object must be airborne.
 #[derive(Clone, Copy)]
 pub struct StartSetAltitudeNode {
     /// The target altitude to reach.

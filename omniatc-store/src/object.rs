@@ -54,6 +54,8 @@ pub struct BaseAircraft {
     /// Current speed of ground projection displacement.
     pub ground_speed:     Speed<f32>,
     /// Current direction of ground projection displacement.
+    ///
+    /// This value should be same as the plane control direction when on ground.
     pub ground_dir:       Heading,
     /// Current change in altitude.
     pub vert_rate:        Speed<f32>,
@@ -198,7 +200,7 @@ pub struct GroundNavTarget {
 }
 
 /// Target yaw change.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum YawTarget {
     /// Perform a left or right turn to the `Heading`, whichever is closer.

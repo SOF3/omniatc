@@ -64,9 +64,15 @@ fn align_runway(object: &mut EntityWorldMut, runway: Entity, expedite: bool) -> 
 /// Short final here is defined as the point at which
 /// the object must start reducing to threshold crossing speed.
 ///
-/// Must be followed by [`ShortFinalNode`].
+/// # Completion condition
 /// Completes when distance from runway is less than
 /// [`NavLimits::short_final_dist`](store::NavLimits::short_final_dist).
+///
+/// # Prerequisites
+/// The object must be airborne.
+///
+/// # Interaction with subsequent nodes
+/// Must be followed by [`ShortFinalNode`].
 #[derive(Clone, Copy)]
 pub struct AlignRunwayNode {
     /// The runway waypoint entity.
@@ -115,14 +121,19 @@ impl NodeKind for AlignRunwayNode {
 
 /// Enforces final approach speed and wait for visual contact with runway.
 ///
+/// The main goal of this node is to allow ILS-only approach before visual contact;
+/// ILS is no longer used after this node completes.
+///
+/// # Completion condition
 /// Completes when visual contact is established with the runway.
 /// Switches to goaround preset if ILS is lost before visual contact is established,
 /// e.g. due to ILS interference or low visibility
 /// (no visual contact within minimum runway visual range).
 ///
-/// The main goal of this node is to ensure allow ILS-only approach before visual contact;
-/// ILS is no longer used after this node completes.
+/// # Prerequisites
+/// The object must be airborne.
 ///
+/// # Interaction with subsequent nodes
 /// Must be followed by [`VisualLandingNode`].
 #[derive(Clone, Copy)]
 pub struct ShortFinalNode {
@@ -189,7 +200,9 @@ impl NodeKind for ShortFinalNode {
 
 /// Maintains final approach configuration until touchdown.
 ///
+/// # Completion condition
 /// Completes when the altitude is below or runway elevation.
+///
 /// Switches to goaround preset if:
 /// - runway is not clear
 /// - runway length is shorter than full deceleration distance to zero speed
@@ -197,6 +210,9 @@ impl NodeKind for ShortFinalNode {
 /// - intolerable wake
 /// - too high (above runway elevation but beyond runway length)
 /// - not aligned (beyond runway threshold but not within runway width)
+///
+/// # Prerequisites
+/// The object must be airborne.
 #[derive(Clone, Copy)]
 pub struct VisualLandingNode {
     /// The runway waypoint entity.

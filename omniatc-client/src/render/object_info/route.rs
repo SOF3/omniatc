@@ -200,9 +200,11 @@ fn write_route_node(
     params: &mut WriteRouteParams,
 ) {
     match node {
-        route::Node::Standby(_) => {
-            if ui.button("Resume route").clicked() {
-                params.commands.entity(entity).queue(route::NextNode);
+        route::Node::Standby(node) => {
+            if ui.button("Clearance for next step").clicked() {
+                params
+                    .commands
+                    .send_instruction(entity, instr::RemoveStandby { preset_id: node.preset_id });
             }
         }
         route::Node::DirectWaypoint(node) => {

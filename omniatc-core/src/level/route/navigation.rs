@@ -10,22 +10,6 @@ use crate::level::nav;
 use crate::level::object::{self, Object};
 use crate::level::waypoint::Waypoint;
 
-/// Stay in this node until explicitly completed by user command.
-///
-/// # Completion condition
-/// This node never completes on its own.
-/// It must be explicitly ended by user command.
-#[derive(Clone, Copy)]
-pub struct StandbyNode;
-
-impl NodeKind for StandbyNode {
-    fn run_as_current_node(&self, _: &mut World, _: Entity) -> RunNodeResult {
-        RunNodeResult::PendingTrigger
-    }
-
-    fn desired_altitude(&self, _: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
-}
-
 /// Head towards a waypoint.
 ///
 /// # Completion conditions

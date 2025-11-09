@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::iter;
+use std::num::NonZero;
+use std::{iter, mem};
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::name::Name;
@@ -32,6 +33,7 @@ pub fn spawn_presets(
     world: &mut World,
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
+    next_standby_id: &mut NonZero<u32>,
     presets: &[store::RoutePreset],
 ) -> Result<RoutePresetMap, load::Error> {
     let route_preset_entities: Vec<_> = presets
@@ -51,8 +53,14 @@ pub fn spawn_presets(
         entity_ref.insert(route::Preset {
             id:    preset.id.clone(),
             title: preset.title.clone(),
-            nodes: convert_route(aerodromes, waypoints, &route_preset_map, &preset.nodes)
-                .collect::<Result<_, load::Error>>()?,
+            nodes: convert_route(
+                aerodromes,
+                waypoints,
+                &route_preset_map,
+                next_standby_id,
+                &preset.nodes,
+            )
+            .collect::<Result<_, load::Error>>()?,
         });
         match &preset.trigger {
             store::RoutePresetTrigger::Waypoint(waypoint) => {
@@ -72,6 +80,7 @@ pub fn convert_route<'a>(
     aerodromes: &'a AerodromeMap,
     waypoints: &'a WaypointMap,
     route_presets: &'a RoutePresetMap,
+    next_standby_id: &'a mut NonZero<u32>,
     route_nodes: &'a [store::RouteNode],
 ) -> impl Iterator<Item = Result<route::Node, load::Error>> + use<'a> {
     route_nodes
@@ -146,7 +155,12 @@ pub fn convert_route<'a>(
                     direction: None,
                     stop:      TaxiStopMode::HoldShort,
                 }),
-                store::RouteNode::WaitForClearance => node_vec(route::StandbyNode),
+                store::RouteNode::WaitForClearance => node_vec(route::StandbyNode {
+                    preset_id: Some({
+                        let next = next_standby_id.checked_add(1).expect("too many standby nodes");
+                        mem::replace(next_standby_id, next)
+                    }),
+                }),
             })
         })
         .flat_map(|result| match result {

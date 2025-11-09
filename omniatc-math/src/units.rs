@@ -831,12 +831,18 @@ pub struct LengthBase;
 pub type Length<T> = Quantity<T, LengthBase, DtZero, PowOne>;
 
 /// A linear speed (rate of [length](Length) change) quantity.
+/// Always in nm/s.
+///
+/// Note that this is **not** knots.
+/// Knots are nm/h. This value should be knots divided by 3600.
 pub type Speed<T> = Quantity<T, LengthBase, DtOne, PowOne>;
 
 /// A linear acceleration (rate of linear [speed](Speed) change) quantity.
+/// Always in nm/s&sup2;.
 pub type Accel<T> = Quantity<T, LengthBase, DtTwo, PowOne>;
 
 /// Rate of linear [acceleration](Accel) change.
+/// Always in nm/s&sup3;.
 pub type AccelRate<T> = Quantity<T, LengthBase, Ddt<DtTwo>, PowOne>;
 
 pub struct AngleBase;
@@ -849,6 +855,7 @@ pub type Angle = Quantity<f32, AngleBase, DtZero, PowOne>;
 pub type AngularSpeed = Quantity<f32, AngleBase, DtOne, PowOne>;
 
 /// An angular acceleration (rate of [angular speed](AngularSpeed) change) quantity.
+/// Always in rad/s&sup2;.
 pub type AngularAccel = Quantity<f32, AngleBase, DtTwo, PowOne>;
 
 pub struct RatioBase;

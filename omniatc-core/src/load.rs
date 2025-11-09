@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io;
+use std::num::NonZero;
 
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
@@ -65,12 +66,19 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
         .into_iter()
         .for_each(|entity| world.entity_mut(entity).despawn());
 
+    let mut next_standby_id = const { NonZero::new(1).unwrap() };
+
     wind::loader::spawn(world, &file.level.environment.winds);
     let object_types = object::loader::spawn_types(world, &file.level.object_types);
     let aerodromes = aerodrome::loader::spawn(world, &file.level.aerodromes)?;
     let waypoints = waypoint::loader::spawn(world, &file.level.waypoints);
-    let route_presets =
-        route::loader::spawn_presets(world, &aerodromes, &waypoints, &file.level.route_presets)?;
+    let route_presets = route::loader::spawn_presets(
+        world,
+        &aerodromes,
+        &waypoints,
+        &mut next_standby_id,
+        &file.level.route_presets,
+    )?;
     spawn::loader::spawn_sets(
         world,
         &object_types,
@@ -81,7 +89,14 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     )?;
     spawn::loader::spawn_trigger(world, &file.level.spawn_trigger);
     score::loader::spawn(world, &file.stats);
-    object::loader::spawn(world, &aerodromes, &waypoints, &route_presets, &file.objects)?;
+    object::loader::spawn(
+        world,
+        &aerodromes,
+        &waypoints,
+        &route_presets,
+        &mut next_standby_id,
+        &file.objects,
+    )?;
 
     world.resource_mut::<CameraAdvice>().0 = Some(file.ui.camera.clone());
 

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::NonZero;
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::name::Name;
@@ -65,12 +66,13 @@ pub fn spawn(
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
     route_presets: &RoutePresetMap,
+    next_standby_id: &mut NonZero<u32>,
     objects: &[store::Object],
 ) -> Result<(), load::Error> {
     for object in objects {
         match object {
             store::Object::Plane(plane) => {
-                spawn_plane(world, aerodromes, waypoints, route_presets, plane)?;
+                spawn_plane(world, aerodromes, waypoints, route_presets, next_standby_id, plane)?;
             }
         }
     }
@@ -83,6 +85,7 @@ fn spawn_plane(
     aerodromes: &AerodromeMap,
     waypoints: &WaypointMap,
     route_presets: &RoutePresetMap,
+    next_standby_id: &mut NonZero<u32>,
     plane: &store::Plane,
 ) -> Result<(), load::Error> {
     let plane_entity =
@@ -152,8 +155,14 @@ fn spawn_plane(
 
     world.entity_mut(plane_entity).insert((
         route::Id(plane.route.id.clone()),
-        route::loader::convert_route(aerodromes, waypoints, route_presets, &plane.route.nodes)
-            .collect::<load::Result<Route>>()?,
+        route::loader::convert_route(
+            aerodromes,
+            waypoints,
+            route_presets,
+            next_standby_id,
+            &plane.route.nodes,
+        )
+        .collect::<load::Result<Route>>()?,
     ));
     route::RunCurrentNode.apply(world.entity_mut(plane_entity));
 

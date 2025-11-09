@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::mem;
+use std::num::NonZero;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
@@ -12,9 +13,9 @@ use bevy::math::{Vec2, Vec3};
 use bevy::time::{self, Time};
 use math::{Heading, Length, Position, Speed};
 
-use crate::WorldTryLog;
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
 use crate::level::{SystemSets, nav};
+use crate::{EntityMutTryLog, WorldTryLog};
 
 mod landing;
 pub use landing::*;
@@ -163,9 +164,9 @@ impl EntityCommand for NextNode {
     }
 }
 
-pub struct SetStandby;
+pub struct PrependStandby;
 
-impl EntityCommand for SetStandby {
+impl EntityCommand for PrependStandby {
     fn apply(self, mut entity: EntityWorldMut) {
         let mut route =
             entity.insert_if_new(Route::default()).get_mut::<Route>().expect("just inserted");
@@ -174,10 +175,38 @@ impl EntityCommand for SetStandby {
             return; // already standby
         }
 
-        route.prepend(StandbyNode.into());
+        route.prepend(StandbyNode { preset_id: None }.into());
 
         let entity_id = entity.id();
         entity.world_scope(|world| run_current_node(world, entity_id));
+    }
+}
+
+pub struct RemoveStandby {
+    pub preset_id: Option<NonZero<u32>>,
+}
+
+impl EntityCommand for RemoveStandby {
+    fn apply(self, mut entity: EntityWorldMut) {
+        let Some(mut route) = entity.log_get_mut::<Route>() else { return };
+
+        if let Some(Node::Standby(standby)) = route.current() {
+            if standby.preset_id == self.preset_id {
+                route.shift();
+
+                let entity_id = entity.id();
+                entity.world_scope(|world| run_current_node(world, entity_id));
+            }
+        } else {
+            for (index, node) in route.next_queue.iter().enumerate() {
+                if let Node::Standby(standby) = node
+                    && standby.preset_id == self.preset_id
+                {
+                    route.next_queue.remove(index);
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -520,6 +549,34 @@ pub enum Node {
     VisualLanding(VisualLandingNode),
     Takeoff(TakeoffNode),
     Taxi(TaxiNode),
+}
+
+/// Stay in this node until explicitly completed by user command.
+///
+/// # Completion condition
+/// This node never completes on its own.
+/// It must be explicitly ended by user command.
+#[derive(Clone, Copy)]
+pub struct StandbyNode {
+    /// Identifies this node during transmission.
+    ///
+    /// This ID is *not* globally unique.
+    /// It only identifies which route preset step it comes from.
+    ///
+    /// If `None`, this is used to represent the state when
+    /// an object is instructed to deviate from its current route.
+    /// Thus a `preset_id == None` should only appear
+    /// in the first node of an object route,
+    /// and should never exist in a preset route.
+    pub preset_id: Option<NonZero<u32>>,
+}
+
+impl NodeKind for StandbyNode {
+    fn run_as_current_node(&self, _: &mut World, _: Entity) -> RunNodeResult {
+        RunNodeResult::PendingTrigger
+    }
+
+    fn desired_altitude(&self, _: &World) -> DesiredAltitude { DesiredAltitude::NotRequired }
 }
 
 #[derive(Component, Clone)]

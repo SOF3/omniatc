@@ -63,8 +63,7 @@ impl Writer for ObjectQuery {
                     slider_knots = (slider_knots / 10.).ceil() * 10. - 10.;
                 }
 
-                #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
-                if target_knots != slider_knots {
+                if (target_knots - slider_knots).abs() > 1.0 {
                     params.commands.send_instruction(
                         this.entity,
                         instr::SetSpeed { target: Speed::from_knots(slider_knots) },

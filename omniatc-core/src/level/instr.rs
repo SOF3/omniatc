@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
+use std::num::NonZero;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
@@ -11,6 +13,7 @@ use bevy::ecs::system::{Commands, EntityCommand, EntityCommands, Query, Res, Sys
 use bevy::ecs::world::{EntityWorldMut, FromWorld, World};
 use bevy::time::{self, Time};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
+use itertools::Itertools;
 use math::{Speed, TurnDirection};
 use store::YawTarget;
 use wordvec::WordVec;
@@ -20,7 +23,7 @@ use crate::level::object::Object;
 use crate::level::route::TaxiStopMode;
 use crate::level::waypoint::Waypoint;
 use crate::level::{ground, message, object};
-use crate::{EntityMutTryLog, EntityTryLog};
+use crate::{EntityMutTryLog, EntityTryLog, WorldTryLog};
 
 pub struct Plug<M>(PhantomData<M>);
 
@@ -130,6 +133,7 @@ pub enum Instruction {
     SetSpeed(SetSpeed),
     SetAltitude(SetAltitude),
     ClearRoute(ClearRoute),
+    RemoveStandby(RemoveStandby),
     SelectRoute(SelectRoute),
     AppendSegment(AppendSegment),
 }
@@ -140,7 +144,7 @@ pub struct SetHeading {
 
 impl Kind for SetHeading {
     fn process(&self, entity: &mut EntityCommands) {
-        entity.queue(route::SetStandby);
+        entity.queue(route::PrependStandby);
         entity.remove::<(
             nav::TargetWaypoint,
             nav::TargetGroundDirection,
@@ -190,7 +194,7 @@ pub struct SetWaypoint {
 impl Kind for SetWaypoint {
     fn process(&self, entity: &mut EntityCommands) {
         entity
-            .queue(route::SetStandby)
+            .queue(route::PrependStandby)
             .remove::<(nav::TargetAlignment, nav::TargetGlide, nav::TargetGlideStatus)>()
             .insert(nav::TargetWaypoint { waypoint_entity: self.waypoint });
     }
@@ -258,6 +262,54 @@ impl Kind for ClearRoute {
 
     fn format_message(&self, _world: &World, _object: Entity) -> String {
         "Cancel clearance for current route".into()
+    }
+}
+
+pub struct RemoveStandby {
+    pub preset_id: Option<NonZero<u32>>,
+}
+
+impl Kind for RemoveStandby {
+    fn process(&self, entity: &mut EntityCommands) {
+        entity.queue(route::RemoveStandby { preset_id: self.preset_id });
+    }
+
+    fn format_message(&self, world: &World, object: Entity) -> String {
+        let Some(route) = world.log_get::<route::Route>(object) else { return String::new() };
+        for (standby, next) in route.iter().tuple_windows() {
+            let route::Node::Standby(node) = standby else { continue };
+            if node.preset_id != self.preset_id {
+                continue;
+            }
+
+            let route_id = world
+                .log_get::<route::Id>(object)
+                .and_then(|id| id.0.as_deref())
+                .unwrap_or("route");
+
+            return match next {
+                route::Node::Standby(_) => "(no clearance)".into(),
+                route::Node::DirectWaypoint(node) => {
+                    let waypoint = world.log_get::<Waypoint>(node.waypoint);
+                    let waypoint_name =
+                        waypoint.map_or("(unknown waypoint)", |waypoint| waypoint.name.as_str());
+                    format!("Proceed direct to {waypoint_name} and continue on {route_id}")
+                }
+                route::Node::SetAirSpeed(_) | route::Node::StartSetAltitude(_) => {
+                    format!("Cleared to continue on {route_id}")
+                }
+                route::Node::AlignRunway(_) => "Cleared for ILS".into(),
+                route::Node::ShortFinal(_) => "Reduce to final".into(),
+                route::Node::VisualLanding(_) => "Cleared for visual approach".into(),
+                route::Node::Takeoff(_) => format!("Cleared for takeoff to SID {route_id}"),
+                route::Node::Taxi(node) => format!(
+                    "Cleared to continue taxi to {}",
+                    node.label.display_segment_label(world)
+                ),
+            };
+        }
+
+        "(invalid clearance)".into()
     }
 }
 
@@ -333,6 +385,12 @@ impl EntityCommand for SpawnCommand {
         let current_time = entity.world().resource::<Time<time::Virtual>>().elapsed();
         let sender = entity.world().resource::<MessageSenderId>().0;
 
+        let object_display = entity.world().log_get::<object::Display>(self.object);
+        let object_name = object_display.map_or_else(
+            || Cow::Owned(format!("object#{:?}", self.object)),
+            |disp| Cow::Borrowed(disp.name.as_str()),
+        );
+
         let message_content = self.body.format_message(entity.world(), self.object);
         entity.insert((
             self.body,
@@ -342,7 +400,7 @@ impl EntityCommand for SpawnCommand {
                 class:   message::Class::Outgoing,
                 source:  sender,
                 created: current_time,
-                content: message_content,
+                content: format!("{object_name}, {message_content}"),
             },
         ));
     }

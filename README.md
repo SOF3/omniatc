@@ -12,6 +12,11 @@ Yet another ATC simulator.
   - [MacOS (Silicon)](https://sof3.github.io/omniatc/bin-aarch64-apple-darwin/omniatc-client)
   - [Linux (x86_64)](https://sof3.github.io/omniatc/bin-x86_64-unknown-linux-gnu/omniatc-client)
   - [Linux (aarch64)](https://sof3.github.io/omniatc/bin-aarch64-unknown-linux-gnu/omniatc-client)
+- Compile from source
+  1. Install [rust toolchain] (https://rustup.rs)
+  2. Clone this repository
+  3. `cargo run -p omniatc-maps` to generate builtin maps
+  4. `cargo run --release -p omniatc-client` to run the game (remove `--release` to disable optimizations for faster compile time)
 
 ## ~~TODOs~~ ~~Planned features~~ ~~Wishlist~~ Vaporwares
 

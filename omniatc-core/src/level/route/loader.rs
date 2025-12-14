@@ -36,6 +36,7 @@ pub fn spawn_presets(
     next_standby_id: &mut NonZero<u32>,
     presets: &[store::RoutePreset],
 ) -> Result<RoutePresetMap, load::Error> {
+    // spawn route preset entities in advance to allow route_preset_map used in convert_route.
     let route_preset_entities: Vec<_> = presets
         .iter()
         .map(|preset| world.spawn((StoredEntity, Name::new(format!("Preset: {}", preset.id)))).id())
@@ -50,18 +51,21 @@ pub fn spawn_presets(
 
     for (preset, entity) in presets.iter().zip(route_preset_entities) {
         let mut entity_ref = world.entity_mut(entity);
-        entity_ref.insert(route::Preset {
-            id:    preset.id.clone(),
-            title: preset.title.clone(),
-            nodes: convert_route(
-                aerodromes,
-                waypoints,
-                &route_preset_map,
-                next_standby_id,
-                &preset.nodes,
-            )
-            .collect::<Result<_, load::Error>>()?,
-        });
+        entity_ref.insert((
+            route::Preset {
+                id:    preset.id.clone(),
+                title: preset.title.clone(),
+                nodes: convert_route(
+                    aerodromes,
+                    waypoints,
+                    &route_preset_map,
+                    next_standby_id,
+                    &preset.nodes,
+                )
+                .collect::<Result<_, load::Error>>()?,
+            },
+            resolve_destination_matcher(aerodromes, waypoints, &preset.destinations)?,
+        ));
         match &preset.trigger {
             store::RoutePresetTrigger::Waypoint(waypoint) => {
                 let waypoint = waypoints.resolve_ref(aerodromes, waypoint)?;
@@ -69,6 +73,7 @@ pub fn spawn_presets(
             }
         }
     }
+
     Ok(route_preset_map)
 }
 
@@ -170,3 +175,34 @@ pub fn convert_route<'a>(
 }
 
 fn node_vec(node: impl Into<route::Node>) -> Vec<route::Node> { Vec::from([node.into()]) }
+
+fn resolve_destination_matcher(
+    aerodromes: &AerodromeMap,
+    waypoints: &WaypointMap,
+    dests: &[store::PresetDestination],
+) -> Result<route::DestinationMatcher, load::Error> {
+    let items = dests
+        .iter()
+        .map(|dest| {
+            Ok(match dest {
+                store::PresetDestination::Arrival(dest) => {
+                    if let Some(aerodrome) = &dest.aerodrome {
+                        let aerodrome = aerodromes.resolve(aerodrome)?.aerodrome_entity;
+                        route::DestinationMatcherItem::Arrival { aerodrome }
+                    } else {
+                        route::DestinationMatcherItem::AnyArrival
+                    }
+                }
+                store::PresetDestination::Departure(dest) => {
+                    if let Some(waypoint) = &dest.waypoint {
+                        let waypoint = waypoints.resolve(waypoint)?;
+                        route::DestinationMatcherItem::Departure { waypoint }
+                    } else {
+                        route::DestinationMatcherItem::AnyDeparture
+                    }
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(route::DestinationMatcher { items })
+}

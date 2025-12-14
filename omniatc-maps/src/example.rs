@@ -336,6 +336,12 @@ fn route_sid_exits_18r() -> Vec<store::RouteNode> {
         },
         store::RouteNode::SetAirSpeed { goal: Speed::from_knots(250.), error: None },
         store::RouteNode::DirectWaypoint {
+            waypoint:  store::WaypointRef::Named("SHADE".into()),
+            distance:  Length::from_nm(1.),
+            proximity: WaypointProximity::FlyBy,
+            altitude:  Some(Position::from_amsl_feet(3000.)),
+        },
+        store::RouteNode::DirectWaypoint {
             waypoint:  store::WaypointRef::Named("EXITS".into()),
             distance:  Length::from_nm(1.),
             proximity: WaypointProximity::FlyBy,
@@ -757,20 +763,47 @@ pub fn file() -> store::File {
             ]
             .into(),
             route_presets: [
-                store::route_presets_at_waypoints("DWIND18L", "DWIND 18L", route_dwind_18l()),
-                store::route_presets_at_waypoints("DWIND18R", "DWIND 18R", route_dwind_18r()),
-                store::route_presets_at_waypoints("POLAR18L", "POLAR 18L", route_polar_18l()),
-                store::route_presets_at_waypoints("POLAR18R", "POLAR 18R", route_polar_18r()),
+                store::route_presets_at_waypoints(
+                    "DWIND18L",
+                    "DWIND 18L",
+                    route_dwind_18l(),
+                    store::PresetDestination::arrival("MAIN"),
+                ),
+                store::route_presets_at_waypoints(
+                    "DWIND18R",
+                    "DWIND 18R",
+                    route_dwind_18r(),
+                    store::PresetDestination::arrival("MAIN"),
+                ),
+                store::route_presets_at_waypoints(
+                    "POLAR18L",
+                    "POLAR 18L",
+                    route_polar_18l(),
+                    store::PresetDestination::arrival("MAIN"),
+                ),
+                store::route_presets_at_waypoints(
+                    "POLAR18R",
+                    "POLAR 18R",
+                    route_polar_18r(),
+                    store::PresetDestination::arrival("MAIN"),
+                ),
                 [store::RoutePreset {
-                    trigger: store::RoutePresetTrigger::Waypoint(store::WaypointRef::Named(
+                    trigger:      store::RoutePresetTrigger::Waypoint(store::WaypointRef::Named(
                         "RETRY".into(),
                     )),
-                    id:      "RETRY18R".into(),
-                    ref_id:  Some(store::RoutePresetRef("RETRY.RETRY18R".into())),
-                    title:   "Missed approach 18R".into(),
-                    nodes:   route_retry_18r(),
+                    id:           "RETRY18R".into(),
+                    ref_id:       Some(store::RoutePresetRef("RETRY.RETRY18R".into())),
+                    title:        "Missed approach 18R".into(),
+                    nodes:        route_retry_18r(),
+                    destinations: [store::PresetDestination::arrival("MAIN")].into(),
                 }]
                 .into(),
+                store::route_presets_at_waypoints(
+                    "EXITS18R",
+                    "EXITS 18R",
+                    route_sid_exits_18r(),
+                    store::PresetDestination::departure("EXITS"),
+                ),
             ]
             .into_iter()
             .flatten()
@@ -1031,7 +1064,10 @@ pub fn file() -> store::File {
                         label:     store::SegmentLabel::Taxiway("T".into()),
                     },
                 }),
-                route:       store::Route { id: None, nodes: route_sid_exits_18r() },
+                route:       store::Route {
+                    id:    Some("EXITS18R".into()),
+                    nodes: route_sid_exits_18r(),
+                },
             }),
         ]
         .into(),

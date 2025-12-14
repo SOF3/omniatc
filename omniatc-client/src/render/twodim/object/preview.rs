@@ -478,13 +478,17 @@ impl DrawCurrent<'_, '_> {
             let half_thickness = Length::new(thickness * 0.5);
 
             let angular_dist = start_heading.distance(end_heading, TurnDirection::Clockwise);
-            // angular_dist < TAU, never overflows
-            #[expect(clippy::cast_possible_truncation)]
-            // angular_dist is a clockwise (positive) angle
-            #[expect(clippy::cast_sign_loss)]
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "angular_dist < TAU, never overflows"
+            )]
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "angular_dist is a clockwise (positive) angle"
+            )]
             let steps = (angular_dist / ARC_DENSITY).ceil() as u32;
             for step in 0..=steps {
-                #[expect(clippy::cast_precision_loss)] // step <= steps derived from f32
+                #[expect(clippy::cast_precision_loss, reason = "step <= steps derived from f32")]
                 let heading = start_heading + ARC_DENSITY * (step as f32);
                 let inner = (radius - half_thickness) * heading;
                 let outer = (radius + half_thickness) * heading;

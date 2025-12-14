@@ -102,7 +102,7 @@ fn maintain_thickness_system(
 ) {
     let conf = conf.read();
 
-    #[expect(clippy::float_cmp)] // float is exactly equal if config is unchanged
+    #[expect(clippy::float_cmp, reason = "float is exactly equal if config is unchanged")]
     if conf.separation_ring.radius == handle.radius
         && conf.separation_ring.thickness == handle.thickness
     {

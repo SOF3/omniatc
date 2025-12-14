@@ -142,7 +142,7 @@ struct Conf {
 
 impl ConfRead<'_> {
     fn color_for_intensity(&self, intensity: wake::Intensity) -> Color {
-        #[expect(clippy::cast_precision_loss)] // acceptable precision loss
+        #[expect(clippy::cast_precision_loss, reason = "acceptable precision loss")]
         let opacity = (intensity.0 as f32) / self.square_opaque_intensity;
         let mut out = self.square_color;
         out.set_alpha(out.alpha() * opacity.clamp(0.0, 1.0));

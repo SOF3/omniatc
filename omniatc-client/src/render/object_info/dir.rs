@@ -129,7 +129,7 @@ fn show_yaw_target(
         slider_degrees = (slider_degrees / 5.).ceil() * 5. - 5.;
     }
 
-    #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
+    #[expect(clippy::float_cmp, reason = "this is normally equal if user did not interact")]
     if target_degrees != slider_degrees {
         commands.send_instruction(
             object,

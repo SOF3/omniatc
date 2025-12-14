@@ -74,9 +74,9 @@ impl UpdateParam<'_, '_> {
             #[expect(
                 clippy::cast_possible_truncation,
                 clippy::cast_precision_loss,
-                clippy::cast_possible_wrap
+                clippy::cast_possible_wrap,
+                reason = "usize -> i32 -> f32 for a reasonably small value"
             )]
-            // usize -> i32 -> f32 for a reasonably small value
             let altitude_densities = (first_multiple + (point_number as i32)) as f32;
             let point_dist = glide_direction * (altitude_densities - start_altitude_densities);
 

@@ -77,7 +77,7 @@ impl Writer for ObjectQuery {
                 checkbox_expedite = !checkbox_expedite;
             }
 
-            #[expect(clippy::float_cmp)] // this is normally equal if user did not interact
+            #[expect(clippy::float_cmp, reason = "this is normally equal if user did not interact")]
             if slider_alt != initial_alt
                 || (this.target_alt.is_some() && expedite != checkbox_expedite)
             {

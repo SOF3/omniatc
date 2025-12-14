@@ -233,7 +233,7 @@ impl CursorState {
 pub struct ReadCurrentCursorCameraSystemSet;
 
 #[derive(Resource, Default)]
-#[expect(clippy::struct_excessive_bools)] // multiple independent flags
+#[expect(clippy::struct_excessive_bools, reason = "multiple independent flags")]
 pub struct Hotkeys {
     pub search:          bool,
     pub deselect:        bool,

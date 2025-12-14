@@ -262,6 +262,10 @@ pub fn compute_wake(
     taxi_limits: &store::TaxiLimits,
     nav_limits: &store::NavLimits,
 ) -> wake::Intensity {
-    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // nearest positive integer
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "nearest positive integer"
+    )]
     wake::Intensity((WAKE_FACTOR * nav_limits.weight / taxi_limits.width.into_nm()) as u32)
 }

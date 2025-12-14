@@ -61,7 +61,7 @@ pub enum Zorder {
 }
 
 impl Zorder {
-    #[expect(clippy::cast_precision_loss)] // the number of items is small
+    #[expect(clippy::cast_precision_loss, reason = "the number of variants is small")]
     pub fn into_z(self) -> f32 {
         f32::from(self as u16) / (<Self as strum::EnumCount>::COUNT as f32) / 1024.0
     }

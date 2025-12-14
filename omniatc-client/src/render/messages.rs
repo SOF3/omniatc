@@ -57,8 +57,11 @@ fn setup_messages_system(
                     );
 
                     let color = color_from_class(message.class).to_srgba();
-                    // rgba should be within [0., 1.]
-                    #[expect(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+                    #[expect(
+                        clippy::cast_sign_loss,
+                        clippy::cast_possible_truncation,
+                        reason = "rgba should be within [0., 1.]"
+                    )]
                     let color = egui::Color32::from_rgba_unmultiplied(
                         (color.red * 255.) as u8,
                         (color.green * 255.) as u8,

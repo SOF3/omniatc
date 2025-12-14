@@ -158,7 +158,7 @@ impl WriteParams for WriteTimeParams<'_, '_> {
             })
             .inner;
 
-        #[expect(clippy::float_cmp)] // float is exactly equal if nobody touched it
+        #[expect(clippy::float_cmp, reason = "float is exactly equal if nobody touched it")]
         if self.time.relative_speed() != desired_speed {
             self.time.set_relative_speed(desired_speed);
             if desired_speed > 0. {

@@ -202,7 +202,7 @@ impl VortexIndex {
 
 fn vortex_position_index(position: Position<Vec3>, grid_size: Length<Vec3>) -> [i32; 3] {
     let Vec3 { x, y, z } = (position.get() / grid_size.0).floor();
-    #[expect(clippy::cast_possible_truncation)] // intended truncation
+    #[expect(clippy::cast_possible_truncation, reason = "intended truncation")]
     [x, y, z].map(|f| f as i32)
 }
 
@@ -272,8 +272,11 @@ fn spawn_vortex_system(
         let vortex = commands
             .spawn((
                 Name::new("Wake vortex"),
-                #[expect(clippy::cast_possible_truncation)] // arbitrary rounding is allowed
-                #[expect(clippy::cast_sign_loss)] // magnitude is never negative
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "arbitrary rounding is allowed"
+                )]
+                #[expect(clippy::cast_sign_loss, reason = "magnitude is never negative")]
                 Vortex {
                     source:    object_id,
                     position:  object.position,

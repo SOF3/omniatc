@@ -254,7 +254,7 @@ fn assert_intersection(
     assert_eq!(sorted(actual.lines), expect_lines.map(LineIndex), "{message} lines mismatch");
 
     let actual_point_round = <[f32; 2]>::from((actual.position.get() * 10000.).round() / 10000.);
-    #[expect(clippy::float_cmp)] // comparison of rounded floats
+    #[expect(clippy::float_cmp, reason = "comparison of rounded floats")]
     {
         assert_eq!(
             actual_point_round,

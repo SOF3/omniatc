@@ -331,7 +331,7 @@ fn update_altitude(world: &mut World, entity: Entity) {
                 if let Some(&nav::TargetAltitude { altitude: current_target, expedite }) =
                     entity_ref.get()
                 {
-                    #[expect(clippy::float_cmp)] // comparison of constant signums is fine
+                    #[expect(clippy::float_cmp, reason = "comparison of constant signums is fine")]
                     if (current_target - pos.altitude()).signum()
                         == (eventual_target_altitude - pos.altitude()).signum()
                     {

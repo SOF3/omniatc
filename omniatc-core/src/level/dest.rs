@@ -110,7 +110,7 @@ struct CompletionObjectQuery {
 }
 
 #[derive(SystemParam)]
-#[expect(clippy::struct_field_names)] // all queries by coincidence
+#[expect(clippy::struct_field_names, reason = "all queries by coincidence")]
 struct CompletionParams<'w, 's> {
     waypoint_query:  Query<'w, 's, &'static Waypoint>,
     segment_query: Query<

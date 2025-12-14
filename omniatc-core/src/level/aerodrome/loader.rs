@@ -498,7 +498,7 @@ fn find_ground_intersects(lines: &[GroundLine]) -> Result<Vec<IntersectGroup>, l
     .enumerate()
     .map(|(group_index, group)| {
         let mut position = group[0].position;
-        #[expect(clippy::cast_precision_loss)] // `i` is expected to be small
+        #[expect(clippy::cast_precision_loss, reason = "`i` is expected to be small")]
         for (i, intersect) in group[1..].iter().enumerate() {
             position = position.lerp(intersect.position, 1. / (i + 1) as f32);
         }

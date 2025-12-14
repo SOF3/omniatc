@@ -19,7 +19,7 @@ rust-analyzer = []
 omniatc-math.workspace = true
 omniatc-store = {workspace = true, features = ["schema"]}
 
-anyhow = "1.0.95"
+anyhow = "1.0.100"
 bevy_math.workspace = true
 ciborium = "0.2.2"
 serde.workspace = true

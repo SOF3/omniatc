@@ -22,7 +22,7 @@ rust-analyzer = []
 [dependencies]
 omniatc-math.workspace = true
 
-anyhow = "1.0.95"
+anyhow = "1.0.100"
 bevy_math = {workspace = true, features = ["serialize"]}
 ciborium = "0.2.2"
 serde = { workspace = true, features = ["derive"] }

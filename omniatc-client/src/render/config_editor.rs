@@ -26,7 +26,7 @@ fn setup_window_system(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    let default_size = ctx.screen_rect().size() / 2.;
+    let default_size = ctx.content_rect().size() / 2.;
     egui::Window::new("Settings")
         .default_size(default_size)
         .default_open(false)

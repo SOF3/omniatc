@@ -74,7 +74,6 @@ impl Writer for ObjectQuery {
     }
 }
 
-#[expect(clippy::too_many_arguments)] // TODO check again after refactor to comm::Instruction
 fn write_route_options(
     ui: &mut egui::Ui,
     preset_query: &Query<(&route::Preset, &route::DestinationMatcher)>,

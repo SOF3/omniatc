@@ -1,8 +1,18 @@
 #![warn(clippy::pedantic)]
 #![cfg_attr(feature = "precommit-checks", deny(warnings, clippy::pedantic, clippy::dbg_macro))]
-#![allow(clippy::too_many_lines)] // we have enormous struct literals
-#![allow(clippy::collapsible_else_if)] // this is usually intentional
-#![allow(clippy::missing_panics_doc)] // 5:21 PM conrad.lock().expect("luscious")[tty0] : Worst clippy lint
+#![allow(clippy::too_many_lines, reason = "we have enormous struct literals")]
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    reason = "too many false positives from system params."
+)]
+#![allow(clippy::collapsible_else_if, reason = "this is usually intentional")]
+#![allow(
+    clippy::missing_panics_doc,
+    reason = r#"5:21 PM conrad.lock().expect("luscious")[tty0] : Worst clippy lint"#
+)]
+#![allow(clippy::implicit_hasher, reason = "unnecessary generalization")]
 #![cfg_attr(not(feature = "precommit-checks"), allow(dead_code, unused_variables, unused_imports))]
 #![cfg_attr(feature = "precommit-checks", allow(dead_code))] // TODO remove this in the future
 

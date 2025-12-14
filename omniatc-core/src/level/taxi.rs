@@ -22,9 +22,10 @@ use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::{Message, MessageWriter};
+use bevy::ecs::query::QueryData;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, SystemParam};
-use bevy::math::Vec2;
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::math::{Dir2, Vec2};
 use bevy::time::{self, Time};
 use math::{Angle, CanSqrt, Heading, Length, Position, Speed, point_line_closest};
 use ordered_float::OrderedFloat;
@@ -32,6 +33,7 @@ use wordvec::WordVec;
 
 use super::object::Object;
 use super::{SystemSets, ground, object};
+use crate::level::message;
 use crate::{QueryTryLog, try_log, try_log_return};
 
 /// An object is considered stationary when slower than this speed.
@@ -84,36 +86,100 @@ impl ops::Deref for Limits {
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct MaintainDirObjectQuery {
+    object_id:   Entity,
+    object:      &'static mut Object,
+    ground:      &'static mut object::OnGround,
+    taxi_status: &'static mut object::TaxiStatus,
+    limits:      &'static Limits,
+    off_road:    Option<&'static HasOffRoad>,
+}
+
 fn maintain_dir_system(
     time: Res<Time<time::Virtual>>,
-    object_query: Query<(Entity, &mut Object, &object::OnGround, &mut object::TaxiStatus, &Limits)>,
+    object_query: Query<MaintainDirObjectQuery>,
     segment_query: Query<&ground::Segment>,
     endpoint_query: Query<&ground::Endpoint>,
+    off_road_params: OffRoadSystemParams<'_, '_>,
+    mut commands: Commands,
 ) {
     if time.is_paused() {
         return;
     }
 
-    for (object_id, mut object, ground, mut taxi_status, limits) in object_query {
-        let Some(segment) = segment_query.log_get(ground.segment) else { continue };
-        let (other_endpoint_entity, target_endpoint_entity) = match ground.direction {
-            ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
-            ground::SegmentDirection::BetaToAlpha => (segment.beta, segment.alpha),
-        };
-        let Some(other_endpoint) = endpoint_query.log_get(other_endpoint_entity) else { continue };
-        let Some(target_endpoint) = endpoint_query.log_get(target_endpoint_entity) else {
-            continue;
-        };
+    for mut object in object_query {
+        if let Some(off_road) = object.off_road {
+            if let Some((segment_id, segment_dir)) = find_closest_segment(
+                &object.object,
+                &object.ground,
+                &object.taxi_status,
+                &off_road_params,
+            ) {
+                bevy::log::debug!(
+                    "Off-road object {:?} recovered on new segment {segment_id:?} facing \
+                     {segment_dir:?}",
+                    object.object_id
+                );
+                object.ground.segment = segment_id;
+                object.ground.direction = segment_dir;
+                commands.entity(off_road.0).despawn();
+            }
+        } else {
+            let Some(segment) = segment_query.log_get(object.ground.segment) else { continue };
+            let (other_endpoint_entity, target_endpoint_entity) = match object.ground.direction {
+                ground::SegmentDirection::AlphaToBeta => (segment.alpha, segment.beta),
+                ground::SegmentDirection::BetaToAlpha => (segment.beta, segment.alpha),
+            };
+            let Some(other_endpoint) = endpoint_query.log_get(other_endpoint_entity) else {
+                continue;
+            };
+            let Some(target_endpoint) = endpoint_query.log_get(target_endpoint_entity) else {
+                continue;
+            };
 
-        maintain_dir_for_object(
-            &time,
-            object_id,
-            &mut object,
-            ground,
-            &mut taxi_status,
-            limits,
-            [other_endpoint, target_endpoint].map(|e| e.position),
-        );
+            let result = maintain_dir_for_object(
+                &time,
+                &mut object.object,
+                &object.ground,
+                &mut object.taxi_status,
+                object.limits,
+                [other_endpoint, target_endpoint].map(|e| e.position),
+                segment,
+            );
+            match result {
+                MaintainDirResult::Ok => {}
+                MaintainDirResult::OutOfSegment => {
+                    match find_closest_segment(
+                        &object.object,
+                        &object.ground,
+                        &object.taxi_status,
+                        &off_road_params,
+                    ) {
+                        None => {
+                            commands.entity(object.object_id).with_related::<OffRoadOf>((
+                                message::Message {
+                                    source:  object.object_id,
+                                    created: time.elapsed(),
+                                    class:   message::Class::AnomalyInfo,
+                                    content: "Went off-road".into(),
+                                },
+                            ));
+                        }
+                        Some((segment_id, segment_dir)) => {
+                            bevy::log::debug!(
+                                "Object {:?} went off-segment, recovered on new segment \
+                                 {segment_id:?} facing {segment_dir:?}",
+                                object.object_id
+                            );
+                            object.ground.segment = segment_id;
+                            object.ground.direction = segment_dir;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -142,13 +208,13 @@ enum TurnTowards {
 ///   (This process is only relevant for initial reading and final writing)
 fn maintain_dir_for_object(
     time: &Time<time::Virtual>,
-    object_id: Entity,
     object: &mut Object,
     ground: &object::OnGround,
     taxi_status: &mut object::TaxiStatus,
     limits: &Limits,
     [start_endpoint, target_endpoint]: [Position<Vec2>; 2],
-) {
+    segment: &ground::Segment,
+) -> MaintainDirResult {
     let reversed = match ground.target_speed {
         object::OnGroundTargetSpeed::Exact(speed) => speed.is_negative(),
         object::OnGroundTargetSpeed::TakeoffRoll => false,
@@ -172,11 +238,18 @@ fn maintain_dir_for_object(
     // The vector from the object to the closest point on the line, orthogonal to the line.
     let object_to_line_ortho = closest_point - object.position.horizontal();
 
-    let is_ahead_segment =
-        (closest_point - target_endpoint).dot(start_endpoint - target_endpoint) <= 0.0;
-    if is_ahead_segment {
-        bevy::log::warn!("Object {object_id:?} overshot segment, need recovery");
-        // TODO recover to the nearest segment
+    // lerp(start, target, ratio_on_segment) = closest_point
+    let ratio_on_segment = (object.position.horizontal() - start_endpoint)
+        .dot(target_endpoint - start_endpoint)
+        / (target_endpoint - start_endpoint).magnitude_squared().0;
+    let width_to_length_ratio =
+        segment.width / (target_endpoint - start_endpoint).magnitude_exact();
+
+    if object_to_line_ortho.magnitude_cmp() > segment.width * 2.0
+        || ratio_on_segment < -width_to_length_ratio * 2.0
+        || ratio_on_segment > 1.0 + width_to_length_ratio * 2.0
+    {
+        return MaintainDirResult::OutOfSegment;
     }
 
     let is_behind_segment =
@@ -294,7 +367,26 @@ fn maintain_dir_for_object(
 
     // TODO check for other objects on the segment.
     // Control speed such that the braking distance is shorter than the separation between objects.
+
+    MaintainDirResult::Ok
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MaintainDirResult {
+    Ok,
+    OutOfSegment,
+}
+
+/// Marks the message entity indicating that the related object entity is off-road.
+#[derive(Component)]
+#[relationship(relationship_target = HasOffRoad)]
+struct OffRoadOf(pub Entity);
+
+/// Marks that an object entity is off-road.
+/// References the corresponding message entity.
+#[derive(Component)]
+#[relationship_target(relationship = OffRoadOf, linked_spawn)]
+struct HasOffRoad(Entity);
 
 fn limited_taxi_speed(
     reversed: bool,
@@ -316,6 +408,58 @@ fn limited_taxi_speed(
     let speed_change = speed_deviation.clamp(-accel_limit, accel_limit);
     let unlimited_speed = current_speed + speed_change;
     unlimited_speed.clamp(limits.min_speed, limits.max_speed)
+}
+
+#[derive(SystemParam)]
+struct OffRoadSystemParams<'w, 's> {
+    segments:                Query<'w, 's, &'static ground::Segment>,
+    endpoints:               Query<'w, 's, &'static ground::Endpoint>,
+    aerodrome_segment_lists: Query<'w, 's, &'static ground::AerodromeSegments>,
+    segment_aerodrome_query: Query<'w, 's, &'static ground::SegmentOf>,
+}
+
+fn find_closest_segment(
+    object: &Object,
+    ground: &object::OnGround,
+    taxi_status: &object::TaxiStatus,
+    params: &OffRoadSystemParams<'_, '_>,
+) -> Option<(Entity, ground::SegmentDirection)> {
+    let object_pos = object.position.horizontal();
+    let object_dir = taxi_status.heading.into_dir2();
+
+    let &ground::SegmentOf(aerodrome) = params.segment_aerodrome_query.log_get(ground.segment)?;
+    let segments = params.aerodrome_segment_lists.log_get(aerodrome)?;
+    let matched_segment = segments
+        .segments()
+        .iter()
+        .filter_map(|&segment_id| {
+            let segment = params.segments.log_get(segment_id)?;
+            let alpha_pos = params.endpoints.log_get(segment.alpha)?.position;
+            let beta_pos = params.endpoints.log_get(segment.beta)?.position;
+
+            let ratio_on_segment = (object_pos - alpha_pos).dot(beta_pos - alpha_pos)
+                / (beta_pos - alpha_pos).magnitude_squared().0;
+            if !(0.0..=1.0).contains(&ratio_on_segment) {
+                return None;
+            }
+
+            let closest_point = alpha_pos.lerp(beta_pos, ratio_on_segment);
+            if object_pos.distance_cmp(closest_point) > segment.width {
+                return None;
+            }
+
+            let ab_dot_object_heading = Dir2::new((beta_pos - alpha_pos).0).ok()?.dot(*object_dir);
+            let segment_dir = if ab_dot_object_heading > 0.0 {
+                ground::SegmentDirection::AlphaToBeta
+            } else {
+                ground::SegmentDirection::BetaToAlpha
+            };
+
+            Some((segment_id, segment_dir, ab_dot_object_heading.abs()))
+        })
+        .max_by_key(|&(_, _, dot)| OrderedFloat(dot)); // max abs(dot) implies most aligned
+
+    matched_segment.map(|(segment_id, segment_dir, _)| (segment_id, segment_dir))
 }
 
 /// The next planned segment for an object.

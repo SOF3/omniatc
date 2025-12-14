@@ -6232,9 +6232,9 @@ dependencies = [
 
 [[package]]
 name = "wordvec"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93640e4e898061bc6dff6e142fde5a4e77856f0cdc377747b21d23b128c79fd4"
+checksum = "dd33d2837feab80f7e2c13852b9042c057e2b4bfa4d1177a4ee9dc0277f964ba"
 
 [[package]]
 name = "write16"

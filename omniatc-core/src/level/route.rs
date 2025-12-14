@@ -13,6 +13,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::time::{self, Time};
 use math::{Heading, Length, Position, Speed};
 
+use crate::level::dest::Destination;
 use crate::level::object::{self, GroundSpeedCalculator, Object, RefAltitudeType};
 use crate::level::{SystemSets, nav};
 use crate::{EntityMutTryLog, WorldTryLog};
@@ -596,4 +597,54 @@ pub struct WaypointPresetList(Vec<Entity>);
 
 impl WaypointPresetList {
     pub fn iter(&self) -> impl Iterator<Item = Entity> + use<'_> { self.0.iter().copied() }
+}
+
+#[derive(Component)]
+pub struct DestinationMatcher {
+    pub items: Vec<DestinationMatcherItem>,
+}
+
+impl DestinationMatcher {
+    #[must_use]
+    pub fn matches(&self, dest: &Destination) -> bool {
+        self.items.iter().any(|item| item.matches(dest))
+    }
+}
+
+pub enum DestinationMatcherItem {
+    Arrival { aerodrome: Entity },
+    AnyArrival,
+    Departure { waypoint: Entity },
+    AnyDeparture,
+}
+
+impl DestinationMatcherItem {
+    #[must_use]
+    pub fn matches(&self, dest: &Destination) -> bool {
+        #[expect(clippy::match_same_arms, reason = "simple value")]
+        match (self, dest) {
+            (
+                Self::Arrival { aerodrome: a1 },
+                Destination::Landing { aerodrome: a2 } | Destination::Parking { aerodrome: a2 },
+            ) => a1 == a2,
+            (Self::Arrival { .. }, Destination::VacateAnyRunway) => true,
+            (Self::Arrival { .. }, Destination::Departure { .. }) => false,
+            (
+                Self::AnyArrival,
+                Destination::Landing { .. }
+                | Destination::Parking { .. }
+                | Destination::VacateAnyRunway,
+            ) => true,
+            (Self::AnyArrival, Destination::Departure { .. }) => false,
+            (
+                Self::Departure { waypoint: w1 },
+                Destination::Departure { waypoint_proximity: Some((w2, ..)), .. },
+            ) => w1 == w2,
+            (Self::Departure { .. }, Destination::Departure { waypoint_proximity: None, .. }) => {
+                false
+            }
+            (Self::AnyDeparture, Destination::Departure { .. }) => true,
+            _ => false,
+        }
+    }
 }

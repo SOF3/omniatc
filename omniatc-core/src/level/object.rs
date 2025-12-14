@@ -27,7 +27,7 @@ use store::Score;
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
 use crate::WorldTryLog;
-use crate::level::{dest, plane};
+use crate::level::{dest, plane, taxi};
 use crate::try_log::EntityWorldMutExt;
 
 pub mod loader;
@@ -174,7 +174,7 @@ impl EntityCommand for SetAirborneCommand {
             }
         });
 
-        entity.remove::<OnGround>();
+        entity.remove::<(OnGround, taxi::Target)>();
 
         let (position, ground_speed) = {
             let Some(&Object { position, ground_speed }) = entity.log_get() else { return };

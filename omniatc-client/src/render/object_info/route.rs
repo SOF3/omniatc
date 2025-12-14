@@ -9,7 +9,7 @@ use omniatc::level::instr::{self, CommandsExt};
 use omniatc::level::route::{self, Route};
 use omniatc::level::runway::RunwayOf;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{ground, nav, object, taxi};
+use omniatc::level::{dest, ground, nav, object, taxi};
 use store::WaypointProximity;
 
 use super::Writer;
@@ -23,6 +23,7 @@ pub struct ObjectQuery {
     target_waypoint: Option<&'static nav::TargetWaypoint>,
     taxi_target:     Option<&'static taxi::Target>,
     on_ground:       Option<&'static object::OnGround>,
+    dest:            &'static dest::Destination,
     entity:          Entity,
 }
 
@@ -30,7 +31,7 @@ pub struct ObjectQuery {
 pub struct WriteRouteParams<'w, 's> {
     waypoint_query:         Query<'w, 's, &'static Waypoint>,
     waypoint_presets_query: Query<'w, 's, &'static route::WaypointPresetList>,
-    preset_query:           Query<'w, 's, &'static route::Preset>,
+    preset_query: Query<'w, 's, (&'static route::Preset, &'static route::DestinationMatcher)>,
     runway_query:           Query<'w, 's, (&'static Waypoint, &'static RunwayOf)>,
     aerodrome_query:        Query<'w, 's, &'static Aerodrome>,
     segment_query:          Query<'w, 's, &'static ground::SegmentLabel>,
@@ -54,6 +55,7 @@ impl Writer for ObjectQuery {
                 &params.preset_query,
                 &mut params.commands,
                 this.entity,
+                this.dest,
                 presets,
                 this.route_id.and_then(|id| id.0.as_deref()),
                 &params.hotkeys,
@@ -72,11 +74,13 @@ impl Writer for ObjectQuery {
     }
 }
 
+#[expect(clippy::too_many_arguments)] // TODO check again after refactor to comm::Instruction
 fn write_route_options(
     ui: &mut egui::Ui,
-    preset_query: &Query<&route::Preset>,
+    preset_query: &Query<(&route::Preset, &route::DestinationMatcher)>,
     commands: &mut Commands,
     object: Entity,
+    dest: &dest::Destination,
     presets: &route::WaypointPresetList,
     current_route_id: Option<&str>,
     hotkeys: &input::Hotkeys,
@@ -88,8 +92,13 @@ fn write_route_options(
         Retain,
     }
 
-    let presets: Vec<_> =
-        presets.iter().filter_map(|entity| preset_query.log_get(entity)).collect();
+    let presets: Vec<_> = presets
+        .iter()
+        .filter_map(|entity| {
+            let (preset, matcher) = preset_query.log_get(entity)?;
+            matcher.matches(dest).then_some(preset)
+        })
+        .collect();
 
     if current_route_id.is_none() && presets.is_empty() {
         return;

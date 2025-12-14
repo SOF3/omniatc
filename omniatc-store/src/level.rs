@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
 use bevy_math::Vec2;
+use derive_more::From;
 use math::{Angle, Heading, Length, Position};
 use serde::{Deserialize, Serialize};
 
-use crate::{ObjectType, ObjectTypeRef, RouteNode, RoutePresetRef, WaypointRef, WeightedList};
+use crate::{
+    AerodromeRef, NamedWaypointRef, ObjectType, ObjectTypeRef, RouteNode, RoutePresetRef,
+    WaypointRef, WeightedList,
+};
 
 mod env;
 pub use env::*;
@@ -105,7 +109,7 @@ pub struct VisualWaypoint {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutePreset {
     /// When is this preset available for use?
-    pub trigger: RoutePresetTrigger,
+    pub trigger:      RoutePresetTrigger,
     /// Identifies the preset.
     ///
     /// Different triggers of the same preset can have the same `id`,
@@ -113,7 +117,7 @@ pub struct RoutePreset {
     /// can be considered equivalent when the user selects a route change.
     ///
     /// Different presets from the same trigger must not have duplicate `id`s.
-    pub id:      String,
+    pub id:           String,
     /// Identifier used to reference the preset from other places in the save file.
     ///
     /// This field is only used in the save file and is not visible to users.
@@ -123,13 +127,61 @@ pub struct RoutePreset {
     /// e.g. to initiate a goaround route.
     ///
     /// It is recommended to compose `ref_id` by appending the name of the first waypoint to `id`.
-    pub ref_id:  Option<RoutePresetRef>,
+    pub ref_id:       Option<RoutePresetRef>,
     /// Display name of this route. Not a unique identifier.
-    pub title:   String,
+    pub title:        String,
     /// Nodes of this route.
     /// If the trigger is a waypoint,
     /// the first node should be [`DirectWaypoint`](RouteNode::DirectWaypoint) to that waypoint.
-    pub nodes:   Vec<RouteNode>,
+    pub nodes:        Vec<RouteNode>,
+    /// Destinations that can use this preset.
+    ///
+    /// An object matched by any of the destinations can use this preset.
+    pub destinations: Vec<PresetDestination>,
+}
+
+/// Matches object destinations that can use this preset.
+#[derive(Clone, Serialize, Deserialize, From)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum PresetDestination {
+    /// Matches arrivals.
+    Arrival(PresetDestinationArrival),
+    /// Matches departures.
+    Departure(PresetDestinationDeparture),
+}
+
+impl PresetDestination {
+    /// Creates an arrival destination.
+    pub fn arrival(aerodrome: impl Into<AerodromeRef>) -> Self {
+        Self::Arrival(PresetDestinationArrival { aerodrome: Some(aerodrome.into()) })
+    }
+
+    /// Creates a departure destination.
+    pub fn departure(waypoint: impl Into<NamedWaypointRef>) -> Self {
+        Self::Departure(PresetDestinationDeparture { waypoint: Some(waypoint.into()) })
+    }
+}
+
+/// Matches objects that need to land on the specified aerodrome,
+/// or need to land on any aerodrome.
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PresetDestinationArrival {
+    /// An aerodrome that the object may land on.
+    ///
+    /// If `None`, matches all arrivals.
+    pub aerodrome: Option<AerodromeRef>,
+}
+
+/// Matches objects that need to depart and reach the specified waypoint,
+/// or any departures if `waypoint` is `None`.
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PresetDestinationDeparture {
+    /// A waypoint that the object may hand off at.
+    ///
+    /// If `None`, matches all departures.
+    pub waypoint: Option<NamedWaypointRef>,
 }
 
 /// Generates [`RoutePreset`] starting at each waypoint on the way.
@@ -138,7 +190,10 @@ pub fn route_presets_at_waypoints(
     id: &str,
     title: &str,
     nodes: Vec<RouteNode>,
+    destination: impl Into<PresetDestination>,
 ) -> Vec<RoutePreset> {
+    let destination: PresetDestination = destination.into();
+
     nodes
         .iter()
         .enumerate()
@@ -152,11 +207,12 @@ pub fn route_presets_at_waypoints(
                 return None;
             };
             Some(RoutePreset {
-                trigger: RoutePresetTrigger::Waypoint(waypoint.clone()),
-                id:      id.to_owned(),
-                ref_id:  Some(RoutePresetRef(format!("{id} {}", &waypoint_name.0))),
-                title:   title.to_owned(),
-                nodes:   nodes[start_index..].to_vec(),
+                trigger:      RoutePresetTrigger::Waypoint(waypoint.clone()),
+                id:           id.to_owned(),
+                ref_id:       Some(RoutePresetRef(format!("{id} {}", &waypoint_name.0))),
+                title:        title.to_owned(),
+                nodes:        nodes[start_index..].to_vec(),
+                destinations: [destination.clone()].into(),
             })
         })
         .collect()

@@ -3846,7 +3846,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_with",
  "smallvec",
- "strum 0.26.3",
+ "strum",
  "wasm-bindgen",
 ]
 
@@ -3871,7 +3871,7 @@ dependencies = [
  "rand 0.9.2",
  "serde",
  "smallvec",
- "strum 0.26.3",
+ "strum",
  "thiserror 2.0.17",
  "wordvec",
 ]
@@ -3890,7 +3890,7 @@ dependencies = [
  "schemars 1.1.0",
  "serde",
  "serde_json",
- "strum 0.26.3",
+ "strum",
 ]
 
 [[package]]
@@ -3906,7 +3906,7 @@ dependencies = [
  "schemars 1.1.0",
  "serde",
  "serde_json",
- "strum 0.27.2",
+ "strum",
  "thiserror 2.0.17",
 ]
 
@@ -3922,7 +3922,7 @@ dependencies = [
  "rand 0.9.2",
  "schemars 1.1.0",
  "serde",
- "strum 0.26.3",
+ "strum",
 ]
 
 [[package]]
@@ -4898,33 +4898,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros 0.26.4",
-]
-
-[[package]]
-name = "strum"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
 dependencies = [
- "strum_macros 0.27.2",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck 0.5.0",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn",
+ "strum_macros",
 ]
 
 [[package]]

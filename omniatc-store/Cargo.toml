@@ -26,7 +26,7 @@ anyhow = "1.0.100"
 bevy_math = {workspace = true, features = ["serialize"]}
 ciborium = "0.2.2"
 serde = { workspace = true, features = ["derive"] }
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
 derive_more = { version = "2.0.1", features = ["add", "add_assign"] }
 rand = { version = "0.9.2", default-features = false }
 schemars = { version = "1.0.4", optional = true }

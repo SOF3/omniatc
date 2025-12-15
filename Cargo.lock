@@ -6203,9 +6203,9 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "wordvec"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd33d2837feab80f7e2c13852b9042c057e2b4bfa4d1177a4ee9dc0277f964ba"
+checksum = "674e2e7b05f11386eac5783666c8fdc0810b331a540fd91d39720686a3f34af6"
 
 [[package]]
 name = "writeable"

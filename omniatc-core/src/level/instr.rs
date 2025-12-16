@@ -132,6 +132,7 @@ pub enum Instruction {
     SetWaypoint(SetWaypoint),
     SetSpeed(SetSpeed),
     SetAltitude(SetAltitude),
+    AirborneVector(AirborneVector),
     ClearRoute(ClearRoute),
     RemoveStandby(RemoveStandby),
     SelectRoute(SelectRoute),
@@ -250,6 +251,52 @@ impl Kind for SetAltitude {
             None => "Change altitude to",
         };
         format!("{verb} {} feet", self.target.altitude.amsl().into_feet())
+    }
+}
+
+#[derive(Default)]
+pub struct AirborneVector {
+    pub directional: Option<AirborneVectorDirectional>,
+    pub speed:       Option<SetSpeed>,
+    pub altitude:    Option<SetAltitude>,
+}
+
+pub enum AirborneVectorDirectional {
+    SetHeading(SetHeading),
+    SetWaypoint(SetWaypoint),
+}
+
+impl Kind for AirborneVector {
+    fn process(&self, entity: &mut EntityCommands) {
+        match self.directional {
+            Some(AirborneVectorDirectional::SetHeading(ref cmd)) => cmd.process(entity),
+            Some(AirborneVectorDirectional::SetWaypoint(ref cmd)) => cmd.process(entity),
+            None => {}
+        }
+        if let Some(ref cmd) = self.speed {
+            cmd.process(entity);
+        }
+        if let Some(ref cmd) = self.altitude {
+            cmd.process(entity);
+        }
+    }
+
+    fn format_message(&self, world: &World, object: Entity) -> String {
+        let mut parts = Vec::new();
+        if let Some(ref cmd) = self.directional {
+            let part = match cmd {
+                AirborneVectorDirectional::SetHeading(cmd) => cmd.format_message(world, object),
+                AirborneVectorDirectional::SetWaypoint(cmd) => cmd.format_message(world, object),
+            };
+            parts.push(part);
+        }
+        if let Some(ref cmd) = self.speed {
+            parts.push(cmd.format_message(world, object));
+        }
+        if let Some(ref cmd) = self.altitude {
+            parts.push(cmd.format_message(world, object));
+        }
+        parts.join(", ")
     }
 }
 

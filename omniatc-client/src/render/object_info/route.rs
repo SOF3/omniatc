@@ -145,7 +145,6 @@ fn write_route_options(
             },
         );
         if selection != current_selection {
-            // TODO move this to a comm::Instruction
             match selection {
                 Selection::None => {
                     commands.send_instruction(object, instr::ClearRoute);

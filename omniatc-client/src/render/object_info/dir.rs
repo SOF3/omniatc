@@ -1,9 +1,9 @@
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy_egui::egui;
 use math::{Heading, TurnDirection};
-use omniatc::level::instr::CommandsExt;
+use omniatc::level::object::Object;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{ground, instr, nav, object, plane};
 use omniatc::{QueryTryLog, try_log_return};
@@ -11,6 +11,7 @@ use store::YawTarget;
 
 use super::Writer;
 use crate::input;
+use crate::render::object_info::DraftInstructions;
 use crate::util::{heading_to_approx_name, new_type_id};
 
 #[derive(QueryData)]
@@ -30,8 +31,8 @@ pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     segment_query:  Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
     endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
-    commands:       Commands<'w, 's>,
     hotkeys:        Res<'w, input::Hotkeys>,
+    draft:          ResMut<'w, DraftInstructions>,
 }
 
 impl Writer for ObjectQuery {
@@ -51,7 +52,14 @@ impl Writer for ObjectQuery {
                 ui.label(format!("Current yaw: {:.0}\u{b0}", control.heading.degrees()));
             }
             if let Some(nav_vel) = this.nav_vel {
-                show_yaw_target(ui, nav_vel, &mut params.commands, this.entity, &params.hotkeys);
+                show_yaw_target(
+                    ui,
+                    this.object,
+                    nav_vel,
+                    &params.hotkeys,
+                    &mut params.draft,
+                    &params.waypoint_query,
+                );
             }
             if let Some(target) = this.target_waypoint {
                 let Some(waypoint) = params.waypoint_query.log_get(target.waypoint_entity) else {
@@ -83,13 +91,27 @@ impl Writer for ObjectQuery {
 
 fn show_yaw_target(
     ui: &mut egui::Ui,
+    object: &Object,
     nav_vel: &nav::VelocityTarget,
-    commands: &mut Commands,
-    object: Entity,
     hotkeys: &input::Hotkeys,
+    draft: &mut DraftInstructions,
+    waypoint_query: &Query<&Waypoint>,
 ) {
-    let target = &nav_vel.yaw;
-
+    let target = match &draft.airborne_vector {
+        None => nav_vel.yaw,
+        Some(av) => match &av.directional {
+            None => nav_vel.yaw,
+            Some(instr::AirborneVectorDirectional::SetHeading(set_heading)) => set_heading.target,
+            Some(instr::AirborneVectorDirectional::SetWaypoint(waypoint)) => {
+                match waypoint_query.log_get(waypoint.waypoint) {
+                    None => nav_vel.yaw,
+                    Some(waypoint) => YawTarget::Heading(
+                        (waypoint.position.horizontal() - object.position.horizontal()).heading(),
+                    ),
+                }
+            }
+        },
+    };
     let target_degrees = match target {
         YawTarget::Heading(heading) => {
             ui.label(format!("Target yaw: {:.0}\u{b0}", heading.degrees()));
@@ -131,10 +153,10 @@ fn show_yaw_target(
 
     #[expect(clippy::float_cmp, reason = "this is normally equal if user did not interact")]
     if target_degrees != slider_degrees {
-        commands.send_instruction(
-            object,
-            instr::SetHeading { target: YawTarget::Heading(Heading::from_degrees(slider_degrees)) },
-        );
+        draft.airborne_vector.get_or_insert_default().directional =
+            Some(instr::AirborneVectorDirectional::SetHeading(instr::SetHeading {
+                target: YawTarget::Heading(Heading::from_degrees(slider_degrees)),
+            }));
     }
 }
 

@@ -4,11 +4,12 @@ use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{ParamSet, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::ReadConfig;
 use omniatc::QueryTryLog;
-use omniatc::level::object;
+use omniatc::level::instr::CommandsExt;
+use omniatc::level::{instr, object};
 
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
@@ -19,6 +20,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<CurrentHoveredObject>();
         app.init_resource::<CurrentObject>();
+        app.init_resource::<DraftInstructions>();
         app.add_systems(
             EguiPrimaryContextPass,
             setup_layout_system.in_set(EguiSystemSets::ObjectInfo),
@@ -36,6 +38,11 @@ impl Plugin for Plug {
             cleanup_despawned_selected_object_system.before(CurrentObjectSelectorSystemSet),
         );
     }
+}
+
+#[derive(Default, Resource)]
+struct DraftInstructions {
+    airborne_vector: Option<instr::AirborneVector>,
 }
 
 fn cleanup_despawned_selected_object_system(
@@ -72,7 +79,7 @@ fn setup_layout_system(
     current_object: Res<CurrentObject>,
     object_query: Query<(WriteQueryData, &object::Display)>,
     mut margins: ResMut<EguiUsedMargins>,
-    mut write_params: WriteParams,
+    mut param_set: ParamSet<(SendParams, WriteParams)>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -82,19 +89,35 @@ fn setup_layout_system(
         .show(ctx, |ui| {
             let Some(object_entity) = current_object.0 else {
                 ui.label("Click on an aircraft to view details");
+                param_set.p0().draft.airborne_vector = None;
                 return;
             };
 
             let Some(object) = object_query.log_get(object_entity) else { return };
 
             ui.heading(&object.1.name);
+
+            let mut params = param_set.p0();
+            let send_clicked = ui
+                .add_enabled(params.draft.airborne_vector.is_some(), egui::Button::new("Send"))
+                .clicked();
+            if send_clicked && let Some(instr) = params.draft.airborne_vector.take() {
+                params.commands.send_instruction(object_entity, instr);
+            }
+
             egui::ScrollArea::vertical().show(ui, |ui| {
-                show_writers(ui, &object.0, &mut write_params);
+                show_writers(ui, &object.0, &mut param_set.p1());
             });
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
         })
         .response;
     margins.right += resp.rect.width();
+}
+
+#[derive(SystemParam)]
+struct SendParams<'w, 's> {
+    draft:    ResMut<'w, DraftInstructions>,
+    commands: Commands<'w, 's>,
 }
 
 trait Writer: QueryData {

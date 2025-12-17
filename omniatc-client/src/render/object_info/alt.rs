@@ -1,15 +1,15 @@
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy_egui::egui;
 use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::QueryTryLog;
-use omniatc::level::instr::CommandsExt;
 use omniatc::level::waypoint::Waypoint;
 use omniatc::level::{instr, nav, object};
 
 use super::Writer;
 use crate::input;
+use crate::render::object_info::DraftInstructions;
 use crate::util::new_type_id;
 
 #[derive(QueryData)]
@@ -24,8 +24,8 @@ pub struct ObjectQuery {
 #[derive(SystemParam)]
 pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
-    commands:       Commands<'w, 's>,
     hotkeys:        Res<'w, input::Hotkeys>,
+    draft:          ResMut<'w, DraftInstructions>,
 }
 
 impl Writer for ObjectQuery {
@@ -47,11 +47,16 @@ impl Writer for ObjectQuery {
         }
 
         ui.horizontal(|ui| {
-            let initial_alt = this
-                .target_alt
-                .map_or_else(|| this.object.position.altitude(), |t| t.altitude)
-                .amsl()
-                .into_feet();
+            let (initial_alt, expedite) = match &params.draft.airborne_vector {
+                Some(instr::AirborneVector { altitude: Some(set_altitude), .. }) => {
+                    (set_altitude.target.altitude, set_altitude.target.expedite)
+                }
+                _ => match this.target_alt {
+                    Some(t) => (t.altitude, t.expedite),
+                    None => (this.object.position.altitude(), false),
+                },
+            };
+            let initial_alt = initial_alt.amsl().into_feet();
             let mut slider_alt = initial_alt;
             let slider_resp = ui.add(egui::Slider::new(
                 &mut slider_alt,
@@ -67,7 +72,6 @@ impl Writer for ObjectQuery {
                 slider_alt = (slider_alt / 1000.).ceil() * 1000. - 1000.;
             }
 
-            let expedite = this.target_alt.is_some_and(|t| t.expedite);
             let mut checkbox_expedite = expedite;
             ui.add(
                 egui::Checkbox::new(&mut checkbox_expedite, "Exp")
@@ -81,15 +85,13 @@ impl Writer for ObjectQuery {
             if slider_alt != initial_alt
                 || (this.target_alt.is_some() && expedite != checkbox_expedite)
             {
-                params.commands.send_instruction(
-                    this.entity,
-                    instr::SetAltitude {
+                params.draft.airborne_vector.get_or_insert_default().altitude =
+                    Some(instr::SetAltitude {
                         target: nav::TargetAltitude {
                             altitude: Position::from_amsl_feet(slider_alt),
                             expedite: checkbox_expedite,
                         },
-                    },
-                );
+                    });
             }
         });
 

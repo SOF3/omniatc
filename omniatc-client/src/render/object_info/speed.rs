@@ -1,13 +1,13 @@
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Commands, Res, SystemParam};
+use bevy::ecs::system::{Res, ResMut, SystemParam};
 use bevy_egui::egui;
 use math::Speed;
-use omniatc::level::instr::CommandsExt;
 use omniatc::level::{instr, nav, object};
 
 use super::Writer;
 use crate::input;
+use crate::render::object_info::DraftInstructions;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -19,13 +19,13 @@ pub struct ObjectQuery {
 }
 
 #[derive(SystemParam)]
-pub struct WriteParams<'w, 's> {
-    commands: Commands<'w, 's>,
-    hotkeys:  Res<'w, input::Hotkeys>,
+pub struct WriteParams<'w> {
+    hotkeys: Res<'w, input::Hotkeys>,
+    draft:   ResMut<'w, DraftInstructions>,
 }
 
 impl Writer for ObjectQuery {
-    type SystemParams<'w, 's> = WriteParams<'w, 's>;
+    type SystemParams<'w, 's> = WriteParams<'w>;
 
     fn title() -> &'static str { "Speed" }
 
@@ -50,7 +50,14 @@ impl Writer for ObjectQuery {
                 let target_knots = nav_vel.horiz_speed.into_knots();
                 ui.label(format!("Target IAS: {target_knots:.0} kt"));
 
-                let mut slider_knots = target_knots;
+                let draft_knots = match &params.draft.airborne_vector {
+                    Some(instr::AirborneVector { speed: Some(set_speed), .. }) => {
+                        set_speed.target.into_knots()
+                    }
+                    _ => target_knots,
+                };
+
+                let mut slider_knots = draft_knots;
                 let slider_resp = ui
                     .add(egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"));
                 if params.hotkeys.set_speed {
@@ -63,11 +70,9 @@ impl Writer for ObjectQuery {
                     slider_knots = (slider_knots / 10.).ceil() * 10. - 10.;
                 }
 
-                if (target_knots - slider_knots).abs() > 1.0 {
-                    params.commands.send_instruction(
-                        this.entity,
-                        instr::SetSpeed { target: Speed::from_knots(slider_knots) },
-                    );
+                if (draft_knots - slider_knots).abs() > 1.0 {
+                    params.draft.airborne_vector.get_or_insert_default().speed =
+                        Some(instr::SetSpeed { target: Speed::from_knots(slider_knots) });
                 }
             }
         } else if let Some(ground) = this.ground {

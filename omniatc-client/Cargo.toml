@@ -34,7 +34,7 @@ itertools = "0.14.0"
 ordered-float = "5.0.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_with = { version = "3.12.0", features = ["macros", "base64"] }
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
 smallvec = "1.15.0"
 clap = { version = "4.5.41", features = ["derive"] }
 derive_more = { version = "2.0.1", features = ["into"] }

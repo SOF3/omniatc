@@ -20,7 +20,8 @@ use store::{ClimbProfile, YawTarget};
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{SystemSets, navaid, object};
-use crate::{QueryTryLog, pid};
+use crate::QueryTryLog;
+use crate::level::wind;
 
 pub struct Plug;
 
@@ -235,15 +236,12 @@ fn glide_control_system(
 /// Optional component to control target heading.
 #[derive(Component)]
 pub struct TargetGroundDirection {
-    pub active:    bool,
-    pub target:    Heading,
-    pub pid_state: pid::State,
+    pub active: bool,
+    pub target: Heading,
 }
 
 impl Default for TargetGroundDirection {
-    fn default() -> Self {
-        Self { active: true, target: Heading::NORTH, pid_state: pid::State::default() }
-    }
+    fn default() -> Self { Self { active: true, target: Heading::NORTH } }
 }
 
 #[derive(QueryData)]
@@ -257,6 +255,7 @@ struct GroundDirectionSystemQueryData {
 
 fn ground_heading_control_system(
     time: Res<Time<time::Virtual>>,
+    wind: wind::Locator,
     mut query: Query<GroundDirectionSystemQueryData>,
 ) {
     if time.is_paused() {
@@ -271,16 +270,31 @@ fn ground_heading_control_system(
             return;
         }
 
-        let current_heading = data.current_object.ground_speed.horizontal().heading();
-        let error = data.objective.target - current_heading;
+        let wind = wind.locate(data.current_object.position);
 
-        let signal = Angle::from_radians(pid::control(
-            &mut data.objective.pid_state,
-            error.0,
-            time.delta_secs(),
-        ));
-        data.signal.yaw =
-            YawTarget::Heading(data.current_air.airspeed.horizontal().heading() + signal);
+        // Let gs = magnitude of desired ground speed,
+        // then desired_tas + wind = gs * objective.target.
+        // By solving for gs, we have
+        // gs^2 - 2 * dot(wind, objective.target) * gs + wind.norm()^2 - desired_tas^2 = 0.
+        let b = Speed::new(wind.dot(data.objective.target.into_dir2()) * -2.0);
+        let c = wind.magnitude_squared()
+            - data.current_air.true_airspeed.horizontal().magnitude_squared();
+        let discrim = b * b - c * 4.0;
+        if discrim.is_negative() {
+            // Wind speed is greater than true airspeed, cannot achieve desired ground heading.
+            // Just go directly against the wind to minimize deviation.
+            data.signal.yaw = YawTarget::Heading(wind.heading().opposite());
+        } else {
+            // There are two solutions for gs, namely
+            // 0.5 * (-b \plusminus sqrt(discrim)).
+            // The smaller one is negative since c is always negative
+            // when airspeed exceeds wind speed.
+            // Thus we simply select the greater solution.
+
+            let gs = (b + discrim.sqrt()) * 0.5;
+            let target_tas_vector = gs * data.objective.target - wind;
+            data.signal.yaw = YawTarget::Heading(target_tas_vector.heading());
+        }
     });
 }
 

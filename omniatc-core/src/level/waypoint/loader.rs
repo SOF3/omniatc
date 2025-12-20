@@ -5,7 +5,7 @@ use bevy::ecs::name::Name;
 use bevy::ecs::relationship::{RelatedSpawner, Relationship};
 use bevy::ecs::system::EntityCommand;
 use bevy::ecs::world::World;
-use math::{Angle, Length, SEA_ALTITUDE};
+use math::{Angle, Length, Position};
 
 use crate::level::aerodrome::loader::AerodromeMap;
 use crate::level::navaid::{self, Navaid};
@@ -27,7 +27,7 @@ pub fn spawn(world: &mut World, waypoints: &[store::Waypoint]) -> WaypointMap {
                         display_type: choose_waypoint_display_type(&waypoint.navaids),
                         position:     waypoint
                             .position
-                            .with_altitude(waypoint.elevation.unwrap_or(SEA_ALTITUDE)),
+                            .with_altitude(waypoint.elevation.unwrap_or(Position::SEA_LEVEL)),
                     },
                 }
                 .apply(world.entity_mut(waypoint_entity));

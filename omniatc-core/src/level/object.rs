@@ -18,17 +18,17 @@ use bevy::time::{self, Time, Timer, TimerMode};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
 use math::{
-    Accel, AngularSpeed, Heading, Length, PRESSURE_DENSITY_ALTITUDE_POW, Position,
-    STANDARD_LAPSE_RATE, STANDARD_SEA_LEVEL_TEMPERATURE, Speed, TAS_DELTA_PER_NM,
-    TROPOPAUSE_ALTITUDE, range_steps, solve_expected_ground_speed,
+    Accel, AngularSpeed, Heading, ISA_SEA_LEVEL_PRESSURE, ISA_SEA_LEVEL_TEMPERATURE, Length,
+    Position, Pressure, Speed, Temp, compute_barometric, range_steps, solve_expected_ground_speed,
 };
 use store::Score;
 
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav, wind};
-use crate::WorldTryLog;
+use crate::level::weather::{self, Weather};
 use crate::level::{dest, plane, taxi};
 use crate::try_log::EntityWorldMutExt;
+use crate::{QueryTryLog, WorldTryLog};
 
 pub mod loader;
 pub mod types;
@@ -55,6 +55,7 @@ where
             app::Update,
             update_airborne_system
                 .in_set(wind::DetectorReaderSystemSet)
+                .in_set(weather::DetectorReaderSystemSet)
                 .in_set(SystemSets::ExecuteEnviron),
         );
         app.add_systems(
@@ -76,7 +77,7 @@ pub struct Display {
     pub name: String,
 }
 
-#[derive(Component)]
+#[derive(Debug, Component)]
 pub struct Object {
     /// Position relative to level origin at mean sea level.
     ///
@@ -92,14 +93,22 @@ pub struct Object {
 #[derive(Component, Default)]
 pub struct Rotation(pub Quat);
 
-#[derive(Component)]
+#[derive(Debug, Component)]
 #[require(wind::Detector)]
+#[require(weather::Detector)]
 pub struct Airborne {
     /// Indicated airspeed.
     pub airspeed: Speed<Vec3>,
 
     /// True airspeed.
     pub true_airspeed: Speed<Vec3>,
+
+    /// Outside air temperature.
+    pub oat:          Temp,
+    /// Outside air pressure.
+    pub pressure:     Pressure,
+    /// Current pressure altitude.
+    pub pressure_alt: Position<f32>,
 }
 
 pub struct SpawnCommand {
@@ -187,7 +196,13 @@ impl EntityCommand for SetAirborneCommand {
         });
 
         let airspeed = ground_speed - wind.horizontally();
-        entity.insert(Airborne { airspeed, true_airspeed: airspeed });
+        entity.insert(Airborne {
+            airspeed,
+            true_airspeed: airspeed,
+            oat: ISA_SEA_LEVEL_TEMPERATURE,
+            pressure: ISA_SEA_LEVEL_PRESSURE,
+            pressure_alt: position.altitude(),
+        });
     }
 }
 
@@ -334,43 +349,37 @@ fn move_object_system(time: Res<Time<time::Virtual>>, mut object_query: Query<&m
 
 fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(&mut Object, &mut Airborne, &wind::Detector)>,
+    mut object_query: Query<(&mut Object, &mut Airborne, &wind::Detector, &weather::Detector)>,
+    weather_query: Query<&Weather>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut object, mut airborne, wind)| {
-        let result = GroundSpeedCalculator::get_ground_speed_with_wind(
+    object_query.par_iter_mut().for_each(|(mut object, mut airborne, wind, weather)| {
+        let result = GroundSpeedCalculator::get_ground_speed_with_weather(
             object.position,
             airborne.airspeed,
             wind.last_computed,
+            weather
+                .last_match
+                .and_then(|entity| weather_query.log_get(entity))
+                .copied()
+                .unwrap_or_default(),
         );
+        airborne.oat = result.temp;
+        airborne.pressure = result.pressure;
+        airborne.pressure_alt = result.pressure_alt;
         airborne.true_airspeed = result.tas;
         object.ground_speed = result.ground_speed;
     });
-}
-
-#[must_use]
-pub fn get_tas_ratio(altitude: Position<f32>, sea_level_temperature: f32) -> f32 {
-    let pressure_altitude = altitude; // TODO calibrate by pressure
-    let actual_temperature = sea_level_temperature
-        - STANDARD_LAPSE_RATE * pressure_altitude.min(TROPOPAUSE_ALTITUDE).get();
-    let density_altitude = pressure_altitude
-        + Length::new(
-            STANDARD_SEA_LEVEL_TEMPERATURE / STANDARD_LAPSE_RATE
-                * (1.
-                    - (STANDARD_SEA_LEVEL_TEMPERATURE / actual_temperature)
-                        .powf(PRESSURE_DENSITY_ALTITUDE_POW)),
-        );
-
-    1. + TAS_DELTA_PER_NM * density_altitude.get()
 }
 
 #[derive(SystemParam)]
 pub struct GetAirspeed<'w, 's> {
     airborne_query: Query<'w, 's, (&'static Object, Option<&'static Airborne>)>,
     wind:           wind::Locator<'w, 's>,
+    weather:        weather::Locator<'w, 's>,
 }
 
 impl GetAirspeed<'_, '_> {
@@ -386,27 +395,39 @@ impl GetAirspeed<'_, '_> {
         if let Some(airborne) = airborne {
             airborne.airspeed
         } else {
-            (ground_speed - self.wind.locate(position).horizontally())
-                / get_tas_ratio(position.altitude(), STANDARD_SEA_LEVEL_TEMPERATURE)
+            let tas = ground_speed - self.wind.locate(position).horizontally();
+            let weather = self.weather.get(position.horizontal());
+            let atm =
+                compute_barometric(position.altitude(), weather.sea_pressure, weather.sea_temp);
+            atm.indicated_airspeed(tas)
         }
     }
 }
 
 #[derive(SystemParam)]
 pub struct GroundSpeedCalculator<'w, 's> {
-    wind: wind::Locator<'w, 's>,
+    wind:    wind::Locator<'w, 's>,
+    weather: weather::Locator<'w, 's>,
 }
 
 impl GroundSpeedCalculator<'_, '_> {
     #[must_use]
-    pub fn get_ground_speed_with_wind(
+    pub fn get_ground_speed_with_weather(
         position: Position<Vec3>,
         ias: Speed<Vec3>,
         wind: Speed<Vec2>,
+        weather: Weather,
     ) -> GroundSpeedResult {
-        let tas = ias * get_tas_ratio(position.altitude(), STANDARD_SEA_LEVEL_TEMPERATURE);
+        let atm = compute_barometric(position.altitude(), weather.sea_pressure, weather.sea_temp);
+        let tas = atm.true_airspeed(ias);
         let ground_speed = tas + wind.horizontally();
-        GroundSpeedResult { tas, ground_speed }
+        GroundSpeedResult {
+            pressure_alt: atm.pressure_altitude,
+            pressure: atm.pressure,
+            temp: atm.temp,
+            tas,
+            ground_speed,
+        }
     }
 
     /// Compute the ground speed if an object has the given IAS at the given position.
@@ -416,7 +437,12 @@ impl GroundSpeedCalculator<'_, '_> {
         position: Position<Vec3>,
         ias: Speed<Vec3>,
     ) -> GroundSpeedResult {
-        Self::get_ground_speed_with_wind(position, ias, self.wind.locate(position))
+        Self::get_ground_speed_with_weather(
+            position,
+            ias,
+            self.wind.locate(position),
+            self.weather.get(position.horizontal()),
+        )
     }
 
     /// Estimate the altitude change as an object flies from `start` to `end`,
@@ -450,7 +476,9 @@ impl GroundSpeedCalculator<'_, '_> {
         for (earlier_distance, later_distance) in range_step_iter.tuple_windows() {
             let earlier_pos = start.lerp(end, earlier_distance / distance);
 
-            let true_airspeed = ias * get_tas_ratio(altitude, STANDARD_SEA_LEVEL_TEMPERATURE);
+            let weather = self.weather.get(earlier_pos);
+            let atm = compute_barometric(altitude, weather.sea_pressure, weather.sea_temp);
+            let true_airspeed = atm.true_airspeed(ias);
             let ground_speed = solve_expected_ground_speed(
                 true_airspeed,
                 self.wind.locate(earlier_pos.with_altitude(altitude)),
@@ -469,6 +497,9 @@ impl GroundSpeedCalculator<'_, '_> {
 }
 
 pub struct GroundSpeedResult {
+    pub pressure_alt: Position<f32>,
+    pub pressure:     Pressure,
+    pub temp:         Temp,
     pub tas:          Speed<Vec3>,
     pub ground_speed: Speed<Vec3>,
 }

@@ -16,6 +16,8 @@ mod heading;
 pub use heading::{Heading, TurnDirection};
 mod position;
 pub use position::Position;
+mod temp;
+pub use temp::{Temp, TempDelta};
 mod squared;
 pub use squared::AsSqrt;
 
@@ -31,6 +33,8 @@ pub const KNOTS_PER_MACH: f32 = 666.739;
 pub const SECONDS_PER_MINUTE: f32 = 60.;
 /// Converts hours to seconds.
 pub const SECONDS_PER_HOUR: f32 = 3600.;
+/// Converts pascals to inches of mercury.
+pub const INHG_PER_PASCAL: f32 = 0.000295299830714;
 
 pub struct Quantity<T, Base, Dt, Pow>(pub T, pub PhantomData<(Base, Dt, Pow)>);
 
@@ -381,6 +385,26 @@ where
     pub fn magnitude_exact(self) -> Quantity<f32, LengthBase, Dt, Pow> {
         Quantity(self.0.norm(), PhantomData)
     }
+
+    /// Tests whether `self` is near `other` in euclidean distance.
+    ///
+    /// # Errors
+    /// If the distance between `self` and `other` is greater than `epsilon`.
+    pub fn assert_near(
+        self,
+        other: Self,
+        epsilon: Quantity<f32, LengthBase, Dt, Pow>,
+    ) -> Result<(), String>
+    where
+        Self: fmt::Debug,
+        Quantity<f32, LengthBase, Dt, Pow>: fmt::Debug,
+    {
+        if (self - other).magnitude_cmp() > epsilon {
+            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>>
@@ -497,6 +521,9 @@ impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     pub fn is_zero(self) -> bool { self.0 == 0. }
 
     #[must_use]
+    pub fn is_finite(self) -> bool { self.0.is_finite() }
+
+    #[must_use]
     pub fn sign(self) -> Sign {
         if self.0 == 0. {
             Sign::Zero
@@ -508,7 +535,7 @@ impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     }
 
     #[must_use]
-    pub fn abs(self) -> Self { Self(self.0.abs(), PhantomData) }
+    pub const fn abs(self) -> Self { Self(self.0.abs(), PhantomData) }
 
     #[must_use]
     pub fn copysign(self, other: Self) -> Self { Self(self.0.copysign(other.0), PhantomData) }
@@ -542,6 +569,21 @@ impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     #[must_use]
     pub const fn splat2(self) -> <Self as QuantityTrait>::WithRaw<Vec2> {
         Quantity(Vec2::new(self.0, self.0), PhantomData)
+    }
+
+    /// Asserts that the quantity is within `epsilon` of `other`.
+    ///
+    /// # Errors
+    /// If the absolute difference between `self` and `other` is greater than `epsilon`.
+    pub fn assert_approx(self, other: Self, epsilon: Self) -> Result<(), String>
+    where
+        Self: fmt::Debug,
+    {
+        if (self - other).abs() > epsilon {
+            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -858,6 +900,12 @@ pub type AngularSpeed = Quantity<f32, AngleBase, DtOne, PowOne>;
 /// Always in rad/s&sup2;.
 pub type AngularAccel = Quantity<f32, AngleBase, DtTwo, PowOne>;
 
+pub struct PressureBase;
+
+/// Pressure at a certain point (not necessarily QNH).
+/// Always in Pa.
+pub type Pressure = Quantity<f32, PressureBase, DtZero, PowOne>;
+
 pub struct RatioBase;
 
 pub type Frequency = Quantity<f32, RatioBase, DtOne, PowZero>;
@@ -939,6 +987,12 @@ impl fmt::Debug for AngularSpeed {
 impl fmt::Debug for AngularAccel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AngularAccel").field("degrees/s2", &self.into_degrees_per_sec2()).finish()
+    }
+}
+
+impl fmt::Debug for Pressure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Pressure").field("hPa", &self.into_hpa()).finish()
     }
 }
 
@@ -1048,28 +1102,45 @@ impl Speed<f32> {
     }
 }
 
-impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> Accel<T> {
+impl Speed<Vec2> {
     #[must_use]
-    pub fn into_knots_per_sec(self) -> T { self.0 * SECONDS_PER_HOUR }
+    pub const fn from_knots_vec2(x: f32, y: f32) -> Self {
+        Self(Vec2 { x: x / SECONDS_PER_HOUR, y: y / SECONDS_PER_HOUR }, PhantomData)
+    }
+}
+
+impl Accel<f32> {
+    #[must_use]
+    pub const fn into_knots_per_sec(self) -> f32 { self.0 * SECONDS_PER_HOUR }
 
     #[must_use]
-    pub fn from_knots_per_sec(knots: T) -> Self { Self(knots / SECONDS_PER_HOUR, PhantomData) }
+    pub const fn from_knots_per_sec(knots: f32) -> Self {
+        Self(knots / SECONDS_PER_HOUR, PhantomData)
+    }
 
     #[must_use]
-    pub fn into_fpm_per_sec(self) -> T { self.0 * SECONDS_PER_MINUTE * FEET_PER_NM }
+    pub const fn into_meters_per_sec2(self) -> f32 { self.0 * METERS_PER_NM }
 
     #[must_use]
-    pub fn from_fpm_per_sec(fpm: T) -> Self {
+    pub const fn from_meters_per_sec2(mps2: f32) -> Self { Self(mps2 / METERS_PER_NM, PhantomData) }
+
+    #[must_use]
+    pub const fn into_fpm_per_sec(self) -> f32 { self.0 * SECONDS_PER_MINUTE * FEET_PER_NM }
+
+    #[must_use]
+    pub const fn from_fpm_per_sec(fpm: f32) -> Self {
         Self(fpm / SECONDS_PER_MINUTE / FEET_PER_NM, PhantomData)
     }
 }
 
-impl<T: ops::Mul<f32, Output = T> + ops::Div<f32, Output = T>> AccelRate<T> {
+impl AccelRate<f32> {
     #[must_use]
-    pub fn into_knots_per_sec2(self) -> T { self.0 * SECONDS_PER_HOUR }
+    pub const fn into_knots_per_sec2(self) -> f32 { self.0 * SECONDS_PER_HOUR }
 
     #[must_use]
-    pub fn from_knots_per_sec2(knots: T) -> Self { Self(knots / SECONDS_PER_HOUR, PhantomData) }
+    pub const fn from_knots_per_sec2(knots: f32) -> Self {
+        Self(knots / SECONDS_PER_HOUR, PhantomData)
+    }
 }
 
 impl Angle {
@@ -1116,25 +1187,49 @@ impl Angle {
 
 impl AngularSpeed {
     #[must_use]
-    pub fn into_degrees_per_sec(self) -> f32 { self.0.to_degrees() }
+    pub const fn into_degrees_per_sec(self) -> f32 { self.0.to_degrees() }
 
     #[must_use]
-    pub fn from_degrees_per_sec(degrees: f32) -> Self { Self(degrees.to_radians(), PhantomData) }
+    pub const fn from_degrees_per_sec(degrees: f32) -> Self {
+        Self(degrees.to_radians(), PhantomData)
+    }
 
     /// Reciprocal of this value, converting `rad/s` to `s/rad`.
     #[must_use]
     pub fn duration_per_radian(self) -> Duration { Duration::from_secs_f32(self.0.recip()) }
 
     #[must_use]
-    pub fn into_radians_per_sec(self) -> Frequency { Frequency::from_raw(self.0) }
+    pub const fn into_radians_per_sec(self) -> Frequency { Frequency::new(self.0) }
 }
 
 impl AngularAccel {
     #[must_use]
-    pub fn into_degrees_per_sec2(self) -> f32 { self.0.to_degrees() }
+    pub const fn into_degrees_per_sec2(self) -> f32 { self.0.to_degrees() }
 
     #[must_use]
-    pub fn from_degrees_per_sec2(degrees: f32) -> Self { Self(degrees.to_radians(), PhantomData) }
+    pub const fn from_degrees_per_sec2(degrees: f32) -> Self {
+        Self(degrees.to_radians(), PhantomData)
+    }
+}
+
+impl Pressure {
+    #[must_use]
+    pub const fn from_pascals(pascals: f32) -> Self { Self(pascals, PhantomData) }
+
+    #[must_use]
+    pub const fn into_pascals(self) -> f32 { self.0 }
+
+    #[must_use]
+    pub const fn from_hpa(hpa: f32) -> Self { Self(hpa * 100.0, PhantomData) }
+
+    #[must_use]
+    pub const fn into_hpa(self) -> f32 { self.0 / 100.0 }
+
+    #[must_use]
+    pub const fn from_inhg(inhg: f32) -> Self { Self(inhg / INHG_PER_PASCAL, PhantomData) }
+
+    #[must_use]
+    pub const fn into_inhg(self) -> f32 { self.0 * INHG_PER_PASCAL }
 }
 
 pub trait IsFinite: Copy {
@@ -1231,6 +1326,8 @@ impl_schema_for_quantity!(AccelRate<Vec3>, "3D acceleration rate vector in nm/s\
 impl_schema_for_quantity!(Angle, "Angle in radians");
 impl_schema_for_quantity!(AngularSpeed, "Angular speed in rad/s");
 impl_schema_for_quantity!(AngularAccel, "Angular acceleration in rad/s\u{b2}");
+impl_schema_for_quantity!(Pressure, "Pressure in Pa");
+impl_schema_for_quantity!(TempDelta, "Temperature in K");
 impl_schema_for_quantity!(Frequency, "Frequency in Hz");
 
 bevy_mod_config::impl_scalar_config_field!(

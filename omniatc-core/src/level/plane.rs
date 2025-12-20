@@ -38,7 +38,7 @@ impl Plugin for Plug {
 }
 
 /// Mutable states modified by control systems.
-#[derive(Component, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Component, serde::Serialize, serde::Deserialize)]
 pub struct Control {
     /// Heading of the plane, must be a unit vector.
     /// This is the horizontal direction of the thrust generated.
@@ -121,8 +121,6 @@ fn maintain_yaw(
 
     let desired_yaw_speed = match target.yaw {
         YawTarget::Heading(target_heading) => {
-            let dir = current_yaw.closer_direction_to(target_heading);
-
             // Test if the target heading is overshot when yaw speed reduces to 0
             // if we start reducing yaw speed now.
             // By v^2 = u^2 + 2as and v=0, s = -u^2/2a.
@@ -134,9 +132,13 @@ fn maintain_yaw(
                 // we are going to overshoot the target heading, start reducing speed now.
                 AngularSpeed::ZERO
             } else {
-                match dir {
-                    TurnDirection::CounterClockwise => -limits.max_yaw_speed,
-                    TurnDirection::Clockwise => limits.max_yaw_speed,
+                let delta = current_yaw.closest_distance(target_heading);
+                // desired rate is the turn rate to reach the target heading within this frame
+                let desired_rate = delta / time.delta();
+                if desired_rate.is_finite() {
+                    desired_rate.clamp(-limits.max_yaw_speed, limits.max_yaw_speed)
+                } else {
+                    AngularSpeed::ZERO
                 }
             }
         }

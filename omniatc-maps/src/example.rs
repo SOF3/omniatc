@@ -437,6 +437,7 @@ pub fn file() -> store::File {
                     bottom_speed: Speed::from_knots(25.).with_heading(Heading::from_degrees(300.)),
                 }]
                 .into(),
+                weather:    [].into(),
             },
             object_types:  [(
                 "A359",

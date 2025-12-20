@@ -22,6 +22,9 @@ use super::waypoint::Waypoint;
 use super::{SystemSets, navaid, object};
 use crate::{QueryTryLog, pid};
 
+#[cfg(test)]
+mod tests;
+
 pub struct Plug;
 
 impl Plugin for Plug {
@@ -45,7 +48,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is removed when the plane is not airborne.
-#[derive(Component)]
+#[derive(Debug, Component)]
 #[require(navaid::ObjectUsageList)]
 pub struct VelocityTarget {
     /// Target yaw change.

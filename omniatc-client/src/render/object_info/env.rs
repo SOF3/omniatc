@@ -1,15 +1,16 @@
 use bevy::ecs::query::QueryData;
 use bevy_egui::egui;
 use math::{Angle, Sign};
-use omniatc::level::{plane, wake, wind};
+use omniatc::level::{object, plane, wake, wind};
 
 use super::Writer;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
-    wake:  Option<&'static wake::Detector>,
-    wind:  Option<&'static wind::Detector>,
-    plane: Option<&'static plane::Control>,
+    wake:     Option<&'static wake::Detector>,
+    wind:     Option<&'static wind::Detector>,
+    plane:    Option<&'static plane::Control>,
+    airborne: Option<&'static object::Airborne>,
 }
 
 impl Writer for ObjectQuery {
@@ -62,6 +63,10 @@ impl Writer for ObjectQuery {
                     }
                 }
             }
+        }
+        if let Some(airborne) = this.airborne {
+            ui.label(format!("Outside air temp: {:.1} \u{b0}C", airborne.oat.into_celsius()));
+            ui.label(format!("Outside air pressure: {:.1} hPa", airborne.pressure.into_hpa()));
         }
     }
 }

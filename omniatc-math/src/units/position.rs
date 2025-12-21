@@ -4,10 +4,16 @@ use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use bevy_mod_config::impl_scalar_config_field;
 
 use super::Length;
-use crate::{AsSqrt, DtZero, LengthUnit, PowOne, SEA_ALTITUDE, Squared};
+use crate::{AsSqrt, DtZero, LengthUnit, PowOne, Squared};
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, serde::Serialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position<T>(pub Length<T>);
+
+impl<T: serde::Serialize + super::IsFinite> serde::Serialize for Position<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
 
 impl<'de, T: serde::Deserialize<'de> + super::IsFinite> serde::Deserialize<'de> for Position<T> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -130,6 +136,21 @@ impl<T: ops::SubAssign + NormedVectorSpace<Scalar = f32>> Position<T> {
     }
 
     pub fn distance_exact(self, other: Self) -> Length<f32> { (self - other).magnitude_exact() }
+
+    /// Asserts that the position is within `epsilon` of `other`.
+    ///
+    /// # Errors
+    /// If the position is not within `epsilon` of `other`.
+    pub fn assert_near(self, other: Self, epsilon: Length<f32>) -> Result<(), String>
+    where
+        Self: fmt::Debug,
+    {
+        if self.distance_cmp(other) > epsilon {
+            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl Position<f32> {
@@ -149,9 +170,9 @@ impl Position<f32> {
     pub fn clamp(self, min: Self, max: Self) -> Self { Self(self.0.clamp(min.0, max.0)) }
 
     #[must_use]
-    pub fn amsl(self) -> Length<f32> { self - SEA_ALTITUDE }
+    pub const fn amsl(self) -> Length<f32> { self.0 }
 
-    pub fn set_amsl(&mut self, amsl: Length<f32>) { *self = SEA_ALTITUDE + amsl; }
+    pub fn set_amsl(&mut self, amsl: Length<f32>) { *self = Self::SEA_LEVEL + amsl; }
 }
 
 impl Position<Vec2> {

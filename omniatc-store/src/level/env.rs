@@ -1,5 +1,5 @@
 use bevy_math::{Vec2, VectorSpace};
-use math::{Length, Position, Speed};
+use math::{Length, Position, Pressure, Speed, Temp};
 use serde::{Deserialize, Serialize};
 
 use crate::{AxisDirection, Shape2d};
@@ -20,6 +20,9 @@ pub struct Environment {
 
     /// Winds at different areas.
     pub winds: Vec<Wind>,
+
+    /// Weather at different areas.
+    pub weather: Vec<Weather>,
 }
 
 /// A 2D heatmap representing a function `Vec2 -> Datum` within a rectangle.
@@ -237,4 +240,18 @@ pub struct Wind {
     pub bottom_speed: Speed<Vec2>,
     /// Wind speed at the top face of the region.
     pub top_speed:    Speed<Vec2>,
+}
+
+/// Weather in a rectangular region.
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct Weather {
+    /// Minimum corner of the weather region.
+    pub start:        Position<Vec2>,
+    /// Maximum corner of the weather region.
+    pub end:          Position<Vec2>,
+    /// Pressure at the sea level, extrapolated if necessary.
+    pub sea_pressure: Pressure,
+    /// Temperature at the sea level, extrapolated if necessary.
+    pub sea_temp:     Temp,
 }

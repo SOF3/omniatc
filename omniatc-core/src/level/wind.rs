@@ -1,4 +1,6 @@
 //! A wind entity applies a velocity component to objects in its effective region.
+//
+// TODO: merge wind into weather, only have 2D regions
 
 use std::marker::PhantomData;
 use std::time::Duration;

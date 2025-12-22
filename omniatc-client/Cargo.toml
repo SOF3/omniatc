@@ -23,7 +23,7 @@ omniatc-math = { workspace = true, features = ["egui"] }
 omniatc-store.workspace = true
 
 anyhow = "1.0.100"
-async-lock = "3.4.0"
+async-lock = "3.4.2"
 bevy_mod_config = { workspace = true, features = ["serde_json", "egui"] }
 ciborium = "0.2.2"
 dirs = "6.0.0"

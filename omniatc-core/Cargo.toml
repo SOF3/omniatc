@@ -25,7 +25,7 @@ omniatc-store.workspace = true
 
 bevy_mod_config = { workspace = true, features = ["serde_json"] }
 ciborium = "0.2.2"
-derive_more = { version = "2.0.1", features = ["from", "add", "add_assign"] }
+derive_more = { version = "2.1.1", features = ["from", "add", "add_assign"] }
 either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"

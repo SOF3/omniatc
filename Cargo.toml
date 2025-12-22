@@ -10,7 +10,7 @@ resolver = "2"
 
 [workspace.dependencies]
 bevy_math = "0.17.3"
-bevy_egui = { version = "0.38.0", default-features = false }
+bevy_egui = { version = "0.38.1", default-features = false }
 egui = "0.33.3"
 egui_extras = "0.33.3"
 bevy_mod_config = {version = "0.4.0", features = ["bevy_color"]}

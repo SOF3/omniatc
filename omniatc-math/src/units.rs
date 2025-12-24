@@ -320,7 +320,7 @@ where
 {
     pub fn per_second(
         self,
-        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+        other: Quantity<f32, RatioBase, DtOne, Pow0>,
     ) -> Quantity<T, Base, Ddt<Dt>, Pow> {
         Quantity(self.0 * other.0, PhantomData)
     }
@@ -332,39 +332,39 @@ where
 {
     pub fn div_per_second(
         self,
-        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+        other: Quantity<f32, RatioBase, DtOne, Pow0>,
     ) -> Quantity<T, Base, Dt, Pow> {
         Quantity(self.0 / other.0, PhantomData)
     }
 }
 
 /// Used as `Pow` in `Quantity` to indicate that the unit is linear (not squared).
-pub struct PowZero;
+pub struct Pow0;
 
-pub struct PowPlusOne<Pow>(Pow);
+pub struct PowP1<Pow>(Pow);
 
 pub trait PowTrait {
     type Squared;
 }
 
-impl PowTrait for PowZero {
-    type Squared = PowZero;
+impl PowTrait for Pow0 {
+    type Squared = Pow0;
 }
 
-impl<Pow> PowTrait for PowPlusOne<Pow>
+impl<Pow> PowTrait for PowP1<Pow>
 where
     Pow: PowTrait,
 {
     // (P+1)*2 = P*2 + 1 + 1
-    type Squared = PowPlusOne<PowPlusOne<Pow::Squared>>;
+    type Squared = PowP1<PowP1<Pow::Squared>>;
 }
 
 pub trait GreaterOrEqPow<Than> {
     type Diff;
 }
 
-pub type PowOne = PowPlusOne<PowZero>;
-pub type PowTwo = PowPlusOne<PowOne>;
+pub type PowOne = PowP1<Pow0>;
+pub type PowTwo = PowP1<PowOne>;
 
 impl<T, Dt, Pow> Quantity<T, LengthBase, Dt, Pow>
 where
@@ -407,9 +407,8 @@ where
     }
 }
 
-impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>>
-    for Quantity<f32, Base, Dt, PowPlusOne<Pow>>
-{
+/// (B^(m+1)  / T^n) / (B^m / T^n) = B
+impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>> for Quantity<f32, Base, Dt, PowP1<Pow>> {
     type Output = Quantity<f32, Base, DtZero, Pow>;
 
     fn div(self, rhs: Quantity<f32, Base, Dt, Pow>) -> Self::Output {
@@ -464,20 +463,20 @@ impl IsEven for Ddt<Ddt<Ddt<Ddt<DtTwo>>>> {
     type Half = Ddt<DtTwo>;
 }
 
-impl IsEven for PowZero {
-    type Half = PowZero;
+impl IsEven for Pow0 {
+    type Half = Pow0;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowZero>> {
-    type Half = PowPlusOne<PowZero>;
+impl IsEven for PowP1<PowP1<Pow0>> {
+    type Half = PowP1<Pow0>;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>> {
-    type Half = PowPlusOne<PowPlusOne<PowZero>>;
+impl IsEven for PowP1<PowP1<PowP1<PowP1<Pow0>>>> {
+    type Half = PowP1<PowP1<Pow0>>;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>>>> {
-    type Half = PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>;
+impl IsEven for PowP1<PowP1<PowP1<PowP1<PowP1<PowP1<Pow0>>>>>> {
+    type Half = PowP1<PowP1<PowP1<Pow0>>>;
 }
 
 impl<Dt, Pow> CanSqrt for Quantity<f32, LengthBase, Dt, Pow>
@@ -908,7 +907,7 @@ pub type Pressure = Quantity<f32, PressureBase, DtZero, PowOne>;
 
 pub struct RatioBase;
 
-pub type Frequency = Quantity<f32, RatioBase, DtOne, PowZero>;
+pub type Frequency = Quantity<f32, RatioBase, DtOne, Pow0>;
 
 impl fmt::Debug for Length<f32> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -143,3 +143,141 @@ fn test_baseline() {
         .assert_near(Speed::from_knots_vec2(0.0, 208.75), Speed::from_knots(1.0))
         .expect("true airspeed calculation");
 }
+
+#[test]
+fn test_climb() {
+    let (mut app, object_id) = base_world();
+
+    app.world_mut().entity_mut(object_id).insert((nav::TargetAltitude {
+        altitude: Position::from_amsl_feet(6000.0),
+        expedite: false,
+    },));
+
+    // Standard rate is 1500fpm, but max vertical accel is only 200 fpm/s,
+    // so we need 7.5 seconds to reach full climb rate.
+    for _ in 0..75 {
+        advance_world(&mut app, Duration::from_millis(100));
+    }
+
+    // Theoretical distance after 7.5s of climb initiation:
+    // s = 0.5 * (200/60) * 7.5^2 = 93.75 ft,
+    // but empirical value would be slightly higher
+    // due to discrete time steps along with true airspeed increasing more quickly.
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::from_fpm(1500.0), Speed::from_fpm(1.0))
+        .expect("accelerate to standard climb rate");
+    app.world()
+        .get::<Object>(object_id)
+        .unwrap()
+        .position
+        .altitude()
+        .assert_near(Position::from_amsl_feet(3093.75), Length::from_feet(10.0))
+        .expect("climb towards target altitude");
+
+    // Climb until 5000ft
+    // The actual calculation is omitted since it involves increasing TAS:IAS ratio.
+    // We just test for the eventual consistency.
+    for _ in 0..100 {
+        advance_world(&mut app, Duration::from_secs(1));
+    }
+
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::from_fpm(1500.0), Speed::from_fpm(1.0))
+        .expect("maintain standard climb rate");
+
+    for _ in 0..100 {
+        advance_world(&mut app, Duration::from_millis(250));
+    }
+
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::ZERO, Speed::from_fpm(1.0))
+        .expect("level off at target altitude");
+    app.world()
+        .get::<Object>(object_id)
+        .unwrap()
+        .position
+        .altitude()
+        .assert_near(Position::from_amsl_feet(6000.0), Length::from_feet(10.0))
+        .expect("stabilize at target altitude");
+}
+
+#[test]
+fn test_descent() {
+    let (mut app, object_id) = base_world();
+
+    app.world_mut().entity_mut(object_id).insert((nav::TargetAltitude {
+        altitude: Position::from_amsl_feet(1500.0),
+        expedite: false,
+    },));
+
+    // Standard rate is 1500fpm, but max vertical accel is only 200 fpm/s,
+    // so we need 7.5 seconds to reach full climb rate.
+    for _ in 0..75 {
+        advance_world(&mut app, Duration::from_millis(100));
+    }
+
+    // Theoretical distance after 7.5s of descent initiation:
+    // s = 0.5 * (200/60) * 7.5^2 = 93.75 ft,
+    // but empirical value would be slightly higher
+    // due to discrete time steps along with true airspeed increasing more quickly.
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::from_fpm(-1500.0), Speed::from_fpm(1.0))
+        .expect("accelerate to standard descent rate");
+    app.world()
+        .get::<Object>(object_id)
+        .unwrap()
+        .position
+        .altitude()
+        .assert_near(Position::from_amsl_feet(2906.25), Length::from_feet(10.0))
+        .expect("descend towards target altitude");
+
+    // Descend until 2000ft
+    // The actual calculation is omitted since it involves increasing TAS:IAS ratio.
+    // We just test for the eventual consistency.
+    for _ in 0..40 {
+        advance_world(&mut app, Duration::from_secs(1));
+    }
+
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::from_fpm(-1500.0), Speed::from_fpm(1.0))
+        .expect("maintain standard descent rate");
+
+    for _ in 0..100 {
+        advance_world(&mut app, Duration::from_millis(250));
+    }
+
+    app.world()
+        .get::<object::Airborne>(object_id)
+        .unwrap()
+        .airspeed
+        .vertical()
+        .assert_near(Speed::ZERO, Speed::from_fpm(1.0))
+        .expect("level off at target altitude");
+    app.world()
+        .get::<Object>(object_id)
+        .unwrap()
+        .position
+        .altitude()
+        .assert_near(Position::from_amsl_feet(1500.0), Length::from_feet(10.0))
+        .expect("stabilize at target altitude");
+}

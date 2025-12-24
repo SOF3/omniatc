@@ -29,6 +29,9 @@ pub use units::*;
 mod alg2d;
 pub use alg2d::*;
 
+mod control;
+pub use control::*;
+
 mod physics;
 pub use physics::*;
 

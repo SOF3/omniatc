@@ -12,8 +12,8 @@ use bevy::ecs::system::{Query, Res};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
 use math::{
-    Accel, Angle, CanSqrt, Frequency, Heading, Length, Position, Speed, line_circle_intersect,
-    line_intersect,
+    Accel, Angle, CanSqrt, Heading, Length, LinearSpeedSetpoint, Position, Speed,
+    line_circle_intersect, line_intersect, linear_speed_setpoint,
 };
 use store::{ClimbProfile, YawTarget};
 
@@ -123,21 +123,36 @@ pub struct TargetAltitude {
 
 fn altitude_control_system(
     time: Res<Time<time::Virtual>>,
-    mut query: Query<(&TargetAltitude, &Object, &mut VelocityTarget)>,
+    mut query: Query<(&TargetAltitude, &Object, &Limits, &object::Airborne, &mut VelocityTarget)>,
 ) {
-    /// Maximum proportion of the altitude error to compensate per second.
-    const DELTA_RATE_PER_SECOND: Frequency = Frequency::new(0.3);
-
     if time.is_paused() {
         return;
     }
 
-    query.par_iter_mut().for_each(|(altitude, &Object { position, .. }, mut target)| {
-        let diff = altitude.altitude - position.altitude();
-        let speed = diff.per_second(DELTA_RATE_PER_SECOND);
-        target.vert_rate = speed;
-        target.expedite = altitude.expedite;
-    });
+    query.par_iter_mut().for_each(
+        |(altitude, &Object { position, .. }, limits, airborne, mut target)| {
+            let (max_speed, min_speed) = if altitude.expedite {
+                (limits.exp_climb.vert_rate, limits.exp_descent.vert_rate)
+            } else {
+                (limits.std_climb.vert_rate, limits.std_descent.vert_rate)
+            };
+
+            let setpoint = linear_speed_setpoint(LinearSpeedSetpoint {
+                deviation: position.altitude() - altitude.altitude,
+                current_speed: airborne.true_airspeed.vertical(),
+                max_forward_accel: limits.max_vert_accel,
+                max_forward_brake: limits.max_vert_accel,
+                max_backward_accel: limits.max_vert_accel,
+                max_backward_brake: limits.max_vert_accel,
+                max_speed,
+                min_speed,
+                dt: time.delta(),
+            });
+
+            target.vert_rate = setpoint;
+            target.expedite = altitude.expedite;
+        },
+    );
 }
 
 /// Pitch towards a glidepath of depression angle `glide_angle` towards `target_waypoint`,

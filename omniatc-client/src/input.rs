@@ -243,6 +243,7 @@ pub struct Hotkeys {
     pub north:           bool,
     pub pick_route:      bool,
     pub append_route:    bool,
+    pub send:            bool,
     pub set_speed:       bool,
     pub inc_speed:       bool,
     pub dec_speed:       bool,
@@ -276,6 +277,7 @@ impl Hotkeys {
             this.north = conf.level_control.north.clicked(state);
             this.pick_route = conf.picking.pick_route.down(state);
             this.append_route = conf.picking.append_route.down(state);
+            this.send = conf.object_control.send.clicked(state);
             this.set_speed = conf.object_control.speed.set.clicked(state);
             this.inc_speed = conf.object_control.speed.inc.clicked_or_repeated(state);
             this.dec_speed = conf.object_control.speed.dec.clicked_or_repeated(state);
@@ -324,6 +326,8 @@ struct PickingConf {
 
 #[derive(Config)]
 struct ObjectControlConf {
+    #[config(default = KeySet::from(egui::Key::Enter))]
+    send:       KeySet,
     speed:      SpeedConf,
     heading:    HeadingConf,
     altitude:   AltitudeConf,

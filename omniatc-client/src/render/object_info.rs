@@ -12,7 +12,7 @@ use omniatc::level::instr::CommandsExt;
 use omniatc::level::{instr, object};
 
 use crate::util::new_type_id;
-use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -100,7 +100,8 @@ fn setup_layout_system(
             let mut params = param_set.p0();
             let send_clicked = ui
                 .add_enabled(params.draft.airborne_vector.is_some(), egui::Button::new("Send"))
-                .clicked();
+                .clicked()
+                | params.hotkeys.send; // display regardless of hotkey state
             if send_clicked && let Some(instr) = params.draft.airborne_vector.take() {
                 params.commands.send_instruction(object_entity, instr);
             }
@@ -118,6 +119,7 @@ fn setup_layout_system(
 struct SendParams<'w, 's> {
     draft:    ResMut<'w, DraftInstructions>,
     commands: Commands<'w, 's>,
+    hotkeys:  Res<'w, input::Hotkeys>,
 }
 
 trait Writer: QueryData {

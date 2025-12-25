@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::time::Duration;
@@ -245,9 +246,13 @@ impl Kind for SetAltitude {
         let object = world.entity(object);
         let current_altitude = object.log_get::<Object>().map(|o| o.position.altitude());
         let verb = match current_altitude {
-            Some(a) if a > self.target.altitude => "Descend to",
-            Some(a) if a < self.target.altitude => "Climb to",
-            Some(_) => "Maintain altitude",
+            Some(a) => match (a.partial_cmp(&self.target.altitude), self.target.expedite) {
+                (Some(cmp::Ordering::Greater), true) => "Expedite descent to",
+                (Some(cmp::Ordering::Less), true) => "Expedite climb to",
+                (Some(cmp::Ordering::Greater), false) => "Descend to",
+                (Some(cmp::Ordering::Less), false) => "Climb to",
+                _ => "Maintain altitude",
+            },
             None => "Change altitude to",
         };
         format!("{verb} {} feet", self.target.altitude.amsl().into_feet())

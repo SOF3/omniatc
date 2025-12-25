@@ -235,19 +235,19 @@ impl<T, Base, Dt, Pow> From<T> for Quantity<T, Base, Dt, Pow> {
 }
 
 /// Used as `Dt` in `Quantity` to indicate that the unit is not a rate of change.
-pub struct DtZero;
+pub struct Dt0;
 /// Used as `Dt` in `Quantity` to indicate that the unit is the rate of change of `Quantity<Dt=Dt>`.
 pub struct Ddt<Dt>(Dt);
 
-pub type DtOne = Ddt<DtZero>;
-pub type DtTwo = Ddt<DtOne>;
+pub type Dt1 = Ddt<Dt0>;
+pub type Dt2 = Ddt<Dt1>;
 
 pub trait DtTrait {
     type Squared;
 }
 
-impl DtTrait for DtZero {
-    type Squared = DtZero;
+impl DtTrait for Dt0 {
+    type Squared = Dt0;
 }
 
 impl<Dt> DtTrait for Ddt<Dt>
@@ -303,11 +303,11 @@ where
 }
 
 /// (B^2 / T^(n+1)) / (B / T^n) = B/T
-impl<T, Base, Dt, Pow> ops::Div<Quantity<T, Base, Dt, Pow>> for Quantity<T, Base, Ddt<Dt>, PowTwo>
+impl<T, Base, Dt, Pow> ops::Div<Quantity<T, Base, Dt, Pow>> for Quantity<T, Base, Ddt<Dt>, Pow2>
 where
     T: ops::Div,
 {
-    type Output = Quantity<T::Output, Base, DtOne, Pow>;
+    type Output = Quantity<T::Output, Base, Dt1, Pow>;
 
     fn div(self, rhs: Quantity<T, Base, Dt, Pow>) -> Self::Output {
         Quantity(self.0 / rhs.0, PhantomData)
@@ -320,7 +320,7 @@ where
 {
     pub fn per_second(
         self,
-        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+        other: Quantity<f32, RatioBase, Dt1, Pow0>,
     ) -> Quantity<T, Base, Ddt<Dt>, Pow> {
         Quantity(self.0 * other.0, PhantomData)
     }
@@ -332,39 +332,39 @@ where
 {
     pub fn div_per_second(
         self,
-        other: Quantity<f32, RatioBase, DtOne, PowZero>,
+        other: Quantity<f32, RatioBase, Dt1, Pow0>,
     ) -> Quantity<T, Base, Dt, Pow> {
         Quantity(self.0 / other.0, PhantomData)
     }
 }
 
 /// Used as `Pow` in `Quantity` to indicate that the unit is linear (not squared).
-pub struct PowZero;
+pub struct Pow0;
 
-pub struct PowPlusOne<Pow>(Pow);
+pub struct PowP1<Pow>(Pow);
 
 pub trait PowTrait {
     type Squared;
 }
 
-impl PowTrait for PowZero {
-    type Squared = PowZero;
+impl PowTrait for Pow0 {
+    type Squared = Pow0;
 }
 
-impl<Pow> PowTrait for PowPlusOne<Pow>
+impl<Pow> PowTrait for PowP1<Pow>
 where
     Pow: PowTrait,
 {
     // (P+1)*2 = P*2 + 1 + 1
-    type Squared = PowPlusOne<PowPlusOne<Pow::Squared>>;
+    type Squared = PowP1<PowP1<Pow::Squared>>;
 }
 
 pub trait GreaterOrEqPow<Than> {
     type Diff;
 }
 
-pub type PowOne = PowPlusOne<PowZero>;
-pub type PowTwo = PowPlusOne<PowOne>;
+pub type Pow1 = PowP1<Pow0>;
+pub type Pow2 = PowP1<Pow1>;
 
 impl<T, Dt, Pow> Quantity<T, LengthBase, Dt, Pow>
 where
@@ -394,23 +394,22 @@ where
         self,
         other: Self,
         epsilon: Quantity<f32, LengthBase, Dt, Pow>,
-    ) -> Result<(), String>
+    ) -> Result<(), AssertApproxError<Self, Quantity<f32, LengthBase, Dt, Pow>>>
     where
         Self: fmt::Debug,
         Quantity<f32, LengthBase, Dt, Pow>: fmt::Debug,
     {
         if (self - other).magnitude_cmp() > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }
     }
 }
 
-impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>>
-    for Quantity<f32, Base, Dt, PowPlusOne<Pow>>
-{
-    type Output = Quantity<f32, Base, DtZero, Pow>;
+/// (B^(m+1)  / T^n) / (B^m / T^n) = B
+impl<Base, Dt, Pow> ops::Div<Quantity<f32, Base, Dt, Pow>> for Quantity<f32, Base, Dt, PowP1<Pow>> {
+    type Output = Quantity<f32, Base, Dt0, Pow>;
 
     fn div(self, rhs: Quantity<f32, Base, Dt, Pow>) -> Self::Output {
         Quantity(self.0 / rhs.0, PhantomData)
@@ -448,36 +447,36 @@ pub trait IsEven {
     type Half;
 }
 
-impl IsEven for DtZero {
-    type Half = DtZero;
+impl IsEven for Dt0 {
+    type Half = Dt0;
 }
 
-impl IsEven for DtTwo {
-    type Half = DtOne;
+impl IsEven for Dt2 {
+    type Half = Dt1;
 }
 
-impl IsEven for Ddt<Ddt<DtTwo>> {
-    type Half = DtTwo;
+impl IsEven for Ddt<Ddt<Dt2>> {
+    type Half = Dt2;
 }
 
-impl IsEven for Ddt<Ddt<Ddt<Ddt<DtTwo>>>> {
-    type Half = Ddt<DtTwo>;
+impl IsEven for Ddt<Ddt<Ddt<Ddt<Dt2>>>> {
+    type Half = Ddt<Dt2>;
 }
 
-impl IsEven for PowZero {
-    type Half = PowZero;
+impl IsEven for Pow0 {
+    type Half = Pow0;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowZero>> {
-    type Half = PowPlusOne<PowZero>;
+impl IsEven for PowP1<PowP1<Pow0>> {
+    type Half = PowP1<Pow0>;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>> {
-    type Half = PowPlusOne<PowPlusOne<PowZero>>;
+impl IsEven for PowP1<PowP1<PowP1<PowP1<Pow0>>>> {
+    type Half = PowP1<PowP1<Pow0>>;
 }
 
-impl IsEven for PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>>>> {
-    type Half = PowPlusOne<PowPlusOne<PowPlusOne<PowZero>>>;
+impl IsEven for PowP1<PowP1<PowP1<PowP1<PowP1<PowP1<Pow0>>>>>> {
+    type Half = PowP1<PowP1<PowP1<Pow0>>>;
 }
 
 impl<Dt, Pow> CanSqrt for Quantity<f32, LengthBase, Dt, Pow>
@@ -575,21 +574,62 @@ impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     ///
     /// # Errors
     /// If the absolute difference between `self` and `other` is greater than `epsilon`.
-    pub fn assert_approx(self, other: Self, epsilon: Self) -> Result<(), String>
+    pub fn assert_approx(
+        self,
+        other: Self,
+        epsilon: Self,
+    ) -> Result<(), AssertApproxError<Self, Self>>
     where
         Self: fmt::Debug,
     {
         if (self - other).abs() > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }
     }
 }
 
+pub struct AssertApproxError<Q, D> {
+    actual:  Q,
+    expect:  Q,
+    epsilon: D,
+}
+
+impl<Q: fmt::Debug, D: fmt::Debug> fmt::Debug for AssertApproxError<Q, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[derive(Debug)]
+        struct Assertion<Q, D> {
+            actual:  Q,
+            expect:  Q,
+            epsilon: D,
+        }
+        write!(
+            f,
+            "{:#?}",
+            Assertion { actual: &self.actual, expect: &self.expect, epsilon: &self.epsilon }
+        )
+    }
+}
+
+impl<Q: fmt::Debug, D: fmt::Debug> fmt::Display for AssertApproxError<Q, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "\nActual: {:?}\nExpect: {:?} \u{b1} {:?}\n",
+            self.actual, self.expect, self.epsilon,
+        )
+    }
+}
+
 impl<Dt, Pow> Quantity<f32, LengthBase, Dt, Pow> {
     #[must_use]
     pub fn atan2(self, x: Self) -> Angle { Angle::from_raw(self.0.atan2(x.0)) }
+
+    #[must_use]
+    pub const fn vertically(self) -> Quantity<Vec3, LengthBase, Dt, Pow> {
+        Quantity(Vec3::new(0.0, 0.0, self.0), PhantomData)
+    }
 }
 
 impl Length<f32> {
@@ -602,13 +642,13 @@ impl Length<f32> {
     #[must_use]
     pub fn radius_to_arc<Dt>(
         self,
-        angular: Quantity<f32, AngleBase, Dt, PowOne>,
-    ) -> Quantity<f32, LengthBase, Dt, PowOne> {
+        angular: Quantity<f32, AngleBase, Dt, Pow1>,
+    ) -> Quantity<f32, LengthBase, Dt, Pow1> {
         Quantity::new(self.0 * angular.0)
     }
 }
 
-impl<Dt> Quantity<f32, LengthBase, Dt, PowOne> {
+impl<Dt> Quantity<f32, LengthBase, Dt, Pow1> {
     /// Computes the radius of a circle given an arc length (the receiver) and an angular quantity
     /// (the parameter).
     ///
@@ -616,39 +656,39 @@ impl<Dt> Quantity<f32, LengthBase, Dt, PowOne> {
     ///
     /// Mathematically, this simply *divides* the receiver by the parameter.
     #[must_use]
-    pub fn arc_to_radius(self, angular: Quantity<f32, AngleBase, Dt, PowOne>) -> Length<f32> {
+    pub fn arc_to_radius(self, angular: Quantity<f32, AngleBase, Dt, Pow1>) -> Length<f32> {
         Length::new(self.0 / angular.0)
     }
 }
 
-impl<Dt> ops::Mul<Dir2> for Quantity<f32, LengthBase, Dt, PowOne> {
-    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Dir2> for Quantity<f32, LengthBase, Dt, Pow1> {
+    type Output = Quantity<Vec2, LengthBase, Dt, Pow1>;
 
-    fn mul(self, other: Dir2) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
+    fn mul(self, other: Dir2) -> Quantity<Vec2, LengthBase, Dt, Pow1> {
         Quantity(other * self.0, PhantomData)
     }
 }
 
-impl<Dt> ops::Mul<Vec2> for Quantity<f32, LengthBase, Dt, PowOne> {
-    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Vec2> for Quantity<f32, LengthBase, Dt, Pow1> {
+    type Output = Quantity<Vec2, LengthBase, Dt, Pow1>;
 
-    fn mul(self, other: Vec2) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
+    fn mul(self, other: Vec2) -> Quantity<Vec2, LengthBase, Dt, Pow1> {
         Quantity(other * self.0, PhantomData)
     }
 }
 
-impl<Dt> ops::Mul<Heading> for Quantity<f32, LengthBase, Dt, PowOne> {
-    type Output = Quantity<Vec2, LengthBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Heading> for Quantity<f32, LengthBase, Dt, Pow1> {
+    type Output = Quantity<Vec2, LengthBase, Dt, Pow1>;
 
-    fn mul(self, other: Heading) -> Quantity<Vec2, LengthBase, Dt, PowOne> {
+    fn mul(self, other: Heading) -> Quantity<Vec2, LengthBase, Dt, Pow1> {
         self * other.into_dir2()
     }
 }
 
-impl<Dt> ops::Mul<Dir3> for Quantity<f32, LengthBase, Dt, PowOne> {
-    type Output = Quantity<Vec3, LengthBase, Dt, PowOne>;
+impl<Dt> ops::Mul<Dir3> for Quantity<f32, LengthBase, Dt, Pow1> {
+    type Output = Quantity<Vec3, LengthBase, Dt, Pow1>;
 
-    fn mul(self, other: Dir3) -> Quantity<Vec3, LengthBase, Dt, PowOne> {
+    fn mul(self, other: Dir3) -> Quantity<Vec3, LengthBase, Dt, Pow1> {
         Quantity(other * self.0, PhantomData)
     }
 }
@@ -777,7 +817,7 @@ impl Dot2 for Heading {
     fn dot2(self, vec: Vec2) -> f32 { self.into_dir2().dot(vec) }
 }
 
-impl<Dt> Dot2 for Quantity<Vec2, LengthBase, Dt, PowOne> {
+impl<Dt> Dot2 for Quantity<Vec2, LengthBase, Dt, Pow1> {
     fn dot2(self, vec: Vec2) -> f32 { self.0.dot(vec) }
 }
 
@@ -870,45 +910,45 @@ where
 pub struct LengthBase;
 
 /// A distance quantity. Internal representation is in nautical miles.
-pub type Length<T> = Quantity<T, LengthBase, DtZero, PowOne>;
+pub type Length<T> = Quantity<T, LengthBase, Dt0, Pow1>;
 
 /// A linear speed (rate of [length](Length) change) quantity.
 /// Always in nm/s.
 ///
 /// Note that this is **not** knots.
 /// Knots are nm/h. This value should be knots divided by 3600.
-pub type Speed<T> = Quantity<T, LengthBase, DtOne, PowOne>;
+pub type Speed<T> = Quantity<T, LengthBase, Dt1, Pow1>;
 
 /// A linear acceleration (rate of linear [speed](Speed) change) quantity.
 /// Always in nm/s&sup2;.
-pub type Accel<T> = Quantity<T, LengthBase, DtTwo, PowOne>;
+pub type Accel<T> = Quantity<T, LengthBase, Dt2, Pow1>;
 
 /// Rate of linear [acceleration](Accel) change.
 /// Always in nm/s&sup3;.
-pub type AccelRate<T> = Quantity<T, LengthBase, Ddt<DtTwo>, PowOne>;
+pub type AccelRate<T> = Quantity<T, LengthBase, Ddt<Dt2>, Pow1>;
 
 pub struct AngleBase;
 
 /// A relative angle. Internal representation is in radians.
-pub type Angle = Quantity<f32, AngleBase, DtZero, PowOne>;
+pub type Angle = Quantity<f32, AngleBase, Dt0, Pow1>;
 
 /// An angular speed (rate of [angle](Angle) change) quantity.
 /// Always in rad/s.
-pub type AngularSpeed = Quantity<f32, AngleBase, DtOne, PowOne>;
+pub type AngularSpeed = Quantity<f32, AngleBase, Dt1, Pow1>;
 
 /// An angular acceleration (rate of [angular speed](AngularSpeed) change) quantity.
 /// Always in rad/s&sup2;.
-pub type AngularAccel = Quantity<f32, AngleBase, DtTwo, PowOne>;
+pub type AngularAccel = Quantity<f32, AngleBase, Dt2, Pow1>;
 
 pub struct PressureBase;
 
 /// Pressure at a certain point (not necessarily QNH).
 /// Always in Pa.
-pub type Pressure = Quantity<f32, PressureBase, DtZero, PowOne>;
+pub type Pressure = Quantity<f32, PressureBase, Dt0, Pow1>;
 
 pub struct RatioBase;
 
-pub type Frequency = Quantity<f32, RatioBase, DtOne, PowZero>;
+pub type Frequency = Quantity<f32, RatioBase, Dt1, Pow0>;
 
 impl fmt::Debug for Length<f32> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

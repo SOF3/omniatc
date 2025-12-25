@@ -12,15 +12,16 @@ use bevy::ecs::system::{Query, Res};
 use bevy::math::Vec2;
 use bevy::time::{self, Time};
 use math::{
-    Accel, Angle, CanSqrt, Frequency, Heading, Length, Position, Speed, line_circle_intersect,
-    line_intersect,
+    Accel, Angle, CanSqrt, Heading, Length, LinearSpeedSetpoint, Position, Speed,
+    line_circle_intersect, line_intersect, linear_speed_setpoint,
 };
 use store::{ClimbProfile, YawTarget};
 
 use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{SystemSets, navaid, object};
-use crate::{QueryTryLog, pid};
+use crate::QueryTryLog;
+use crate::level::wind;
 
 #[cfg(test)]
 mod tests;
@@ -48,7 +49,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is removed when the plane is not airborne.
-#[derive(Debug, Component)]
+#[derive(Debug, Clone, Component)]
 #[require(navaid::ObjectUsageList)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -63,7 +64,7 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Clone)]
+#[derive(Clone, Component)]
 pub struct Limits(pub store::NavLimits);
 
 impl ops::Deref for Limits {
@@ -114,7 +115,7 @@ impl Limits {
 /// Desired altitude in feet.
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.
-#[derive(Clone, Component, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]
 pub struct TargetAltitude {
     pub altitude: Position<f32>,
     pub expedite: bool,
@@ -122,21 +123,36 @@ pub struct TargetAltitude {
 
 fn altitude_control_system(
     time: Res<Time<time::Virtual>>,
-    mut query: Query<(&TargetAltitude, &Object, &mut VelocityTarget)>,
+    mut query: Query<(&TargetAltitude, &Object, &Limits, &object::Airborne, &mut VelocityTarget)>,
 ) {
-    /// Maximum proportion of the altitude error to compensate per second.
-    const DELTA_RATE_PER_SECOND: Frequency = Frequency::new(0.3);
-
     if time.is_paused() {
         return;
     }
 
-    query.par_iter_mut().for_each(|(altitude, &Object { position, .. }, mut target)| {
-        let diff = altitude.altitude - position.altitude();
-        let speed = diff.per_second(DELTA_RATE_PER_SECOND);
-        target.vert_rate = speed;
-        target.expedite = altitude.expedite;
-    });
+    query.par_iter_mut().for_each(
+        |(altitude, &Object { position, .. }, limits, airborne, mut target)| {
+            let (max_speed, min_speed) = if altitude.expedite {
+                (limits.exp_climb.vert_rate, limits.exp_descent.vert_rate)
+            } else {
+                (limits.std_climb.vert_rate, limits.std_descent.vert_rate)
+            };
+
+            let setpoint = linear_speed_setpoint(LinearSpeedSetpoint {
+                deviation: position.altitude() - altitude.altitude,
+                current_speed: airborne.true_airspeed.vertical(),
+                max_forward_accel: limits.max_vert_accel,
+                max_forward_brake: limits.max_vert_accel,
+                max_backward_accel: limits.max_vert_accel,
+                max_backward_brake: limits.max_vert_accel,
+                max_speed,
+                min_speed,
+                dt: time.delta(),
+            });
+
+            target.vert_rate = setpoint;
+            target.expedite = altitude.expedite;
+        },
+    );
 }
 
 /// Pitch towards a glidepath of depression angle `glide_angle` towards `target_waypoint`,
@@ -152,7 +168,7 @@ fn altitude_control_system(
 /// However, the direction of ground speed is not taken into account,
 /// which may result in confusing behavior if the object is not
 /// moving (almost) directly towards the waypoint.
-#[derive(Component)]
+#[derive(Debug, Clone, Component)]
 #[require(TargetGlideStatus)]
 pub struct TargetGlide {
     /// Target point to aim at.
@@ -174,7 +190,7 @@ pub struct TargetGlide {
     pub expedite:        bool,
 }
 
-#[derive(Component, Default)]
+#[derive(Debug, Clone, Default, Component)]
 pub struct TargetGlideStatus {
     /// Actual pitch the object currently aims at to move towards the glidepath.
     pub current_pitch:      Angle,
@@ -236,17 +252,14 @@ fn glide_control_system(
 /// Desired ground speed direction. Only applicable to airborne objects.
 ///
 /// Optional component to control target heading.
-#[derive(Component)]
+#[derive(Debug, Component)]
 pub struct TargetGroundDirection {
-    pub active:    bool,
-    pub target:    Heading,
-    pub pid_state: pid::State,
+    pub active: bool,
+    pub target: Heading,
 }
 
 impl Default for TargetGroundDirection {
-    fn default() -> Self {
-        Self { active: true, target: Heading::NORTH, pid_state: pid::State::default() }
-    }
+    fn default() -> Self { Self { active: true, target: Heading::NORTH } }
 }
 
 #[derive(QueryData)]
@@ -260,6 +273,7 @@ struct GroundDirectionSystemQueryData {
 
 fn ground_heading_control_system(
     time: Res<Time<time::Virtual>>,
+    wind: wind::Locator,
     mut query: Query<GroundDirectionSystemQueryData>,
 ) {
     if time.is_paused() {
@@ -274,16 +288,31 @@ fn ground_heading_control_system(
             return;
         }
 
-        let current_heading = data.current_object.ground_speed.horizontal().heading();
-        let error = data.objective.target - current_heading;
+        let wind = wind.locate(data.current_object.position);
 
-        let signal = Angle::from_radians(pid::control(
-            &mut data.objective.pid_state,
-            error.0,
-            time.delta_secs(),
-        ));
-        data.signal.yaw =
-            YawTarget::Heading(data.current_air.airspeed.horizontal().heading() + signal);
+        // Let gs = magnitude of desired ground speed,
+        // then desired_tas + wind = gs * objective.target.
+        // By solving for gs, we have
+        // gs^2 - 2 * dot(wind, objective.target) * gs + wind.norm()^2 - desired_tas^2 = 0.
+        let b = Speed::new(wind.dot(data.objective.target.into_dir2()) * -2.0);
+        let c = wind.magnitude_squared()
+            - data.current_air.true_airspeed.horizontal().magnitude_squared();
+        let discrim = b * b - c * 4.0;
+        if discrim.is_negative() {
+            // Wind speed is greater than true airspeed, cannot achieve desired ground heading.
+            // Just go directly against the wind to minimize deviation.
+            data.signal.yaw = YawTarget::Heading(wind.heading().opposite());
+        } else {
+            // There are two solutions for gs, namely
+            // 0.5 * (-b \plusminus sqrt(discrim)).
+            // The smaller one is negative since c is always negative
+            // when airspeed exceeds wind speed.
+            // Thus we simply select the greater solution.
+
+            let gs = (-b + discrim.sqrt()) * 0.5;
+            let target_tas_vector = gs * data.objective.target - wind;
+            data.signal.yaw = YawTarget::Heading(target_tas_vector.heading());
+        }
     });
 }
 

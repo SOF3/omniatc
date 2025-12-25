@@ -4,7 +4,7 @@ use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use bevy_mod_config::impl_scalar_config_field;
 
 use super::Length;
-use crate::{AsSqrt, DtZero, LengthUnit, PowOne, Squared};
+use crate::{AsSqrt, Dt0, LengthUnit, Pow1, Squared};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position<T>(pub Length<T>);
@@ -127,9 +127,7 @@ impl<T: VectorSpace<Scalar = f32>> Position<T> {
 
 impl<T: ops::SubAssign + NormedVectorSpace<Scalar = f32>> Position<T> {
     /// Returns a wrapper that can be compared with a linear distance quantity.
-    pub fn distance_cmp(self, other: Self) -> AsSqrt<DtZero, PowOne> {
-        (self - other).magnitude_cmp()
-    }
+    pub fn distance_cmp(self, other: Self) -> AsSqrt<Dt0, Pow1> { (self - other).magnitude_cmp() }
 
     pub fn distance_squared(self, other: Self) -> Squared<Length<f32>> {
         (self - other).magnitude_squared()
@@ -199,7 +197,7 @@ impl Position<Vec3> {
     pub fn altitude(self) -> Position<f32> { Position(self.0.vertical()) }
 
     #[must_use]
-    pub fn horizontal_distance_cmp(self, other: Self) -> AsSqrt<DtZero, PowOne> {
+    pub fn horizontal_distance_cmp(self, other: Self) -> AsSqrt<Dt0, Pow1> {
         self.horizontal().distance_cmp(other.horizontal())
     }
 

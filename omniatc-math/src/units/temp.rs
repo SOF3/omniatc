@@ -8,7 +8,7 @@ pub struct TempBase;
 /// Difference in temperature.
 ///
 /// Always in K (which is equivalent to celsius in terms of deltas).
-pub type TempDelta = Quantity<f32, TempBase, super::DtZero, super::PowOne>;
+pub type TempDelta = Quantity<f32, TempBase, super::Dt0, super::Pow1>;
 
 impl TempDelta {
     #[must_use]

@@ -138,11 +138,14 @@ fn brake_and_negate(
     );
     // u^2 / 2a is theoretically greater than desired_displace since we would be overshooting.
     let desired_backward_speed = speed_squared.sqrt_or_zero();
-    let max_backward_speed = desired_backward_speed.min(backward_speed_limit);
+    let mut max_backward_speed = desired_backward_speed.min(backward_speed_limit);
 
     // must not overshoot in one time step, i.e. result * dt <= desired_displace
-    let time_limited_speed = desired_displace.abs() / dt;
-    -max_backward_speed.min(time_limited_speed)
+    if dt != Duration::ZERO {
+        let time_limited_speed = desired_displace.abs() / dt;
+        max_backward_speed = max_backward_speed.min(time_limited_speed);
+    }
+    -max_backward_speed
 }
 
 /// Find the max speed to accelerate to before braking at the same rate.
@@ -167,9 +170,12 @@ fn accelerate_and_brake(
     );
     // speed_squared is theoretically positive since all inputs are of the same sign.
     let desired_max_speed = speed_squared.sqrt_or_zero();
-    let max_speed = desired_max_speed.min(speed_limit);
+    let mut max_speed = desired_max_speed.min(speed_limit);
 
     // must not overshoot in one time step, i.e. result * dt <= desired_displace
-    let time_limited_speed = desired_displace.abs() / dt;
-    max_speed.min(time_limited_speed)
+    if dt != Duration::ZERO {
+        let time_limited_speed = desired_displace.abs() / dt;
+        max_speed = max_speed.min(time_limited_speed);
+    }
+    max_speed
 }

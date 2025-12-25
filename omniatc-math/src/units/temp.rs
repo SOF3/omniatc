@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::{fmt, ops};
 
-use crate::Quantity;
+use crate::{AssertApproxError, Quantity};
 
 pub struct TempBase;
 
@@ -65,6 +65,7 @@ impl Temp {
     #[must_use]
     pub const fn into_fahrenheit(self) -> f32 { self.into_celsius() * 1.8 + 32.0 }
 
+    /// Difference from absolute zero temperature.
     #[must_use]
     pub const fn from_abs_zero(self) -> TempDelta { self.0 }
 
@@ -72,9 +73,13 @@ impl Temp {
     ///
     /// # Errors
     /// If the absolute difference between `self` and `other` is greater than `epsilon`.
-    pub fn assert_approx(self, other: Temp, epsilon: TempDelta) -> Result<(), String> {
+    pub fn assert_approx(
+        self,
+        other: Temp,
+        epsilon: TempDelta,
+    ) -> Result<(), AssertApproxError<Self, TempDelta>> {
         if (self - other).abs() > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }

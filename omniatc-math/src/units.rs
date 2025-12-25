@@ -394,13 +394,13 @@ where
         self,
         other: Self,
         epsilon: Quantity<f32, LengthBase, Dt, Pow>,
-    ) -> Result<(), String>
+    ) -> Result<(), AssertApproxError<Self, Quantity<f32, LengthBase, Dt, Pow>>>
     where
         Self: fmt::Debug,
         Quantity<f32, LengthBase, Dt, Pow>: fmt::Debug,
     {
         if (self - other).magnitude_cmp() > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }
@@ -616,7 +616,7 @@ impl<Q: fmt::Debug, D: fmt::Debug> fmt::Display for AssertApproxError<Q, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Expect {:?} to be within {:?} \u{b1} {:?}",
+            "\nActual: {:?}\nExpect: {:?} \u{b1} {:?}\n",
             self.actual, self.expect, self.epsilon,
         )
     }

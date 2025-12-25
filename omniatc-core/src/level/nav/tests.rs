@@ -62,7 +62,7 @@ struct Entities {
 
 const AERODROME_ELEVATION: Position<f32> = Position::from_amsl_feet(500.0);
 
-/// Start at (0, 0) @ 3000ft, heading north at 200 kias, crosswind 10kt from west
+/// Start at (0, 0) @ 3000ft, heading north at 200 kias, head+crosswind 30kt from heading 045.
 /// Runway entity at (0, 8) at 500ft.
 fn base_world() -> (App, Entities) {
     let mut app = App::new();
@@ -78,8 +78,8 @@ fn base_world() -> (App, Entities) {
     app.world_mut().commands().spawn_empty().queue(wind::SpawnCommand {
         bundle: wind::Comps {
             vector:        wind::Vector {
-                bottom: Speed::from_knots(10.0) * Heading::WEST,
-                top:    Speed::from_knots(10.0) * Heading::WEST,
+                bottom: Speed::from_knots(30.0) * Heading::SOUTHWEST,
+                top:    Speed::from_knots(30.0) * Heading::SOUTHWEST,
             },
             effect_region: wind::EffectRegion(Aabb3d {
                 min: Vec3A::splat(-1000.0),
@@ -331,14 +331,18 @@ fn test_descent() {
 fn world_with_target_glide() -> (App, Entities) {
     let (mut app, entities) = base_world();
 
-    app.world_mut().entity_mut(entities.object).insert((nav::TargetGlide {
-        target_waypoint: entities.runway,
-        glide_angle:     Angle::from_degrees(-3.0),
-        min_pitch:       -Angle::RIGHT,
-        max_pitch:       Angle::ZERO,
-        lookahead:       Duration::from_secs(10),
-        expedite:        false,
-    },));
+    app.world_mut().entity_mut(entities.object).insert((
+        nav::TargetGlide {
+            target_waypoint: entities.runway,
+            glide_angle:     Angle::from_degrees(-3.0),
+            min_pitch:       -Angle::RIGHT,
+            max_pitch:       Angle::ZERO,
+            lookahead:       Duration::from_secs(10),
+            expedite:        false,
+        },
+        // Also keep target aligned to avoid drifting away from crosswind.
+        nav::TargetGroundDirection { active: true, target: Heading::NORTH },
+    ));
 
     (app, entities)
 }
@@ -387,7 +391,7 @@ fn test_glide_too_low() {
         .assert_approx(last_deviation, Length::from_feet(10.0))
         .expect("initial altitude is below glide path");
 
-    for step in 0..100 {
+    for step in 0..120 {
         advance_world(&mut app, Duration::from_secs(1));
 
         if step < 20 {
@@ -433,7 +437,7 @@ fn test_glide_too_high() {
         .assert_approx(last_deviation, Length::from_feet(10.0))
         .expect("initial altitude is above glide path");
 
-    for _ in 0..100 {
+    for _ in 0..120 {
         advance_world(&mut app, Duration::from_secs(1));
 
         let deviation =
@@ -449,4 +453,49 @@ fn test_glide_too_high() {
     last_deviation
         .assert_approx(Length::ZERO, Length::from_feet(10.0))
         .expect("altitude eventually converges on glide path");
+}
+
+#[test]
+fn test_target_waypoint() {
+    let (mut app, entities) = base_world();
+
+    app.world_mut()
+        .entity_mut(entities.object)
+        .insert(nav::TargetWaypoint { waypoint_entity: entities.runway });
+    app.update();
+
+    {
+        let tgd = app.world().get::<nav::TargetGroundDirection>(entities.object).unwrap();
+        assert!(tgd.active);
+        tgd.target
+            .assert_approx(Heading::NORTH, Angle::from_degrees(1.0))
+            .expect("initially directly south of runway");
+    }
+    {
+        let nav_vel = app.world().get::<nav::VelocityTarget>(entities.object).unwrap();
+        nav_vel
+            .yaw
+            .heading()
+            .assert_approx(Heading::from_degrees(5.82), Angle::from_degrees(0.1))
+            .unwrap();
+    }
+
+    for _ in 0..10 {
+        advance_world(&mut app, Duration::from_secs(1));
+    }
+
+    // Ground heading should be stabilized now
+
+    for _ in 0..60 {
+        advance_world(&mut app, Duration::from_secs(1));
+
+        let ground_speed = app.world().get::<Object>(entities.object).unwrap().ground_speed;
+        let position = app.world().get::<Object>(entities.object).unwrap().position;
+        let runway_pos = app.world().get::<Waypoint>(entities.runway).unwrap().position;
+        ground_speed
+            .horizontal()
+            .heading()
+            .assert_approx((runway_pos - position).horizontal().heading(), Angle::from_degrees(0.1))
+            .expect("heading towards runway");
+    }
 }

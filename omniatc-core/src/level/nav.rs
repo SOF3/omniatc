@@ -309,7 +309,7 @@ fn ground_heading_control_system(
             // when airspeed exceeds wind speed.
             // Thus we simply select the greater solution.
 
-            let gs = (b + discrim.sqrt()) * 0.5;
+            let gs = (-b + discrim.sqrt()) * 0.5;
             let target_tas_vector = gs * data.objective.target - wind;
             data.signal.yaw = YawTarget::Heading(target_tas_vector.heading());
         }

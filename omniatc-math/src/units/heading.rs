@@ -6,6 +6,7 @@ use bevy_math::{Dir2, Quat, Vec2, Vec3, Vec3A, Vec3Swizzles};
 use ordered_float::{FloatIsNan, NotNan};
 
 use super::{Angle, Length, Position};
+use crate::AssertApproxError;
 
 #[cfg(test)]
 mod tests;
@@ -212,6 +213,23 @@ impl Heading {
     #[must_use]
     pub fn closest_midpoint(self, other: Heading) -> Heading {
         self + self.closest_distance(other) * 0.5
+    }
+
+    /// Asserts that `self` is approximately equal to `other` within `epsilon`.
+    ///
+    /// # Errors
+    /// If the absolute angle between `self` and `other` exceeds `epsilon`.
+    pub fn assert_approx(
+        self,
+        other: Self,
+        epsilon: Angle,
+    ) -> Result<(), AssertApproxError<Self, Angle>> {
+        let distance = self.closest_distance(other).abs();
+        if distance > epsilon {
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
+        } else {
+            Ok(())
+        }
     }
 }
 

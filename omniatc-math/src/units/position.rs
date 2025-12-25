@@ -4,7 +4,7 @@ use bevy_math::{NormedVectorSpace, Vec2, Vec3, VectorSpace};
 use bevy_mod_config::impl_scalar_config_field;
 
 use super::Length;
-use crate::{AsSqrt, Dt0, LengthUnit, Pow1, Squared};
+use crate::{AsSqrt, AssertApproxError, Dt0, LengthUnit, Pow1, Squared};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position<T>(pub Length<T>);
@@ -139,12 +139,16 @@ impl<T: ops::SubAssign + NormedVectorSpace<Scalar = f32>> Position<T> {
     ///
     /// # Errors
     /// If the position is not within `epsilon` of `other`.
-    pub fn assert_near(self, other: Self, epsilon: Length<f32>) -> Result<(), String>
+    pub fn assert_near(
+        self,
+        other: Self,
+        epsilon: Length<f32>,
+    ) -> Result<(), AssertApproxError<Self, Length<f32>>>
     where
         Self: fmt::Debug,
     {
         if self.distance_cmp(other) > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }

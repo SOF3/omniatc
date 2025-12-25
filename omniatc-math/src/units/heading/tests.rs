@@ -19,10 +19,10 @@ fn heading_from_vec2() {
         .expect("(-1, 0) is westward");
     Heading::from_vec2(Vec2::new(0., 1.))
         .assert_approx(Heading::NORTH, EPSILON)
-        .expect("(1, 0) is northward");
+        .expect("(0, 1) is northward");
     Heading::from_vec2(Vec2::new(0., -1.))
         .assert_approx(Heading::SOUTH, EPSILON)
-        .expect("(-1, 0) is southward");
+        .expect("(0, -1) is southward");
 }
 
 #[test]

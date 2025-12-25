@@ -1,3 +1,4 @@
+use std::mem;
 use std::time::Duration;
 
 use bevy::app::App;
@@ -6,13 +7,15 @@ use bevy::math::bounding::Aabb3d;
 use bevy::math::{Quat, Vec3A};
 use bevy::time::{self, Time};
 use math::{
-    Accel, AccelRate, AngularAccel, AngularSpeed, Heading, ISA_TROPOPAUSE_PRESSURE,
+    Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, ISA_TROPOPAUSE_PRESSURE,
     ISA_TROPOPAUSE_TEMPERATURE, Length, Position, Speed,
 };
 use store::{NavLimits, YawTarget};
 
 use crate::level::object::{self, Object};
-use crate::level::{nav, plane, wind};
+use crate::level::runway::Runway;
+use crate::level::waypoint::{self, Waypoint};
+use crate::level::{aerodrome, nav, plane, runway, wind};
 
 const NAV_LIMITS: NavLimits = NavLimits {
     min_horiz_speed:   Speed::from_knots(120.),
@@ -52,8 +55,16 @@ const NAV_LIMITS: NavLimits = NavLimits {
     short_final_speed: Speed::from_knots(150.),
 };
 
+struct Entities {
+    object: Entity,
+    runway: Entity,
+}
+
+const AERODROME_ELEVATION: Position<f32> = Position::from_amsl_feet(500.0);
+
 /// Start at (0, 0) @ 3000ft, heading north at 200 kias, crosswind 10kt from west
-fn base_world() -> (App, Entity) {
+/// Runway entity at (0, 8) at 500ft.
+fn base_world() -> (App, Entities) {
     let mut app = App::new();
     app.add_plugins((
         object::Plug::<()>::default(),
@@ -76,6 +87,7 @@ fn base_world() -> (App, Entity) {
             }),
         },
     });
+
     let object = app
         .world_mut()
         .commands()
@@ -101,9 +113,43 @@ fn base_world() -> (App, Entity) {
             expedite:    false,
         },))
         .id();
+
+    let aerodrome = app
+        .world_mut()
+        .commands()
+        .spawn(aerodrome::Aerodrome {
+            id:        0,
+            code:      "MAIN".into(),
+            name:      "main".into(),
+            elevation: AERODROME_ELEVATION,
+        })
+        .id();
+    let runway = app
+        .world_mut()
+        .commands()
+        .spawn_empty()
+        .queue(runway::SpawnCommand {
+            runway: Runway {
+                width:          Length::from_meters(100.0),
+                display_start:  Position::from_origin_nm(0.0, 8.0)
+                    .with_altitude(AERODROME_ELEVATION),
+                display_end:    Position::from_origin_nm(0.0, 10.0)
+                    .with_altitude(AERODROME_ELEVATION),
+                glide_descent:  Angle::from_degrees(3.0),
+                landing_length: Length::from_nm(2.0).with_heading(Heading::NORTH),
+            },
+            waypoint: Waypoint {
+                position:     Position::from_origin_nm(0.0, 8.0).with_altitude(AERODROME_ELEVATION),
+                name:         "MAIN36".into(),
+                display_type: waypoint::DisplayType::Runway,
+            },
+            aerodrome,
+        })
+        .id();
+
     app.world_mut().flush();
     app.update();
-    (app, object)
+    (app, Entities { object, runway })
 }
 
 fn advance_world(app: &mut App, dt: Duration) {
@@ -113,13 +159,13 @@ fn advance_world(app: &mut App, dt: Duration) {
 
 #[test]
 fn test_baseline() {
-    let (mut app, object_id) = base_world();
+    let (mut app, entities) = base_world();
 
     for _ in 0..10 {
         advance_world(&mut app, Duration::from_secs(1));
     }
 
-    let object = app.world().get::<Object>(object_id).unwrap();
+    let object = app.world().get::<Object>(entities.object).unwrap();
     object
         .position
         .altitude()
@@ -131,7 +177,7 @@ fn test_baseline() {
         .assert_near(Speed::ZERO, Speed::from_knots(1.0))
         .expect("maintain horizontal motion");
 
-    let airborne = app.world().get::<object::Airborne>(object_id).unwrap();
+    let airborne = app.world().get::<object::Airborne>(entities.object).unwrap();
     airborne
         .airspeed
         .horizontal()
@@ -146,9 +192,9 @@ fn test_baseline() {
 
 #[test]
 fn test_climb() {
-    let (mut app, object_id) = base_world();
+    let (mut app, entities) = base_world();
 
-    app.world_mut().entity_mut(object_id).insert((nav::TargetAltitude {
+    app.world_mut().entity_mut(entities.object).insert((nav::TargetAltitude {
         altitude: Position::from_amsl_feet(6000.0),
         expedite: false,
     },));
@@ -164,14 +210,14 @@ fn test_climb() {
     // but empirical value would be slightly higher
     // due to discrete time steps along with true airspeed increasing more quickly.
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
         .assert_near(Speed::from_fpm(1500.0), Speed::from_fpm(1.0))
         .expect("accelerate to standard climb rate");
     app.world()
-        .get::<Object>(object_id)
+        .get::<Object>(entities.object)
         .unwrap()
         .position
         .altitude()
@@ -186,7 +232,7 @@ fn test_climb() {
     }
 
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
@@ -198,14 +244,14 @@ fn test_climb() {
     }
 
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
         .assert_near(Speed::ZERO, Speed::from_fpm(1.0))
         .expect("level off at target altitude");
     app.world()
-        .get::<Object>(object_id)
+        .get::<Object>(entities.object)
         .unwrap()
         .position
         .altitude()
@@ -215,9 +261,9 @@ fn test_climb() {
 
 #[test]
 fn test_descent() {
-    let (mut app, object_id) = base_world();
+    let (mut app, entities) = base_world();
 
-    app.world_mut().entity_mut(object_id).insert((nav::TargetAltitude {
+    app.world_mut().entity_mut(entities.object).insert((nav::TargetAltitude {
         altitude: Position::from_amsl_feet(1500.0),
         expedite: false,
     },));
@@ -233,14 +279,14 @@ fn test_descent() {
     // but empirical value would be slightly higher
     // due to discrete time steps along with true airspeed increasing more quickly.
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
         .assert_near(Speed::from_fpm(-1500.0), Speed::from_fpm(1.0))
         .expect("accelerate to standard descent rate");
     app.world()
-        .get::<Object>(object_id)
+        .get::<Object>(entities.object)
         .unwrap()
         .position
         .altitude()
@@ -255,7 +301,7 @@ fn test_descent() {
     }
 
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
@@ -267,17 +313,140 @@ fn test_descent() {
     }
 
     app.world()
-        .get::<object::Airborne>(object_id)
+        .get::<object::Airborne>(entities.object)
         .unwrap()
         .airspeed
         .vertical()
         .assert_near(Speed::ZERO, Speed::from_fpm(1.0))
         .expect("level off at target altitude");
     app.world()
-        .get::<Object>(object_id)
+        .get::<Object>(entities.object)
         .unwrap()
         .position
         .altitude()
         .assert_near(Position::from_amsl_feet(1500.0), Length::from_feet(10.0))
         .expect("stabilize at target altitude");
+}
+
+fn world_with_target_glide() -> (App, Entities) {
+    let (mut app, entities) = base_world();
+
+    app.world_mut().entity_mut(entities.object).insert((nav::TargetGlide {
+        target_waypoint: entities.runway,
+        glide_angle:     Angle::from_degrees(-3.0),
+        min_pitch:       -Angle::RIGHT,
+        max_pitch:       Angle::ZERO,
+        lookahead:       Duration::from_secs(10),
+        expedite:        false,
+    },));
+
+    (app, entities)
+}
+
+#[test]
+fn test_glide_maintain() {
+    let (mut app, entities) = world_with_target_glide();
+    app.world_mut().get_mut::<Object>(entities.object).unwrap().position =
+        Position::from_origin_nm(0.0, 0.0).with_altitude(Position::from_amsl_feet(3047.5));
+    app.world_mut().get_mut::<object::Airborne>(entities.object).unwrap().airspeed +=
+        Speed::from_fpm(-1061.27).vertically();
+    app.update();
+
+    app.world()
+        .get::<nav::TargetGlideStatus>(entities.object)
+        .unwrap()
+        .altitude_deviation
+        .assert_approx(Length::ZERO, Length::from_feet(10.0))
+        .expect("initial altitude is on glide path");
+
+    for _ in 0..60 {
+        advance_world(&mut app, Duration::from_secs(1));
+
+        app.world()
+            .get::<nav::TargetGlideStatus>(entities.object)
+            .unwrap()
+            .altitude_deviation
+            .assert_approx(Length::ZERO, Length::from_feet(10.0))
+            .expect("altitude remains on glide path");
+    }
+}
+
+#[test]
+fn test_glide_too_low() {
+    let (mut app, entities) = world_with_target_glide();
+    app.world_mut().get_mut::<Object>(entities.object).unwrap().position =
+        Position::from_origin_nm(0.0, 0.0).with_altitude(Position::from_amsl_feet(2500.0));
+    app.update();
+
+    let mut last_deviation = Length::from_feet(-547.5);
+
+    app.world()
+        .get::<nav::TargetGlideStatus>(entities.object)
+        .unwrap()
+        .altitude_deviation
+        .assert_approx(last_deviation, Length::from_feet(10.0))
+        .expect("initial altitude is below glide path");
+
+    for step in 0..100 {
+        advance_world(&mut app, Duration::from_secs(1));
+
+        if step < 20 {
+            app.world()
+                .get::<object::Airborne>(entities.object)
+                .unwrap()
+                .airspeed
+                .vertical()
+                .assert_approx(Speed::ZERO, Speed::from_fpm(1.0))
+                .expect("initially maintain altitude to intercept the glidescope");
+        }
+
+        let deviation =
+            app.world().get::<nav::TargetGlideStatus>(entities.object).unwrap().altitude_deviation;
+
+        let prev = mem::replace(&mut last_deviation, deviation);
+        assert!(
+            prev.abs() + Length::from_feet(10.0) >= deviation.abs(),
+            "altitude deviation decreases over time"
+        );
+    }
+
+    last_deviation
+        .assert_approx(Length::ZERO, Length::from_feet(10.0))
+        .expect("altitude eventually converges on glide path");
+}
+
+#[test]
+fn test_glide_too_high() {
+    let (mut app, entities) = world_with_target_glide();
+    app.world_mut().get_mut::<Object>(entities.object).unwrap().position =
+        Position::from_origin_nm(0.0, 0.0).with_altitude(Position::from_amsl_feet(3500.0));
+    app.world_mut().get_mut::<object::Airborne>(entities.object).unwrap().airspeed +=
+        Speed::from_fpm(-1500.0).vertically();
+    app.update();
+
+    let mut last_deviation = Length::from_feet(452.5);
+
+    app.world()
+        .get::<nav::TargetGlideStatus>(entities.object)
+        .unwrap()
+        .altitude_deviation
+        .assert_approx(last_deviation, Length::from_feet(10.0))
+        .expect("initial altitude is above glide path");
+
+    for _ in 0..100 {
+        advance_world(&mut app, Duration::from_secs(1));
+
+        let deviation =
+            app.world().get::<nav::TargetGlideStatus>(entities.object).unwrap().altitude_deviation;
+
+        let prev = mem::replace(&mut last_deviation, deviation);
+        assert!(
+            prev.abs() + Length::from_feet(10.0) >= deviation.abs(),
+            "altitude deviation decreases over time"
+        );
+    }
+
+    last_deviation
+        .assert_approx(Length::ZERO, Length::from_feet(10.0))
+        .expect("altitude eventually converges on glide path");
 }

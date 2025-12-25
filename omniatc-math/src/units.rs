@@ -574,21 +574,62 @@ impl<Base, Dt, Pow> Quantity<f32, Base, Dt, Pow> {
     ///
     /// # Errors
     /// If the absolute difference between `self` and `other` is greater than `epsilon`.
-    pub fn assert_approx(self, other: Self, epsilon: Self) -> Result<(), String>
+    pub fn assert_approx(
+        self,
+        other: Self,
+        epsilon: Self,
+    ) -> Result<(), AssertApproxError<Self, Self>>
     where
         Self: fmt::Debug,
     {
         if (self - other).abs() > epsilon {
-            Err(format!("Expect {self:?} to be within {other:?} \u{b1} {epsilon:?}"))
+            Err(AssertApproxError { actual: self, expect: other, epsilon })
         } else {
             Ok(())
         }
     }
 }
 
+pub struct AssertApproxError<Q, D> {
+    actual:  Q,
+    expect:  Q,
+    epsilon: D,
+}
+
+impl<Q: fmt::Debug, D: fmt::Debug> fmt::Debug for AssertApproxError<Q, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[derive(Debug)]
+        struct Assertion<Q, D> {
+            actual:  Q,
+            expect:  Q,
+            epsilon: D,
+        }
+        write!(
+            f,
+            "{:#?}",
+            Assertion { actual: &self.actual, expect: &self.expect, epsilon: &self.epsilon }
+        )
+    }
+}
+
+impl<Q: fmt::Debug, D: fmt::Debug> fmt::Display for AssertApproxError<Q, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Expect {:?} to be within {:?} \u{b1} {:?}",
+            self.actual, self.expect, self.epsilon,
+        )
+    }
+}
+
 impl<Dt, Pow> Quantity<f32, LengthBase, Dt, Pow> {
     #[must_use]
     pub fn atan2(self, x: Self) -> Angle { Angle::from_raw(self.0.atan2(x.0)) }
+
+    #[must_use]
+    pub const fn vertically(self) -> Quantity<Vec3, LengthBase, Dt, Pow> {
+        Quantity(Vec3::new(0.0, 0.0, self.0), PhantomData)
+    }
 }
 
 impl Length<f32> {

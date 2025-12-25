@@ -49,7 +49,7 @@ impl Plugin for Plug {
 /// Current target states of the airspeed vector.
 ///
 /// This optional component is removed when the plane is not airborne.
-#[derive(Debug, Component)]
+#[derive(Debug, Clone, Component)]
 #[require(navaid::ObjectUsageList)]
 pub struct VelocityTarget {
     /// Target yaw change.
@@ -64,7 +64,7 @@ pub struct VelocityTarget {
 }
 
 /// Limits for setting velocity target.
-#[derive(Component, Clone)]
+#[derive(Clone, Component)]
 pub struct Limits(pub store::NavLimits);
 
 impl ops::Deref for Limits {
@@ -115,7 +115,7 @@ impl Limits {
 /// Desired altitude in feet.
 ///
 /// Optional component. Target vertical speed is uncontrolled without this component.
-#[derive(Clone, Component, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]
 pub struct TargetAltitude {
     pub altitude: Position<f32>,
     pub expedite: bool,
@@ -168,7 +168,7 @@ fn altitude_control_system(
 /// However, the direction of ground speed is not taken into account,
 /// which may result in confusing behavior if the object is not
 /// moving (almost) directly towards the waypoint.
-#[derive(Component)]
+#[derive(Debug, Clone, Component)]
 #[require(TargetGlideStatus)]
 pub struct TargetGlide {
     /// Target point to aim at.
@@ -190,7 +190,7 @@ pub struct TargetGlide {
     pub expedite:        bool,
 }
 
-#[derive(Component, Default)]
+#[derive(Debug, Clone, Default, Component)]
 pub struct TargetGlideStatus {
     /// Actual pitch the object currently aims at to move towards the glidepath.
     pub current_pitch:      Angle,
@@ -252,7 +252,7 @@ fn glide_control_system(
 /// Desired ground speed direction. Only applicable to airborne objects.
 ///
 /// Optional component to control target heading.
-#[derive(Component)]
+#[derive(Debug, Component)]
 pub struct TargetGroundDirection {
     pub active: bool,
     pub target: Heading,

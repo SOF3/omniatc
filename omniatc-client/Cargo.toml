@@ -75,7 +75,7 @@ features = [
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-idb = "0.6.4"
+idb = "0.6.5"
 js-sys = "0.3.77"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2.100"

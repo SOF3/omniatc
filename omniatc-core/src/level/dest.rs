@@ -57,9 +57,10 @@ fn completion_system(
     object_query: Query<(CompletionObjectQuery, &mut Destination, Option<&CompletionScore>)>,
     params: CompletionParams,
     mut commands: Commands,
-    mut score: ResMut<score::Scores>,
+    mut score: ResMut<score::Stats>,
 ) {
-    let mut arrivals = 0;
+    let mut runway_arrivals = 0;
+    let mut apron_arrivals = 0;
     let mut departures = 0;
     let mut delta = Score::default();
 
@@ -80,10 +81,11 @@ fn completion_system(
             commands.entity(object.entity).queue(object::DespawnCommand);
 
             match *dest {
-                Destination::Landing { .. }
-                | Destination::Parking { .. }
-                | Destination::VacateAnyRunway => {
-                    arrivals += 1;
+                Destination::Landing { .. } | Destination::VacateAnyRunway => {
+                    runway_arrivals += 1;
+                }
+                Destination::Parking { .. } => {
+                    apron_arrivals += 1;
                 }
                 Destination::Departure { .. } => {
                     departures += 1;
@@ -96,7 +98,8 @@ fn completion_system(
         }
     }
 
-    score.num_arrivals += arrivals;
+    score.num_runway_arrivals += runway_arrivals;
+    score.num_apron_arrivals += apron_arrivals;
     score.num_departures += departures;
     score.total += delta;
 }

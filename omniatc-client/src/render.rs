@@ -8,6 +8,7 @@ mod level_info;
 mod messages;
 mod object_info;
 pub mod threedim;
+mod tutorial_popup;
 pub mod twodim;
 
 pub struct Plug;
@@ -19,6 +20,7 @@ impl Plugin for Plug {
             config_editor::Plug,
             level_info::Plug,
             object_info::Plug,
+            tutorial_popup::Plug,
             twodim::Plug,
         ));
 

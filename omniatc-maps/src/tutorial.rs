@@ -409,14 +409,19 @@ fn rapid_exit_taxiways() -> impl Iterator<Item = store::Taxiway> {
 pub fn file() -> store::File {
     store::File {
         meta:  store::Meta {
-            id:          "omniatc.example".into(),
-            title:       "Example".into(),
-            description: "Demo map".into(),
-            authors:     ["omniatc demo".into()].into(),
-            tags:        [("region", "fictional"), ("source", "builtin"), ("type", "demo")]
-                .into_iter()
-                .map(|(k, v)| (String::from(k), String::from(v)))
-                .collect(),
+            id:          "omniatc.tutorial".into(),
+            title:       "Tutorial".into(),
+            description: "Tutorial map".into(),
+            authors:     ["omniatc".into()].into(),
+            tags:        [
+                ("region", "fictional"),
+                ("source", "builtin"),
+                ("type", "scenario"),
+                ("tutorial", "true"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (String::from(k), String::from(v)))
+            .collect(),
         },
         level: store::Level {
             environment:   store::Environment {
@@ -858,6 +863,55 @@ pub fn file() -> store::File {
         },
 
         stats:   store::Stats::default(),
+        quests:  store::QuestTree {
+            quests: [store::Quest {
+                id:           "tutorial/drag".into(),
+                title:        "Tutorial: Camera (1/3)".into(),
+                description:  "Right-click the radar view and drag to move the camera.".into(),
+                class:        store::QuestClass::Tutorial,
+                dependencies: [].into(),
+                conditions:   [store::CameraQuestCompletionCondition::Drag.into()].into(),
+                ui_highlight: [store::HighlightableUiElement::RadarView].into(),
+            },
+                store::Quest {
+                    id:           "tutorial/zoom".into(),
+                    title:        "Tutorial: Camera (2/3)".into(),
+                    description:  "Scroll on the radar view up and down to zoom in and out.".into(),
+                    class:        store::QuestClass::Tutorial,
+                    dependencies: [].into(),
+                    conditions:   [store::CameraQuestCompletionCondition::Zoom.into()].into(),
+                    ui_highlight: [store::HighlightableUiElement::RadarView].into(),
+                },
+                store::Quest {
+                    id:           "tutorial/rotate".into(),
+                    title:        "Tutorial: Camera (3/3)".into(),
+                    description:  "Scroll on the radar view left and right, or use the slider in the Level menu to rotate.".into(),
+                    class:        store::QuestClass::Tutorial,
+                    dependencies: [].into(),
+                    conditions:   [store::CameraQuestCompletionCondition::Rotate.into()].into(),
+                    ui_highlight: [store::HighlightableUiElement::RadarView].into(),
+                },
+                store::Quest {
+                    id:           "tutorial/altitude".into(),
+                    title:        "Tutorial: Aircraft control (1/4)".into(),
+                    description:  r#"Click on an aircraft in the radar view or on the objects table. You can adjust the altitude by dragging the altitude slider and clicking "Send". You may also use up/down arrow keys and press Enter. Send the aircraft to 6000 feet."#.into(),
+                    class:        store::QuestClass::Tutorial,
+                    dependencies: [].into(),
+                    conditions:   [store::ObjectControlQuestCompletionCondition::ReachAltitude(store::Range{min: Position::from_amsl_feet(5950.0), max: Position::from_amsl_feet(6050.0), }).into()].into(),
+                    ui_highlight: [].into(),
+                },
+                store::Quest {
+                    id:           "tutorial/speed".into(),
+                    title:        "Tutorial: Aircraft control (2/4)".into(),
+                    description:  r#"Drag the speed slider or use ","/"." to adjust the speed. Slow down the aircraft to 250 knots."#.into(),
+                    class:        store::QuestClass::Tutorial,
+                    dependencies: [].into(),
+                    conditions:   [store::ObjectControlQuestCompletionCondition::ReachSpeed(store::Range{min: Speed::from_knots(245.0), max: Speed::from_knots(255.0), }).into()].into(),
+                    ui_highlight: [].into(),
+                },
+            ]
+            .into(),
+        },
         objects: [
             store::Object::Plane(store::Plane {
                 aircraft:    store::BaseAircraft {

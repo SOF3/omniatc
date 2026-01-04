@@ -12,7 +12,7 @@ use bevy::ecs::system::Command as BevyCommand;
 use bevy::ecs::world::World;
 use math::sweep;
 
-use crate::level::{aerodrome, object, route, score, spawn, waypoint, wind};
+use crate::level::{aerodrome, object, quest, route, score, spawn, waypoint, wind};
 
 pub struct Plug;
 
@@ -97,6 +97,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
         &mut next_standby_id,
         &file.objects,
     )?;
+    quest::loader::spawn(world, &file.quests, &aerodromes)?;
 
     world.resource_mut::<CameraAdvice>().0 = Some(file.ui.camera.clone());
 
@@ -138,8 +139,10 @@ pub enum Error {
     UnreachableApron(String),
     #[error("Resolve ground lines: {0}")]
     GroundSweep(sweep::Error),
+    #[error("No quest with ID {0:?}")]
+    UnresolvedQuest(String),
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 pub type VecResult<T> = Result<Vec<T>>;
 pub type HashMapResult<K, V> = Result<HashMap<K, V>>;

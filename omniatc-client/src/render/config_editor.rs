@@ -29,7 +29,7 @@ fn setup_window_system(
     let default_size = ctx.content_rect().size() / 2.;
     egui::Window::new("Settings")
         .default_size(default_size)
-        .default_open(false)
+        .default_open(true)
         .open(&mut opened.0)
         .frame(egui::Frame {
             fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200),

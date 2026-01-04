@@ -78,3 +78,13 @@ pub enum Shape2d {
         points: Vec<Position<Vec2>>,
     },
 }
+
+/// A generic range.
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct Range<T> {
+    /// Start of the range.
+    pub min: T,
+    /// End of the range.
+    pub max: T,
+}

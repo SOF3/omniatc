@@ -111,6 +111,7 @@ pub fn spawn(
 }
 
 /// Stores the mapping from loaded aerodromes to their spawned entities.
+#[derive(Debug)]
 pub struct AerodromeMap(HashMap<String, SpawnedAerodrome>);
 
 impl AerodromeMap {
@@ -237,6 +238,7 @@ impl AerodromeMap {
     }
 }
 
+#[derive(Debug)]
 pub struct SpawnedAerodrome {
     pub aerodrome_entity: Entity,
     pub index:            u32,
@@ -244,7 +246,7 @@ pub struct SpawnedAerodrome {
     pub spawned_segments: SpawnedSegments,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct SpawnedRunway {
     pub runway:             Entity,
     pub start_pos:          Position<Vec2>,
@@ -252,6 +254,7 @@ pub struct SpawnedRunway {
 }
 
 /// A pair of runway entities on opposite directions for the same physical runway.
+#[derive(Debug)]
 pub struct PairedSpawnedRunway {
     /// The runway entity resolved directly.
     pub runway:    SpawnedRunway,
@@ -605,6 +608,7 @@ fn line_strip_midpoint_index(
 
 pub type SpawnedSegments = HashMap<ground::SegmentLabel, Vec<SpawnedSegment>>;
 
+#[derive(Debug)]
 pub struct SpawnedSegment {
     pub entity:         Entity,
     pub alpha_position: Position<Vec2>,

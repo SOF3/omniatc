@@ -37,6 +37,9 @@ pub use object::*;
 mod object_type;
 pub use object_type::*;
 
+mod quest;
+pub use quest::*;
+
 mod route;
 pub use route::*;
 
@@ -61,6 +64,9 @@ pub struct File {
     /// Game statistics.
     #[serde(default)]
     pub stats:   Stats,
+    /// Quests to be completed.
+    #[serde(default)]
+    pub quests:  QuestTree,
     /// Existing objects in the level.
     #[serde(default)]
     pub objects: Vec<Object>,

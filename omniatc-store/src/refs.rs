@@ -111,3 +111,8 @@ newtype_str! {
     /// References a route preset by its `ref_id`.
     RoutePresetRef
 }
+
+newtype_str! {
+    /// References a quest by ID.
+    QuestRef
+}

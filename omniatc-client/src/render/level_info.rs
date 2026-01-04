@@ -6,9 +6,9 @@ use bevy::diagnostic::{
     Diagnostic, DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin,
 };
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, ParamSet, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec3, Vec3Swizzles};
@@ -17,6 +17,7 @@ use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use egui_extras::{Column, TableBuilder};
 use math::{Angle, Heading};
+use omniatc::level::quest::{self, Quest};
 use omniatc::level::{object, score};
 use ordered_float::{Float, OrderedFloat};
 use strum::IntoEnumIterator;
@@ -51,16 +52,40 @@ trait WriteParams {
     }
 }
 
+#[derive(SystemParam)]
+struct TabListParams<'w, 's> {
+    select_tab:           Local<'s, SelectTab>,
+    config_editor_opened: ResMut<'w, config_editor::Opened>,
+    focus_quest_query: Option<Single<'w, 's, Has<quest::highlight::LevelTab>, With<quest::Focus>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, strum::IntoStaticStr, strum::EnumIter)]
+enum SelectTab {
+    #[default]
+    Level,
+    Quests,
+}
+
+impl SelectTab {
+    fn should_highlight(self, tab_params: &TabListParams) -> bool {
+        match self {
+            SelectTab::Level => tab_params.focus_quest_query.as_deref() == Some(&true),
+            SelectTab::Quests => false,
+        }
+    }
+}
+
 fn setup_layout_system(
     mut contexts: EguiContexts,
     mut margins: ResMut<EguiUsedMargins>,
-    mut config_editor_opened: ResMut<config_editor::Opened>,
     mut write_params: ParamSet<(
+        TabListParams,
         WriteScoreParams,
         WriteTimeParams,
         WriteCameraParams,
         WriteObjectParams,
         WriteDiagnosticsParams,
+        WriteQuestsParams,
     )>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
@@ -68,19 +93,48 @@ fn setup_layout_system(
     let resp = egui::SidePanel::left(new_type_id!())
         .resizable(true)
         .show(ctx, |ui| {
-            if ui.button("Settings").clicked() {
-                config_editor_opened.0 = true;
-            }
+            let mut tab_params = write_params.p0();
 
-            ui.heading("Level info");
+            ui.horizontal(|ui| {
+                for option in SelectTab::iter() {
+                    let button = egui::Button::selectable(
+                        option == *tab_params.select_tab,
+                        Into::<&'static str>::into(option),
+                    );
+                    let resp = if option.should_highlight(&tab_params) {
+                        egui::Frame::new()
+                            .stroke(egui::Stroke::new(3.0, egui::Color32::RED))
+                            .show(ui, |ui| ui.add(button))
+                            .inner
+                    } else {
+                        ui.add(button)
+                    };
+                    if resp.clicked() {
+                        *tab_params.select_tab = option;
+                    }
+                }
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                write_params.p0().display(ui);
-                write_params.p1().display(ui);
-                write_params.p2().display(ui);
-                write_params.p3().display(ui);
-                write_params.p4().display(ui);
+                if ui.selectable_label(false, "Settings").clicked() {
+                    tab_params.config_editor_opened.0 = true;
+                }
             });
+
+            match *tab_params.select_tab {
+                SelectTab::Level => {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        write_params.p1().display(ui);
+                        write_params.p2().display(ui);
+                        write_params.p3().display(ui);
+                        write_params.p4().display(ui);
+                        write_params.p5().display(ui);
+                    });
+                }
+                SelectTab::Quests => {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        write_params.p6().display(ui);
+                    });
+                }
+            }
 
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
         })
@@ -90,7 +144,7 @@ fn setup_layout_system(
 
 #[derive(SystemParam)]
 struct WriteScoreParams<'w> {
-    score: Res<'w, score::Scores>,
+    score: Res<'w, score::Stats>,
 }
 
 impl WriteParams for WriteScoreParams<'_> {
@@ -99,7 +153,10 @@ impl WriteParams for WriteScoreParams<'_> {
     fn default_open() -> bool { true }
 
     fn write(&mut self, ui: &mut egui::Ui) {
-        ui.label(format!("Arrivals completed: {}", self.score.num_arrivals));
+        ui.label(format!(
+            "Arrivals completed: {}",
+            self.score.num_runway_arrivals + self.score.num_apron_arrivals
+        ));
         ui.label(format!("Departures completed: {}", self.score.num_departures));
     }
 }
@@ -346,8 +403,15 @@ impl WriteParams for WriteObjectParams<'_, '_> {
                     let is_selected = self.selected_object.0 == Some(object.entity);
                     row.set_selected(is_selected);
 
+                    let mut clicked = false;
                     for column in &columns {
-                        row.col(|ui| column.cell_value(ui, object));
+                        row.col(|ui| {
+                            let resp = column.cell_value(ui, object);
+                            clicked |= resp.clicked();
+                        });
+                    }
+                    if clicked {
+                        self.selected_object.0 = Some(object.entity);
                     }
                 });
             });
@@ -387,7 +451,7 @@ impl ObjectTableColumn {
         }
     }
 
-    fn cell_value(&self, ui: &mut egui::Ui, data: &ObjectTableDataItem) {
+    fn cell_value(&self, ui: &mut egui::Ui, data: &ObjectTableDataItem) -> egui::Response {
         let text: egui::WidgetText = match self {
             Self::Name => egui::WidgetText::from(data.display.name.as_str()).strong(),
             Self::Altitude => {
@@ -405,7 +469,7 @@ impl ObjectTableColumn {
                 format!("{:.0}\u{b0}", Heading::from_quat(data.rotation.0).degrees()).into()
             }
         };
-        ui.label(text);
+        ui.label(text)
     }
 
     fn sort(&self, objects: &mut [ObjectTableDataItem], desc: bool) {
@@ -453,6 +517,47 @@ impl WriteParams for WriteDiagnosticsParams<'_> {
             .and_then(Diagnostic::value)
         {
             ui.label(format!("Entities: {entities}"));
+        }
+    }
+}
+
+#[derive(SystemParam)]
+struct WriteQuestsParams<'w, 's> {
+    quest_query: Query<
+        'w,
+        's,
+        (Entity, &'static Quest, &'static quest::Topology, Has<quest::Active>, Has<quest::Focus>),
+    >,
+    commands:    Commands<'w, 's>,
+}
+
+impl WriteQuestsParams<'_, '_> {
+    fn display(&mut self, ui: &mut egui::Ui) {
+        let mut quests: Vec<_> = self.quest_query.iter().collect();
+        quests.sort_by_key(|&(_, quest, _, _, _)| quest.index);
+        for (quest_entity, quest, _, active, focused) in quests {
+            if active {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.heading(quest.title.clone());
+
+                    let button = egui::Button::new("Focus").small();
+                    let focus_resp = ui.add_enabled(!focused, button);
+                    if focus_resp.clicked() && !focused {
+                        self.commands.entity(quest_entity).queue(quest::SetFocus);
+                    }
+
+                    if quest.skippable {
+                        let resp = ui.small_button("Skip");
+                        if resp.clicked() {
+                            self.commands
+                                .entity(quest_entity)
+                                .remove::<quest::condition::AllBundle>();
+                        }
+                    }
+                });
+                ui.label(quest.description.clone());
+            }
         }
     }
 }

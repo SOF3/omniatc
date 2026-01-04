@@ -117,8 +117,8 @@ pub fn handle_loaded_scenario_system<S: Storage>(
     current_importing.0 = still_importing;
 }
 
-pub const BUILTIN_SCENARIOS: &[&str] = &["maps/example.osav"];
-pub const DEFAULT_SCENARIO: &str = "omniatc.example";
+pub const BUILTIN_SCENARIOS: &[&str] = &["maps/tutorial.osav"];
+pub const DEFAULT_SCENARIO: &str = "omniatc.tutorial";
 
 pub fn import_builtin_scenarios_system(mut commands: Commands) {
     for &scenario in BUILTIN_SCENARIOS {

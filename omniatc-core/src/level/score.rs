@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -9,7 +11,7 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Scores>();
+        app.init_resource::<Stats>();
         app.configure_sets(app::Update, Writer.ambiguous_with(Writer));
     }
 }
@@ -19,12 +21,21 @@ pub struct Writer;
 
 /// The current score.
 #[derive(Resource, Default)]
-pub struct Scores {
+pub struct Stats {
     /// Total score.
     pub total: Score,
 
-    /// Number of arrivals completed.
-    pub num_arrivals:   u32,
-    /// Number of departures completed.
-    pub num_departures: u32,
+    /// Number of objects completed with runway arrival as their destination.
+    ///
+    /// Does not include apron arrivals.
+    pub num_runway_arrivals: u32,
+    /// Number of objects completed with apron arrival as their destination.
+    pub num_apron_arrivals:  u32,
+    /// Number of objects completed with waypoint departure as their destination.
+    pub num_departures:      u32,
+
+    /// Number of conflicting pairs that have been detected.
+    pub num_conflicts:       u32,
+    /// Total duration-pair time of all detected conflicts.
+    pub total_conflict_time: Duration,
 }

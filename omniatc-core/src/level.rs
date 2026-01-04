@@ -17,6 +17,7 @@ pub mod nav;
 pub mod navaid;
 pub mod object;
 pub mod plane;
+pub mod quest;
 pub mod route;
 pub mod runway;
 pub mod score;
@@ -52,6 +53,7 @@ where
 
         app.add_plugins(message::Plug);
         app.add_plugins(score::Plug);
+        app.add_plugins(quest::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug::<M>::default());
         app.add_plugins(plane::Plug);
@@ -90,6 +92,10 @@ pub enum SystemSets {
     ReconcileForRead,
     /// Systems simulating effects *on* the environment *from* controlled objects.
     AffectEnviron,
+    /// Systems to read level data to compute statistics.
+    Statistics,
+    /// Systems for checking quest completion conditions.
+    QuestCompletion,
     /// Systems for spawning new entities.
     Spawn,
 }

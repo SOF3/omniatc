@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-bevy_math = "0.17.3"
+bevy_math = "0.18.0"
 bevy_egui = { version = "0.38.1", default-features = false }
 egui = "0.33.3"
 egui_extras = "0.33.3"

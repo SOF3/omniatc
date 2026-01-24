@@ -36,6 +36,7 @@ impl Plugin for Plug {
                 reach_altitude_system,
                 reach_speed_system,
                 reach_heading_system,
+                reach_segment_system,
                 make_instr_action_system::<InstrActionDirectWaypoint>(|instr| {
                     matches!(
                         instr,
@@ -47,10 +48,16 @@ impl Plugin for Plug {
                     )
                 }),
                 make_instr_action_system::<InstrActionClearIls>(|_instr| {
-                    false // TODO
+                    false // TODO implement ILS clearance
                 }),
                 make_instr_action_system::<InstrActionClearLineUp>(|instr| {
-                    matches!(instr, Instruction::RemoveStandby(_)) // TODO
+                    matches!(instr, Instruction::RemoveStandby(_)) // TODO specific to lineup
+                }),
+                make_instr_action_system::<InstrActionClearTakeoff>(|instr| {
+                    matches!(instr, Instruction::RemoveStandby(_)) // TODO specific to takeoff
+                }),
+                make_instr_action_system::<InstrActionFollowRoute>(|instr| {
+                    matches!(instr, Instruction::SelectRoute(_))
                 }),
                 make_min_stat_system(|cond: &MinScore| cond.score, |stats: &Stats| stats.total),
                 make_min_stat_system(
@@ -184,17 +191,21 @@ pub struct ReachAltitude {
 }
 
 pub(super) fn reach_altitude_system(
-    query: Query<(Entity, &Object, &ReachAltitude), With<quest::Active>>,
+    object_query: Query<&Object>,
+    quest_query: Query<(Entity, &ReachAltitude), With<quest::Active>>,
     mut commands: Commands,
 ) {
-    for (entity, object, cond) in query {
-        if (cond.min..=cond.max).contains(&object.position.altitude()) {
-            commands.entity(entity).remove::<ReachAltitude>();
+    for (quest_entity, cond) in quest_query {
+        if object_query
+            .iter()
+            .any(|object| (cond.min..=cond.max).contains(&object.position.altitude()))
+        {
+            commands.entity(quest_entity).remove::<ReachAltitude>();
         }
     }
 }
 
-/// Completes when any object is within the indicated airspeed speed range.
+/// Completes when any object is within the indicated airspeed range.
 #[derive(Component)]
 pub struct ReachSpeed {
     pub min: Speed<f32>,
@@ -202,18 +213,21 @@ pub struct ReachSpeed {
 }
 
 pub(super) fn reach_speed_system(
-    query: Query<(Entity, &object::Airborne, &ReachSpeed), With<quest::Active>>,
+    object_query: Query<&object::Airborne>,
+    quest_query: Query<(Entity, &ReachSpeed), With<quest::Active>>,
     mut commands: Commands,
 ) {
-    for (entity, object, cond) in query {
-        let airspeed = object.airspeed.horizontal().magnitude_cmp();
-        if airspeed >= cond.min && airspeed <= cond.max {
-            commands.entity(entity).remove::<ReachSpeed>();
+    for (quest_entity, cond) in quest_query {
+        if object_query.iter().any(|object| {
+            let airspeed = object.airspeed.horizontal().magnitude_cmp();
+            airspeed >= cond.min && airspeed <= cond.max
+        }) {
+            commands.entity(quest_entity).remove::<ReachSpeed>();
         }
     }
 }
 
-/// Completes when any object is within the speed range.
+/// Completes when any object is within the heading range.
 #[derive(Component)]
 pub struct ReachHeading {
     pub min: Heading,
@@ -221,12 +235,16 @@ pub struct ReachHeading {
 }
 
 pub(super) fn reach_heading_system(
-    query: Query<(Entity, &object::Airborne, &ReachHeading), With<quest::Active>>,
+    object_query: Query<&object::Airborne>,
+    quest_query: Query<(Entity, &ReachHeading), With<quest::Active>>,
     mut commands: Commands,
 ) {
-    for (entity, object, cond) in query {
-        if object.airspeed.horizontal().heading().is_between(cond.min, cond.max) {
-            commands.entity(entity).remove::<ReachHeading>();
+    for (quest_entity, cond) in quest_query {
+        if object_query
+            .iter()
+            .any(|object| object.airspeed.horizontal().heading().is_between(cond.min, cond.max))
+        {
+            commands.entity(quest_entity).remove::<ReachHeading>();
         }
     }
 }
@@ -238,14 +256,17 @@ pub struct ReachSegment {
 }
 
 pub(super) fn reach_segment_system(
-    query: Query<(Entity, &object::OnGround, &ReachSegment), With<quest::Active>>,
+    object_query: Query<&object::OnGround>,
+    quest_query: Query<(Entity, &ReachSegment), With<quest::Active>>,
     segment_query: Query<&ground::SegmentLabel>,
     mut commands: Commands,
 ) {
-    for (entity, object, cond) in query {
-        let Some(label) = segment_query.log_get(object.segment) else { continue };
-        if *label == cond.label {
-            commands.entity(entity).remove::<ReachHeading>();
+    for (quest_entity, cond) in quest_query {
+        if object_query
+            .iter()
+            .any(|object| segment_query.log_get(object.segment) == Some(&cond.label))
+        {
+            commands.entity(quest_entity).remove::<ReachSegment>();
         }
     }
 }
@@ -262,7 +283,7 @@ pub struct InstrActionClearIls;
 #[derive(Component)]
 pub struct InstrActionClearLineUp;
 
-/// Completes when the client sends an runway takeoff instruction.
+/// Completes when the client sends a runway takeoff instruction.
 #[derive(Component)]
 pub struct InstrActionClearTakeoff;
 

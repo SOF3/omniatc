@@ -130,11 +130,14 @@ fn insert_condition(
 
 fn insert_highlight(entity: &mut EntityWorldMut, highlight: &store::HighlightableUiElement) {
     match highlight {
-        store::HighlightableUiElement::LevelTab => {
-            entity.insert(quest::highlight::LevelTab);
-        }
         store::HighlightableUiElement::RadarView => {
             entity.insert(quest::highlight::RadarView);
+        }
+        store::HighlightableUiElement::SetCameraRotation => {
+            entity.insert(quest::highlight::SetCameraRotation);
+        }
+        store::HighlightableUiElement::SetCameraZoom => {
+            entity.insert(quest::highlight::SetCameraZoom);
         }
         store::HighlightableUiElement::SetAltitude => {
             entity.insert(quest::highlight::SetAltitude);

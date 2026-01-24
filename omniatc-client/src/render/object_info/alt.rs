@@ -1,15 +1,16 @@
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::system::{Query, Res, ResMut, Single, SystemParam};
 use bevy_egui::egui;
 use math::{Position, TROPOPAUSE_ALTITUDE};
 use omniatc::QueryTryLog;
 use omniatc::level::waypoint::Waypoint;
-use omniatc::level::{instr, nav, object};
+use omniatc::level::{instr, nav, object, quest};
 
 use super::Writer;
 use crate::input;
 use crate::render::object_info::DraftInstructions;
+use crate::render::tutorial_popup;
 use crate::util::new_type_id;
 
 #[derive(QueryData)]
@@ -26,6 +27,9 @@ pub struct WriteParams<'w, 's> {
     waypoint_query: Query<'w, 's, &'static Waypoint>,
     hotkeys:        Res<'w, input::Hotkeys>,
     draft:          ResMut<'w, DraftInstructions>,
+    req_highlight: Option<
+        Single<'w, 's, (), (With<tutorial_popup::Focused>, With<quest::highlight::SetAltitude>)>,
+    >,
 }
 
 impl Writer for ObjectQuery {
@@ -46,53 +50,62 @@ impl Writer for ObjectQuery {
             ui.label(format!("Target: {:.0} ft{expedite}", target_alt.altitude.amsl().into_feet()));
         }
 
-        ui.horizontal(|ui| {
-            let (initial_alt, expedite) = match &params.draft.airborne_vector {
-                Some(instr::AirborneVector { altitude: Some(set_altitude), .. }) => {
-                    (set_altitude.target.altitude, set_altitude.target.expedite)
+        let mut frame = egui::Frame::NONE;
+        if params.req_highlight.is_some() {
+            frame = frame.stroke(egui::Stroke::new(3.0, egui::Color32::RED));
+        }
+        frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let (initial_alt, expedite) = match &params.draft.airborne_vector {
+                    Some(instr::AirborneVector { altitude: Some(set_altitude), .. }) => {
+                        (set_altitude.target.altitude, set_altitude.target.expedite)
+                    }
+                    _ => match this.target_alt {
+                        Some(t) => (t.altitude, t.expedite),
+                        None => (this.object.position.altitude(), false),
+                    },
+                };
+                let initial_alt = initial_alt.amsl().into_feet();
+                let mut slider_alt = initial_alt;
+                let slider_resp = ui.add(egui::Slider::new(
+                    &mut slider_alt,
+                    0.0..=TROPOPAUSE_ALTITUDE.amsl().into_feet(),
+                ));
+                if params.hotkeys.set_altitude {
+                    slider_resp.request_focus();
                 }
-                _ => match this.target_alt {
-                    Some(t) => (t.altitude, t.expedite),
-                    None => (this.object.position.altitude(), false),
-                },
-            };
-            let initial_alt = initial_alt.amsl().into_feet();
-            let mut slider_alt = initial_alt;
-            let slider_resp = ui.add(egui::Slider::new(
-                &mut slider_alt,
-                0.0..=TROPOPAUSE_ALTITUDE.amsl().into_feet(),
-            ));
-            if params.hotkeys.set_altitude {
-                slider_resp.request_focus();
-            }
-            if params.hotkeys.inc_altitude {
-                slider_alt = (slider_alt / 1000.).floor() * 1000. + 1000.;
-            }
-            if params.hotkeys.dec_altitude {
-                slider_alt = (slider_alt / 1000.).ceil() * 1000. - 1000.;
-            }
+                if params.hotkeys.inc_altitude {
+                    slider_alt = (slider_alt / 1000.).floor() * 1000. + 1000.;
+                }
+                if params.hotkeys.dec_altitude {
+                    slider_alt = (slider_alt / 1000.).ceil() * 1000. - 1000.;
+                }
 
-            let mut checkbox_expedite = expedite;
-            ui.add(
-                egui::Checkbox::new(&mut checkbox_expedite, "Exp")
-                    .indeterminate(this.target_alt.is_none()),
-            );
-            if params.hotkeys.toggle_expedite {
-                checkbox_expedite = !checkbox_expedite;
-            }
+                let mut checkbox_expedite = expedite;
+                ui.add(
+                    egui::Checkbox::new(&mut checkbox_expedite, "Exp")
+                        .indeterminate(this.target_alt.is_none()),
+                );
+                if params.hotkeys.toggle_expedite {
+                    checkbox_expedite = !checkbox_expedite;
+                }
 
-            #[expect(clippy::float_cmp, reason = "this is normally equal if user did not interact")]
-            if slider_alt != initial_alt
-                || (this.target_alt.is_some() && expedite != checkbox_expedite)
-            {
-                params.draft.airborne_vector.get_or_insert_default().altitude =
-                    Some(instr::SetAltitude {
-                        target: nav::TargetAltitude {
-                            altitude: Position::from_amsl_feet(slider_alt),
-                            expedite: checkbox_expedite,
-                        },
-                    });
-            }
+                #[expect(
+                    clippy::float_cmp,
+                    reason = "this is normally equal if user did not interact"
+                )]
+                if slider_alt != initial_alt
+                    || (this.target_alt.is_some() && expedite != checkbox_expedite)
+                {
+                    params.draft.airborne_vector.get_or_insert_default().altitude =
+                        Some(instr::SetAltitude {
+                            target: nav::TargetAltitude {
+                                altitude: Position::from_amsl_feet(slider_alt),
+                                expedite: checkbox_expedite,
+                            },
+                        });
+                }
+            });
         });
 
         if let Some((glide, glide_status)) = this.target_glide {

@@ -5,15 +5,19 @@ use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 
 #[derive(Bundle)]
-pub struct All(LevelTab, RadarView, SetAltitude, SetSpeed, SetHeading);
-
-/// The Level tab in the left sidebar.
-#[derive(Component)]
-pub struct LevelTab;
+pub struct All(RadarView, SetAltitude, SetSpeed, SetHeading);
 
 /// The main radar viewport.
 #[derive(Component)]
 pub struct RadarView;
+
+/// Camera rotation control.
+#[derive(Component)]
+pub struct SetCameraRotation;
+
+/// Camera zoom control.
+#[derive(Component)]
+pub struct SetCameraZoom;
 
 /// UI for setting the altitude target.
 #[derive(Component)]

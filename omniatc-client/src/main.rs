@@ -29,7 +29,7 @@ use bevy::render::RenderPlugin;
 use bevy::render::settings::{RenderCreation, WgpuLimits, WgpuSettings};
 use bevy::window::{Window, WindowPlugin};
 use bevy::winit::WinitSettings;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::manager;
 use itertools::Itertools;
 use omniatc::level;
@@ -134,7 +134,6 @@ enum EguiSystemSets {
     ObjectInfo,
     Messages,
     Tutorial,
-    Config,
     TwoDim,
 }
 
@@ -158,6 +157,9 @@ impl EguiUsedMargins {
         if let Ok(ctx) = contexts.ctx_mut() {
             margins.pointer_acquired = ctx.wants_pointer_input();
             margins.keyboard_acquired = ctx.wants_keyboard_input();
+
+            ctx.set_theme(egui::ThemePreference::Dark);
+            egui_material_icons::initialize(ctx);
         }
     }
 }

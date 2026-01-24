@@ -36,6 +36,7 @@ impl Plugin for Plug {
                 reach_altitude_system,
                 reach_speed_system,
                 reach_heading_system,
+                reach_segment_system,
                 make_instr_action_system::<InstrActionDirectWaypoint>(|instr| {
                     matches!(
                         instr,
@@ -194,7 +195,7 @@ pub(super) fn reach_altitude_system(
     }
 }
 
-/// Completes when any object is within the indicated airspeed speed range.
+/// Completes when any object is within the indicated airspeed range.
 #[derive(Component)]
 pub struct ReachSpeed {
     pub min: Speed<f32>,
@@ -245,7 +246,7 @@ pub(super) fn reach_segment_system(
     for (entity, object, cond) in query {
         let Some(label) = segment_query.log_get(object.segment) else { continue };
         if *label == cond.label {
-            commands.entity(entity).remove::<ReachHeading>();
+            commands.entity(entity).remove::<ReachSegment>();
         }
     }
 }
@@ -262,7 +263,7 @@ pub struct InstrActionClearIls;
 #[derive(Component)]
 pub struct InstrActionClearLineUp;
 
-/// Completes when the client sends an runway takeoff instruction.
+/// Completes when the client sends a runway takeoff instruction.
 #[derive(Component)]
 pub struct InstrActionClearTakeoff;
 

@@ -1,13 +1,10 @@
 use bevy::app::{App, Plugin};
-use bevy::ecs::query::{Has, With};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, ParamSet, ResMut, Single, SystemParam};
+use bevy::ecs::system::{Local, ParamSet, Res, ResMut, SystemParam};
+use bevy::time::{Time, Virtual as TimeVirtual};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
-use omniatc::level::quest::{self};
 use strum::IntoEnumIterator;
 
-use super::config_editor;
-use crate::render::tutorial_popup;
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins};
 
@@ -34,21 +31,37 @@ trait WriteParams {
 
     fn default_open() -> bool;
 
+    fn request_highlight(&self) -> Option<&RequestHighlightParams<'_>> { None }
+
     fn write(&mut self, ui: &mut egui::Ui);
 
     fn display(&mut self, ui: &mut egui::Ui) {
-        egui::CollapsingHeader::new(self.title())
+        let resp = egui::CollapsingHeader::new(self.title())
             .default_open(Self::default_open())
             .show(ui, |ui| self.write(ui));
+        if let Some(hl_params) = self.request_highlight()
+            && resp.body_response.is_none()
+        {
+            let elapsed = hl_params.time.elapsed();
+            if elapsed.subsec_millis() < 500 {
+                resp.header_response.show_tooltip_ui(|ui| {
+                    egui::Frame::new().fill(egui::Color32::DARK_RED).show(ui, |ui| {
+                        ui.label("Click to open");
+                    });
+                });
+            }
+        }
     }
 }
 
 #[derive(SystemParam)]
-struct TabListParams<'w, 's> {
-    select_tab:           Local<'s, SelectTab>,
-    config_editor_opened: ResMut<'w, config_editor::Opened>,
-    focus_quest_query:
-        Option<Single<'w, 's, Has<quest::highlight::LevelTab>, With<tutorial_popup::Focused>>>,
+struct RequestHighlightParams<'w> {
+    time: Res<'w, Time<TimeVirtual>>,
+}
+
+#[derive(SystemParam)]
+struct TabListParams<'s> {
+    select_tab: Local<'s, SelectTab>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, strum::IntoStaticStr, strum::EnumIter)]
@@ -56,36 +69,56 @@ enum SelectTab {
     #[default]
     Level,
     Quests,
+    ConfigEditor,
 }
 
-impl SelectTab {
-    fn should_highlight(self, tab_params: &TabListParams) -> bool {
-        match self {
-            SelectTab::Level => tab_params.focus_quest_query.as_deref() == Some(&true),
-            SelectTab::Quests => false,
-        }
-    }
+type LevelWriteParams<'w, 's> = (
+    score::WriteScoreParams<'w>,
+    time::WriteTimeParams<'w, 's>,
+    camera::WriteCameraParams<'w, 's>,
+    objects::WriteObjectParams<'w, 's>,
+    diagnostics::WriteDiagnosticsParams<'w>,
+);
+
+macro_rules! each_write_params {
+    ($set:expr, $mac:path, $state:tt) => {
+        let mut set = $set;
+        $mac!(set.p0(), $state);
+        $mac!(set.p1(), $state);
+        $mac!(set.p2(), $state);
+        $mac!(set.p3(), $state);
+        $mac!(set.p4(), $state);
+    };
 }
 
 fn setup_layout_system(
     mut contexts: EguiContexts,
     mut margins: ResMut<EguiUsedMargins>,
-    mut write_params: ParamSet<(
+    mut param_set: ParamSet<(
         TabListParams,
-        score::WriteScoreParams,
-        time::WriteTimeParams,
-        camera::WriteCameraParams,
-        objects::WriteObjectParams,
-        diagnostics::WriteDiagnosticsParams,
+        ParamSet<LevelWriteParams>,
         quests::WriteQuestsParams,
+        bevy_mod_config::manager::egui::Display,
     )>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
+    let should_highlight_level = {
+        macro_rules! each {
+            ($p:expr, $state:tt) => {
+                $state = $state || $p.request_highlight().is_some();
+            };
+        }
+
+        let mut should_highlight = false;
+        each_write_params!(param_set.p1(), each, should_highlight);
+        should_highlight
+    };
+
     let resp = egui::SidePanel::left(new_type_id!())
         .resizable(true)
         .show(ctx, |ui| {
-            let mut tab_params = write_params.p0();
+            let mut tab_params = param_set.p0();
 
             ui.horizontal(|ui| {
                 for option in SelectTab::iter() {
@@ -93,7 +126,10 @@ fn setup_layout_system(
                         option == *tab_params.select_tab,
                         Into::<&'static str>::into(option),
                     );
-                    let resp = if option.should_highlight(&tab_params) {
+                    let resp = if option == SelectTab::Level
+                        && option != *tab_params.select_tab
+                        && should_highlight_level
+                    {
                         egui::Frame::new()
                             .stroke(egui::Stroke::new(3.0, egui::Color32::RED))
                             .show(ui, |ui| ui.add(button))
@@ -105,26 +141,27 @@ fn setup_layout_system(
                         *tab_params.select_tab = option;
                     }
                 }
-
-                if ui.selectable_label(false, "Settings").clicked() {
-                    tab_params.config_editor_opened.0 = true;
-                }
             });
 
             match *tab_params.select_tab {
                 SelectTab::Level => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        write_params.p1().display(ui);
-                        write_params.p2().display(ui);
-                        write_params.p3().display(ui);
-                        write_params.p4().display(ui);
-                        write_params.p5().display(ui);
+                        macro_rules! each {
+                            ($p:expr, $ui:tt) => {
+                                $p.display($ui)
+                            };
+                        }
+                        each_write_params!(param_set.p1(), each, ui);
                     });
                 }
                 SelectTab::Quests => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        write_params.p6().display(ui);
+                        param_set.p2().display(ui);
                     });
+                }
+                SelectTab::ConfigEditor => {
+                    let mut manager = param_set.p3();
+                    manager.show(ui);
                 }
             }
 

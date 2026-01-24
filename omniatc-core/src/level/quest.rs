@@ -51,7 +51,7 @@ pub struct Quest {
 
 #[derive(Component, Default)]
 pub struct Topology {
-    /// List of quests that this quest depend on,
+    /// List of quests that this quest depends on,
     /// including completed ones.
     pub dependencies: Vec<Entity>,
     /// List of quests that depend on this quest,

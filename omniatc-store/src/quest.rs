@@ -9,7 +9,10 @@ use crate::{QuestRef, Range, Score, SegmentRef};
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuestTree {
-    /// All quests that may
+    /// All completed and incomplete quests.
+    ///
+    /// This list is order-sensitive.
+    /// Client display would rank quests earlier in this list higher.
     pub quests: Vec<Quest>,
 }
 
@@ -157,7 +160,7 @@ pub enum StatisticQuestCompletionCondition {
     MinDeparture(u32),
     /// Achieve at least the given score.
     MinScore(Score),
-    /// Completes immediatly if the number of conflicts is below or equal to the given number.
+    /// Completes immediately if the number of conflicts is below or equal to the given number.
     /// Never completes if the number of conflicts exceeds this value.
     ///
     /// Typically used as a dependent quest after another statistic quest.
@@ -172,8 +175,10 @@ pub enum StatisticQuestCompletionCondition {
 pub enum HighlightableUiElement {
     /// Outline of the main radar view.
     RadarView,
-    /// The level selection button.
-    LevelTab,
+    /// Camera rotation controls in level info.
+    SetCameraRotation,
+    /// Camera zoom controls in level info.
+    SetCameraZoom,
     /// UI for setting altitude.
     SetAltitude,
     /// UI for setting speed.

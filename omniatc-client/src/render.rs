@@ -3,11 +3,11 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-pub mod config_editor;
 mod level_info;
 mod messages;
 mod object_info;
 pub mod threedim;
+mod tutorial_popup;
 pub mod twodim;
 
 pub struct Plug;
@@ -16,9 +16,9 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             messages::Plug,
-            config_editor::Plug,
             level_info::Plug,
             object_info::Plug,
+            tutorial_popup::Plug,
             twodim::Plug,
         ));
 

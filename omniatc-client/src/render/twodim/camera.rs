@@ -1,10 +1,13 @@
 use std::cmp;
+use std::f32::consts::PI;
+use std::time::{Duration, SystemTime};
 
 use bevy::app::{self, App, Plugin};
-use bevy::camera::{Camera, Camera2d, Viewport};
+use bevy::camera::{Camera, Camera2d, ClearColor, Viewport};
+use bevy::color::{Color, Mix};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
@@ -15,9 +18,12 @@ use bevy::window::Window;
 use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
+use omniatc::level::quest;
 use omniatc::{QueryTryLog, load};
 use serde::{Deserialize, Serialize};
 
+use crate::render::tutorial_popup;
+use crate::util::time_now;
 use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input, util};
 
 pub struct Plug;
@@ -123,6 +129,10 @@ fn consume_camera_advice(
 fn fit_layout_system(
     window: Option<Single<&mut Window>>,
     mut camera_query: Query<(&Layout, &mut Camera)>,
+    request_highlight: Option<
+        Single<(), (With<tutorial_popup::Focused>, With<quest::highlight::RadarView>)>,
+    >,
+    mut clear_color: ResMut<ClearColor>,
 ) {
     let Some(window) = window else { return };
 
@@ -170,6 +180,19 @@ fn fit_layout_system(
         });
         camera.order = layout.order.try_into().expect("layout order out of bounds");
     }
+
+    if request_highlight.is_some() {
+        const PERIOD: Duration = Duration::from_secs(3);
+        let millis =
+            time_now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis()
+                % PERIOD.as_millis();
+        #[expect(clippy::cast_precision_loss, reason = "PERIOD restricts millis to a small value")]
+        let fract = millis as f32 / PERIOD.as_millis() as f32;
+        let phase = ((fract * PI).sin() + 1.0) * 0.5;
+        clear_color.0 = Color::BLACK.mix(&Color::WHITE, phase * 0.1);
+    } else {
+        clear_color.0 = Color::BLACK;
+    }
 }
 
 struct DraggingState {
@@ -186,6 +209,7 @@ fn drag_camera_system(
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
     conf: ReadConfig<Conf>,
     margins: Res<EguiUsedMargins>,
+    mut quest_ui_events: MessageWriter<quest::UiEvent>,
 ) {
     let conf = conf.read();
 
@@ -249,6 +273,10 @@ fn drag_camera_system(
                 camera_tf.translation = start_translation + delta;
             }
         }
+
+        if delta != Vec3::ZERO {
+            quest_ui_events.write(quest::UiEvent::CameraDragged);
+        }
     }
 }
 
@@ -258,6 +286,7 @@ fn scroll_zoom_system(
     mut camera_query: Query<&mut Transform, With<Camera>>,
     conf: ReadConfig<Conf>,
     margins: Res<EguiUsedMargins>,
+    mut ui_event_writer: MessageWriter<quest::UiEvent>,
 ) {
     let conf = conf.read();
 
@@ -282,10 +311,16 @@ fn scroll_zoom_system(
             // i.e. (new_translation - world_pos) / new_scale = (camera_tf.translation - world_pos) / camera_tf.scale
             // i.e. new_translation = (camera_tf.translation - world_pos) * (new_scale / camera_tf.scale) + world_pos
             // camera_tf.translation = (camera_tf.translation - Vec3::from((world_pos, 0.))) * scale_rate + Vec3::from((world_pos, 0.)); // TODO FIXME
-            camera_tf.scale *= scale_rate;
+            if event.y != 0.0 {
+                camera_tf.scale *= scale_rate;
+                ui_event_writer.write(quest::UiEvent::CameraZoomed);
+            }
 
             let rot_rate = rotation_step * event.x;
-            camera_tf.rotate_z(rot_rate.0);
+            if !rot_rate.is_zero() {
+                camera_tf.rotate_z(rot_rate.0);
+                ui_event_writer.write(quest::UiEvent::CameraRotated);
+            }
         }
     }
 }

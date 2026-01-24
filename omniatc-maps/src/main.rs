@@ -22,7 +22,7 @@ use std::{fs, io};
 
 use anyhow::{Context, Result};
 
-mod example;
+mod tutorial;
 
 #[derive(clap::Parser)]
 struct Options {
@@ -118,10 +118,10 @@ fn build_assets(maps_dir: &Path) -> Result<()> {
     }
 
     ciborium::into_writer(
-        &example::file(),
-        fs::File::create(maps_dir.join("example.osav")).context("create example.osav")?,
+        &tutorial::file(),
+        fs::File::create(maps_dir.join("tutorial.osav")).context("create tutorial.osav")?,
     )
-    .context("write example.osav")?;
+    .context("write tutorial.osav")?;
 
     Ok(())
 }

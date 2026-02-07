@@ -393,3 +393,6 @@ fn time_elapsed_system(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

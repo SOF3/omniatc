@@ -3,9 +3,8 @@ use std::time::Duration;
 use bevy::app::App;
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::time::{self, Time};
-use math::{Heading, Length, Position, Speed};
+use math::{Heading, Position, Speed};
 use store::Score;
 
 use super::*;

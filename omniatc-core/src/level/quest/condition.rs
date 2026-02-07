@@ -151,15 +151,15 @@ mod all {
 pub use all::{AllBundle, Counter, CounterItem};
 
 /// Completes when the client reports camera dragging.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct UiActionDrag;
 
 /// Completes when the client reports camera zooming.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct UiActionZoom;
 
 /// Completes when the client reports camera rotation.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct UiActionRotate;
 
 #[derive(SystemParam)]

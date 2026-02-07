@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use bevy::app::App;
+use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::system::SystemState;
 use bevy::time::{self, Time};
 use math::{Heading, Length, Position, Speed};
 use store::Score;
@@ -13,123 +13,66 @@ use crate::level::ground::{self, SegmentLabel};
 use crate::level::instr::{self, Instruction};
 use crate::level::object::{self, Object};
 use crate::level::score::Stats;
-use crate::level::quest;
+use crate::level::{quest, route};
 
-/// Helper to create a basic app with the condition plugin loaded
 fn create_test_app() -> App {
     let mut app = App::new();
-    // Add the quest plugin to register messages
     app.add_plugins(quest::Plug);
     app.init_resource::<Time<time::Virtual>>();
     app.init_resource::<Stats>();
     app
 }
 
-/// Helper to spawn a quest entity with a condition
-fn spawn_quest_with_condition<C: Component>(app: &mut App, condition: C) -> Entity {
-    app.world_mut()
-        .spawn((
-            quest::Quest {
-                title: "Test Quest".into(),
-                description: "Test Description".into(),
-                class: store::QuestClass::Tutorial,
-                index: 0,
-            },
-            quest::Active,
-            condition,
-        ))
-        .id()
+fn quest_with_condition<C: Component>(condition: C) -> impl Bundle {
+    (
+        quest::Quest {
+            title:       "Test Quest".into(),
+            description: "Test Description".into(),
+            class:       store::QuestClass::Tutorial,
+            index:       0,
+        },
+        quest::Active,
+        condition,
+    )
+}
+
+fn test_ui_action<C: Component + Default>(condition: C, event: quest::UiEvent) {
+    let mut app = create_test_app();
+    let quest_entity = app.world_mut().spawn(quest_with_condition(condition)).id();
+
+    assert!(app.world().entity(quest_entity).contains::<C>());
+
+    app.world_mut().write_message(event);
+    app.update();
+
+    assert!(!app.world().entity(quest_entity).contains::<C>());
 }
 
 #[test]
-fn test_ui_action_drag() {
-    let mut app = create_test_app();
-
-    let quest_entity = spawn_quest_with_condition(&mut app, UiActionDrag);
-
-    // Verify the condition exists
-    assert!(app.world().entity(quest_entity).contains::<UiActionDrag>());
-
-    // Send a camera dragged event
-    {
-        let mut state = SystemState::<bevy::ecs::message::MessageWriter<quest::UiEvent>>::new(app.world_mut());
-        let mut writer = state.get_mut(app.world_mut());
-        writer.write_batch(vec![quest::UiEvent::CameraDragged]);
-        state.apply(app.world_mut());
-    }
-
-    // Update the app to process the event
-    app.update();
-
-    // Verify the condition was removed
-    assert!(!app.world().entity(quest_entity).contains::<UiActionDrag>());
-}
+fn test_ui_action_drag() { test_ui_action(UiActionDrag, quest::UiEvent::CameraDragged); }
 
 #[test]
-fn test_ui_action_zoom() {
-    let mut app = create_test_app();
-
-    let quest_entity = spawn_quest_with_condition(&mut app, UiActionZoom);
-
-    // Verify the condition exists
-    assert!(app.world().entity(quest_entity).contains::<UiActionZoom>());
-
-    // Send a camera zoomed event
-    {
-        let mut state = SystemState::<bevy::ecs::message::MessageWriter<quest::UiEvent>>::new(app.world_mut());
-        let mut writer = state.get_mut(app.world_mut());
-        writer.write_batch(vec![quest::UiEvent::CameraZoomed]);
-        state.apply(app.world_mut());
-    }
-
-    // Update the app to process the event
-    app.update();
-
-    // Verify the condition was removed
-    assert!(!app.world().entity(quest_entity).contains::<UiActionZoom>());
-}
+fn test_ui_action_zoom() { test_ui_action(UiActionZoom, quest::UiEvent::CameraZoomed); }
 
 #[test]
-fn test_ui_action_rotate() {
-    let mut app = create_test_app();
-
-    let quest_entity = spawn_quest_with_condition(&mut app, UiActionRotate);
-
-    // Verify the condition exists
-    assert!(app.world().entity(quest_entity).contains::<UiActionRotate>());
-
-    // Send a camera rotated event
-    {
-        let mut state = SystemState::<bevy::ecs::message::MessageWriter<quest::UiEvent>>::new(app.world_mut());
-        let mut writer = state.get_mut(app.world_mut());
-        writer.write_batch(vec![quest::UiEvent::CameraRotated]);
-        state.apply(app.world_mut());
-    }
-
-    // Update the app to process the event
-    app.update();
-
-    // Verify the condition was removed
-    assert!(!app.world().entity(quest_entity).contains::<UiActionRotate>());
-}
+fn test_ui_action_rotate() { test_ui_action(UiActionRotate, quest::UiEvent::CameraRotated); }
 
 #[test]
 fn test_reach_altitude() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(
-        &mut app,
-        ReachAltitude {
+    let quest_entity = app
+        .world_mut()
+        .spawn(quest_with_condition(ReachAltitude {
             min: Position::from_amsl_feet(2000.0),
             max: Position::from_amsl_feet(4000.0),
-        },
-    );
+        }))
+        .id();
 
-    // Spawn an object outside the altitude range
     let object_entity = app
         .world_mut()
         .spawn(Object {
-            position: Position::from_origin_nm(0.0, 0.0)
+            position:     Position::from_origin_nm(0.0, 0.0)
                 .with_altitude(Position::from_amsl_feet(5000.0)),
             ground_speed: Speed::ZERO.horizontally(),
         })
@@ -137,20 +80,16 @@ fn test_reach_altitude() {
 
     app.update();
 
-    // Condition should still exist
-    assert!(app.world().entity(quest_entity).contains::<ReachAltitude>());
+    assert!(
+        app.world().entity(quest_entity).contains::<ReachAltitude>(),
+        "object is not within 2000ft..4000ft"
+    );
 
-    // Move object into the altitude range
-    app.world_mut()
-        .entity_mut(object_entity)
-        .get_mut::<Object>()
-        .unwrap()
-        .position = Position::from_origin_nm(0.0, 0.0)
-        .with_altitude(Position::from_amsl_feet(3000.0));
+    app.world_mut().entity_mut(object_entity).get_mut::<Object>().unwrap().position =
+        Position::from_origin_nm(0.0, 0.0).with_altitude(Position::from_amsl_feet(3000.0));
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<ReachAltitude>());
 }
 
@@ -158,41 +97,34 @@ fn test_reach_altitude() {
 fn test_reach_speed() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(
-        &mut app,
-        ReachSpeed {
+    let quest_entity = app
+        .world_mut()
+        .spawn(quest_with_condition(ReachSpeed {
             min: Speed::from_knots(150.0),
             max: Speed::from_knots(250.0),
-        },
-    );
+        }))
+        .id();
 
-    // Spawn an airborne object outside the speed range
     let object_entity = app
         .world_mut()
         .spawn(object::Airborne {
-            pressure_alt: Position::from_amsl_feet(3000.0),
-            pressure: math::ISA_SEA_LEVEL_PRESSURE,
-            oat: math::ISA_SEA_LEVEL_TEMPERATURE,
-            airspeed: (Speed::from_knots(100.0) * Heading::NORTH).horizontally(),
+            pressure_alt:  Position::from_amsl_feet(3000.0),
+            pressure:      math::ISA_SEA_LEVEL_PRESSURE,
+            oat:           math::ISA_SEA_LEVEL_TEMPERATURE,
+            airspeed:      (Speed::from_knots(100.0) * Heading::NORTH).horizontally(),
             true_airspeed: (Speed::from_knots(100.0) * Heading::NORTH).horizontally(),
         })
         .id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<ReachSpeed>());
 
-    // Change object speed to be within range
-    app.world_mut()
-        .entity_mut(object_entity)
-        .get_mut::<object::Airborne>()
-        .unwrap()
-        .airspeed = (Speed::from_knots(200.0) * Heading::NORTH).horizontally();
+    app.world_mut().entity_mut(object_entity).get_mut::<object::Airborne>().unwrap().airspeed =
+        (Speed::from_knots(200.0) * Heading::NORTH).horizontally();
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<ReachSpeed>());
 }
 
@@ -200,41 +132,37 @@ fn test_reach_speed() {
 fn test_reach_heading() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(
-        &mut app,
-        ReachHeading {
-            min: Heading::from_degrees(80.0),
-            max: Heading::from_degrees(100.0),
-        },
-    );
+    let quest_entity = app
+        .world_mut()
+        .spawn(quest_with_condition(ReachHeading {
+            min: Heading::from_degrees(350.0),
+            max: Heading::from_degrees(10.0),
+        }))
+        .id();
 
-    // Spawn an airborne object outside the heading range
     let object_entity = app
         .world_mut()
         .spawn(object::Airborne {
-            pressure_alt: Position::from_amsl_feet(3000.0),
-            pressure: math::ISA_SEA_LEVEL_PRESSURE,
-            oat: math::ISA_SEA_LEVEL_TEMPERATURE,
-            airspeed: (Speed::from_knots(200.0) * Heading::NORTH).horizontally(),
-            true_airspeed: (Speed::from_knots(200.0) * Heading::NORTH).horizontally(),
+            pressure_alt:  Position::from_amsl_feet(3000.0),
+            pressure:      math::ISA_SEA_LEVEL_PRESSURE,
+            oat:           math::ISA_SEA_LEVEL_TEMPERATURE,
+            airspeed:      (Speed::from_knots(200.0) * Heading::SOUTH).horizontally(),
+            true_airspeed: (Speed::from_knots(200.0) * Heading::SOUTH).horizontally(),
         })
         .id();
 
     app.update();
 
-    // Condition should still exist
-    assert!(app.world().entity(quest_entity).contains::<ReachHeading>());
+    assert!(
+        app.world().entity(quest_entity).contains::<ReachHeading>(),
+        "heading 180° is not within 350°..10°"
+    );
 
-    // Change object heading to be within range
-    app.world_mut()
-        .entity_mut(object_entity)
-        .get_mut::<object::Airborne>()
-        .unwrap()
-        .airspeed = (Speed::from_knots(200.0) * Heading::from_degrees(90.0)).horizontally();
+    app.world_mut().entity_mut(object_entity).get_mut::<object::Airborne>().unwrap().airspeed =
+        (Speed::from_knots(200.0) * Heading::NORTH).horizontally();
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<ReachHeading>());
 }
 
@@ -242,49 +170,34 @@ fn test_reach_heading() {
 fn test_reach_segment() {
     let mut app = create_test_app();
 
-    // Create a segment with a specific label
-    let segment_entity = app
-        .world_mut()
-        .spawn(SegmentLabel::Taxiway { name: "A".into() })
-        .id();
+    let [desired_segment, initial_segment] = ["A", "B"]
+        .map(|name| app.world_mut().spawn(SegmentLabel::Taxiway { name: name.into() }).id());
 
-    let quest_entity = spawn_quest_with_condition(
-        &mut app,
-        ReachSegment {
+    let quest_entity = app
+        .world_mut()
+        .spawn(quest_with_condition(ReachSegment {
             label: SegmentLabel::Taxiway { name: "A".into() },
-        },
-    );
-
-    // Spawn an object on a different segment
-    let other_segment = app
-        .world_mut()
-        .spawn(SegmentLabel::Taxiway { name: "B".into() })
+        }))
         .id();
 
     let object_entity = app
         .world_mut()
         .spawn(object::OnGround {
-            segment: other_segment,
-            direction: ground::SegmentDirection::AlphaToBeta,
+            segment:      initial_segment,
+            direction:    ground::SegmentDirection::AlphaToBeta,
             target_speed: object::OnGroundTargetSpeed::Exact(Speed::ZERO),
         })
         .id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<ReachSegment>());
 
-    // Move object to the target segment
-    app.world_mut()
-        .entity_mut(object_entity)
-        .get_mut::<object::OnGround>()
-        .unwrap()
-        .segment = segment_entity;
+    app.world_mut().entity_mut(object_entity).get_mut::<object::OnGround>().unwrap().segment =
+        desired_segment;
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<ReachSegment>());
 }
 
@@ -292,106 +205,79 @@ fn test_reach_segment() {
 fn test_instr_action_direct_waypoint() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, InstrActionDirectWaypoint);
+    let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionDirectWaypoint)).id();
 
-    // Create a waypoint
     let waypoint_entity = app.world_mut().spawn_empty().id();
 
-    // Spawn an instruction entity with SetWaypoint instruction
-    app.world_mut().spawn(Instruction::SetWaypoint(instr::SetWaypoint {
-        waypoint: waypoint_entity,
-    }));
+    app.world_mut()
+        .spawn(Instruction::SetWaypoint(instr::SetWaypoint { waypoint: waypoint_entity }));
 
     app.update();
 
-    // Condition should be removed
-    assert!(!app
-        .world()
-        .entity(quest_entity)
-        .contains::<InstrActionDirectWaypoint>());
+    assert!(!app.world().entity(quest_entity).contains::<InstrActionDirectWaypoint>());
 }
 
 #[test]
 fn test_instr_action_clear_lineup() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, InstrActionClearLineUp);
+    let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionClearLineUp)).id();
 
-    // Spawn an instruction entity with RemoveStandby instruction
-    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby {
-        preset_id: None,
-    }));
+    // TODO: This will be better tested when we have explicit standby removal instructions
+    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { preset_id: None }));
 
     app.update();
 
-    // Condition should be removed
-    assert!(!app
-        .world()
-        .entity(quest_entity)
-        .contains::<InstrActionClearLineUp>());
+    assert!(!app.world().entity(quest_entity).contains::<InstrActionClearLineUp>());
 }
 
 #[test]
 fn test_instr_action_clear_takeoff() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, InstrActionClearTakeoff);
+    let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionClearTakeoff)).id();
 
-    // Spawn an instruction entity with RemoveStandby instruction
-    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby {
-        preset_id: None,
-    }));
+    // TODO: This will be better tested when we have explicit standby removal instructions
+    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { preset_id: None }));
 
     app.update();
 
-    // Condition should be removed
-    assert!(!app
-        .world()
-        .entity(quest_entity)
-        .contains::<InstrActionClearTakeoff>());
+    assert!(!app.world().entity(quest_entity).contains::<InstrActionClearTakeoff>());
 }
 
 #[test]
 fn test_instr_action_follow_route() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, InstrActionFollowRoute);
+    let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionFollowRoute)).id();
 
-    // Spawn an instruction entity with SelectRoute instruction
     app.world_mut().spawn(Instruction::SelectRoute(instr::SelectRoute {
-        preset: crate::level::route::Preset {
-            id: "test-route".into(),
+        preset: route::Preset {
+            id:    "test-route".into(),
             title: "Test Route".into(),
-            nodes: vec![],
+            nodes: Vec::new(),
         },
     }));
 
     app.update();
 
-    // Condition should be removed
-    assert!(!app
-        .world()
-        .entity(quest_entity)
-        .contains::<InstrActionFollowRoute>());
+    assert!(!app.world().entity(quest_entity).contains::<InstrActionFollowRoute>());
 }
 
 #[test]
 fn test_min_landing() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MinLanding { landings: 3 });
+    let quest_entity = app.world_mut().spawn(quest_with_condition(MinLanding { landings: 3 })).id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<MinLanding>());
 
-    // Update the stats to reach the minimum
     app.world_mut().resource_mut::<Stats>().num_runway_arrivals = 3;
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<MinLanding>());
 }
 
@@ -399,19 +285,16 @@ fn test_min_landing() {
 fn test_min_parking() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MinParking { parkings: 5 });
+    let quest_entity = app.world_mut().spawn(quest_with_condition(MinParking { parkings: 5 })).id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<MinParking>());
 
-    // Update the stats to reach the minimum
     app.world_mut().resource_mut::<Stats>().num_apron_arrivals = 5;
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<MinParking>());
 }
 
@@ -419,19 +302,17 @@ fn test_min_parking() {
 fn test_min_departure() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MinDeparture { departures: 2 });
+    let quest_entity =
+        app.world_mut().spawn(quest_with_condition(MinDeparture { departures: 2 })).id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<MinDeparture>());
 
-    // Update the stats to reach the minimum
     app.world_mut().resource_mut::<Stats>().num_departures = 2;
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<MinDeparture>());
 }
 
@@ -439,19 +320,17 @@ fn test_min_departure() {
 fn test_min_score() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MinScore { score: Score(1000) });
+    let quest_entity =
+        app.world_mut().spawn(quest_with_condition(MinScore { score: Score(1000) })).id();
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<MinScore>());
 
-    // Update the stats to reach the minimum score
     app.world_mut().resource_mut::<Stats>().total = Score(1000);
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<MinScore>());
 }
 
@@ -459,12 +338,11 @@ fn test_min_score() {
 fn test_max_conflicts() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MaxConflicts { conflicts: 2 });
+    let quest_entity =
+        app.world_mut().spawn(quest_with_condition(MaxConflicts { conflicts: 2 })).id();
 
-    // Initially there are no conflicts, so the condition should complete
     app.update();
 
-    // Condition should be removed immediately since conflicts are 0
     assert!(!app.world().entity(quest_entity).contains::<MaxConflicts>());
 }
 
@@ -472,14 +350,13 @@ fn test_max_conflicts() {
 fn test_max_conflicts_fails() {
     let mut app = create_test_app();
 
-    // Set initial conflicts above the max
     app.world_mut().resource_mut::<Stats>().num_conflicts = 5;
 
-    let quest_entity = spawn_quest_with_condition(&mut app, MaxConflicts { conflicts: 2 });
+    let quest_entity =
+        app.world_mut().spawn(quest_with_condition(MaxConflicts { conflicts: 2 })).id();
 
     app.update();
 
-    // Condition should still exist because we have too many conflicts
     assert!(app.world().entity(quest_entity).contains::<MaxConflicts>());
 }
 
@@ -487,35 +364,24 @@ fn test_max_conflicts_fails() {
 fn test_time_elapsed() {
     let mut app = create_test_app();
 
-    let quest_entity = spawn_quest_with_condition(
-        &mut app,
-        TimeElapsed {
-            time: Duration::from_secs(10),
-        },
-    );
+    let quest_entity = app
+        .world_mut()
+        .spawn(quest_with_condition(TimeElapsed { time: Duration::from_secs(10) }))
+        .id();
 
     app.update();
 
-    // Condition should still exist (no time has passed)
     assert!(app.world().entity(quest_entity).contains::<TimeElapsed>());
 
-    // Advance time by 5 seconds (not enough)
-    app.world_mut()
-        .resource_mut::<Time<time::Virtual>>()
-        .advance_by(Duration::from_secs(5));
+    app.world_mut().resource_mut::<Time<time::Virtual>>().advance_by(Duration::from_secs(5));
 
     app.update();
 
-    // Condition should still exist
     assert!(app.world().entity(quest_entity).contains::<TimeElapsed>());
 
-    // Advance time by another 5 seconds (total 10 seconds)
-    app.world_mut()
-        .resource_mut::<Time<time::Virtual>>()
-        .advance_by(Duration::from_secs(5));
+    app.world_mut().resource_mut::<Time<time::Virtual>>().advance_by(Duration::from_secs(5));
 
     app.update();
 
-    // Condition should be removed
     assert!(!app.world().entity(quest_entity).contains::<TimeElapsed>());
 }

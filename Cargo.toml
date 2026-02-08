@@ -20,7 +20,7 @@ omniatc-store = { version = "*", path = "omniatc-store" }
 serde = "1.0.217"
 
 [workspace.dependencies.bevy]
-version = "0.17.3"
+version = "0.18.0"
 default-features = false
 features = [
 	"bevy_log",

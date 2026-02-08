@@ -1,6 +1,5 @@
 use std::cmp;
 use std::f32::consts::PI;
-use std::time::{Duration, SystemTime};
 
 use bevy::app::{self, App, Plugin};
 use bevy::camera::{Camera, Camera2d, ClearColor, Viewport};
@@ -17,13 +16,13 @@ use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
 use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
+use jiff::{SignedDuration, Timestamp};
 use math::{Angle, Length};
 use omniatc::level::quest;
 use omniatc::{QueryTryLog, load};
 use serde::{Deserialize, Serialize};
 
 use crate::render::tutorial_popup;
-use crate::util::time_now;
 use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input, util};
 
 pub struct Plug;
@@ -182,10 +181,9 @@ fn fit_layout_system(
     }
 
     if request_highlight.is_some() {
-        const PERIOD: Duration = Duration::from_secs(3);
+        const PERIOD: SignedDuration = SignedDuration::from_secs(3);
         let millis =
-            time_now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis()
-                % PERIOD.as_millis();
+            Timestamp::now().duration_since(Timestamp::UNIX_EPOCH).as_millis() % PERIOD.as_millis();
         #[expect(clippy::cast_precision_loss, reason = "PERIOD restricts millis to a small value")]
         let fract = millis as f32 / PERIOD.as_millis() as f32;
         let phase = ((fract * PI).sin() + 1.0) * 0.5;

@@ -15,7 +15,7 @@ Yet another ATC simulator.
 - Compile from source
   1. Install [rust toolchain] (https://rustup.rs)
   2. Clone this repository
-  3. `cargo run -p omniatc-maps` to generate builtin maps
+  3. `cargo run -p omniatc-maps build-assets` to generate builtin maps
   4. `cargo run --release -p omniatc-client` to run the game (remove `--release` to disable optimizations for faster compile time)
 
 ## ~~TODOs~~ ~~Planned features~~ ~~Wishlist~~ Vaporwares

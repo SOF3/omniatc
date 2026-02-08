@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
-use std::time::SystemTime;
 
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::system::{Commands, NonSend, ResMut};
+use jiff::Timestamp;
 use omniatc::load;
 use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 use serde::{Deserialize, Serialize};
@@ -27,15 +27,15 @@ pub type StorageImpl = fs::Impl;
 pub struct ScenarioMeta {
     id:      String,
     title:   String,
-    created: SystemTime,
+    created: Timestamp,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LevelMeta {
     id:       String,
     title:    String,
-    created:  SystemTime,
-    modified: SystemTime,
+    created:  Timestamp,
+    modified: Timestamp,
 }
 
 pub trait Storage: Default + 'static {

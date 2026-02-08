@@ -39,6 +39,7 @@ smallvec = "1.15.1"
 clap = { version = "4.5.57", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["into"] }
 egui_material_icons = "0.5.0"
+jiff = { version = "0.2.19", features = ["js", "logging", "serde"] }
 
 [dependencies.bevy]
 workspace = true
@@ -83,4 +84,4 @@ wasm-bindgen = "0.2.108"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+rusqlite = { version = "0.38.0", features = ["bundled"] }

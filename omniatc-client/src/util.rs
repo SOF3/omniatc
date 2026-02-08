@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Single, SystemParam};
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
@@ -19,14 +17,6 @@ macro_rules! new_type_id {
     }};
 }
 pub(crate) use new_type_id;
-
-#[cfg(target_family = "wasm")]
-pub fn time_now() -> SystemTime {
-    SystemTime::UNIX_EPOCH + std::time::Duration::from_secs_f64(js_sys::Date::now() * 1e-3)
-}
-
-#[cfg(not(target_family = "wasm"))]
-pub fn time_now() -> SystemTime { SystemTime::now() }
 
 pub fn heading_to_approx_name(heading: Heading) -> &'static str {
     let dirs = [

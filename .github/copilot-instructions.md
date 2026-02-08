@@ -34,12 +34,9 @@
 3. `cargo test --all`
    - Completed successfully (took ~3 minutes on first run).
 
-**Assets + schema (used by CI build):**
+**Map generation:**
 - `cargo run -p omniatc-maps build-assets`
-  - Writes `assets/maps/example.osav` (gitignored).
-- `mkdir -p schema && cargo run -p omniatc-maps json-schema schema/schema.json.gz`
-  - Writes `schema/schema.json.gz` for the build workflow; default output is `assets/schema.json.gz` if you omit the path.
-  - `schema/` is not gitignored, so clean it up after local runs.
+  - Creates `assets/maps/*.osav` (gitignored).
 
 **Desktop client run:**
 - `cargo run -p omniatc-client`

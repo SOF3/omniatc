@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
+use jiff::{SignedDuration, Timestamp};
 
 use super::{LevelMeta, ScenarioMeta};
 
@@ -101,7 +101,7 @@ impl super::Storage for Impl {
                     Ok(ScenarioMeta {
                         id:      row.get(0)?,
                         title:   row.get(1)?,
-                        created: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
+                        created: Timestamp::UNIX_EPOCH + SignedDuration::from_millis(row.get(2)?),
                     })
                 })
                 .context("query scenario list")?;
@@ -141,13 +141,8 @@ impl super::Storage for Impl {
                 (
                     &meta.id,
                     &meta.title,
-                    u64::try_from(
-                        meta.created
-                            .duration_since(SystemTime::UNIX_EPOCH)
-                            .expect("system time is too old")
-                            .as_millis(),
-                    )
-                    .expect("system time is too late"),
+                    i64::try_from(meta.created.duration_since(Timestamp::UNIX_EPOCH).as_millis())
+                        .expect("system time is too late"),
                     data,
                 ),
             )
@@ -181,14 +176,19 @@ impl super::Storage for Impl {
                 )
                 .context("prepare level list statement")?;
             let levels = stmt
-                .query_map((limit,), |row| {
-                    Ok(LevelMeta {
-                        id:       row.get(0)?,
-                        title:    row.get(1)?,
-                        created:  SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(2)?),
-                        modified: SystemTime::UNIX_EPOCH + Duration::from_millis(row.get(3)?),
-                    })
-                })
+                .query_map(
+                    (i64::try_from(limit).context("attempt to read too many levels")?,),
+                    |row| {
+                        Ok(LevelMeta {
+                            id:       row.get(0)?,
+                            title:    row.get(1)?,
+                            created:  Timestamp::UNIX_EPOCH
+                                + SignedDuration::from_millis(row.get(2)?),
+                            modified: Timestamp::UNIX_EPOCH
+                                + SignedDuration::from_millis(row.get(3)?),
+                        })
+                    },
+                )
                 .context("query level list")?;
             levels
                 .map(|result| result.context("convert level row"))

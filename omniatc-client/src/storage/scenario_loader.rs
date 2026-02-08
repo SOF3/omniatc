@@ -8,11 +8,11 @@ use bevy::ecs::system::{Command, Commands, NonSend, Res, ResMut};
 use bevy::ecs::world::World;
 use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
+use jiff::Timestamp;
 use omniatc::load;
 use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
 
 use super::{ScenarioMeta, Storage};
-use crate::util;
 
 #[derive(Asset, TypePath)]
 pub struct ScenarioAsset {
@@ -87,7 +87,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
             ScenarioMeta {
                 id:      file.meta.id.clone(),
                 title:   file.meta.title.clone(),
-                created: util::time_now(),
+                created: Timestamp::now(),
             },
             bytes,
             file.meta.tags.clone(),

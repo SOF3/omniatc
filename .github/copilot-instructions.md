@@ -4,7 +4,7 @@
 - **Purpose**: omniatc is a Rust-based air-traffic-control simulator with a Bevy + egui client, reusable simulation core, math helpers, and CLI tooling for map assets.
 - **Project type**: Rust workspace (edition 2024, rust-version 1.89) targeting native desktop and WebAssembly.
 - **Primary runtimes**: Rust stable for builds/tests; nightly only for `cargo fmt` because `rustfmt.toml` enables unstable formatting options.
-- **Key dependencies**: Bevy 0.17.x, egui/bevy_egui, serde, schemars, and Trunk for the web build.
+- **Key dependencies**: Bevy, egui/bevy_egui, and Trunk for the web build.
 
 ## Project layout (high-level)
 - `Cargo.toml` (workspace members: `omniatc-client`, `omniatc-core`, `omniatc-maps`, `omniatc-math`, `omniatc-store`).

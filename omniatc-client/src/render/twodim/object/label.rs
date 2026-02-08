@@ -102,9 +102,9 @@ impl TextStyler<'_, '_, '_> {
 
 #[derive(Bundle)]
 struct SpanBundle {
-    span:    TextSpan,
-    color:   TextColor,
-    _marker: Span,
+    span:   TextSpan,
+    color:  TextColor,
+    marker: Span,
 }
 
 impl Drop for TextStyler<'_, '_, '_> {
@@ -125,9 +125,9 @@ impl<'s> WriterScope<'_, 's, '_, '_> {
         } else {
             TextStyler::NewBundle {
                 bundle:   Some(SpanBundle {
-                    span:    TextSpan::new(text),
-                    color:   TextColor::default(),
-                    _marker: Span,
+                    span:   TextSpan::new(text),
+                    color:  TextColor::default(),
+                    marker: Span,
                 }),
                 commands: self.commands.entity(self.parent_entity),
             }

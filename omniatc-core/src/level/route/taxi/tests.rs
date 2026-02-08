@@ -3,6 +3,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use math::{Length, Position, Speed};
 
+use crate::level::aerodrome::Aerodrome;
 use crate::level::ground;
 use crate::level::route::{PathfindMode, PathfindOptions, SubseqItem, pathfind_through_subseq};
 
@@ -33,6 +34,15 @@ const ELEVATION: Position<f32> = Position::SEA_LEVEL;
 ///
 /// `BAXY` is wide and fast, `BCZY` is narrow and slow.
 fn prepare_world(world: &mut World) -> Prepared {
+    let aerodrome = world
+        .spawn(Aerodrome {
+            id:        0,
+            code:      "TEST".into(),
+            name:      "Test Aerodrome".into(),
+            elevation: ELEVATION,
+        })
+        .id();
+
     let mut commands = world.commands();
 
     let mut endpoints = PreparedEndpoints {
@@ -58,10 +68,7 @@ fn prepare_world(world: &mut World) -> Prepared {
     ] {
         *id = commands
             .spawn_empty()
-            .queue(ground::SpawnEndpoint {
-                position:  Position::from_origin_nm(x, y),
-                aerodrome: Entity::PLACEHOLDER,
-            })
+            .queue(ground::SpawnEndpoint { position: Position::from_origin_nm(x, y), aerodrome })
             .id();
     }
 
@@ -90,15 +97,9 @@ fn prepare_world(world: &mut World) -> Prepared {
         *id = commands
             .spawn_empty()
             .queue(ground::SpawnSegment {
-                segment:       ground::Segment {
-                    alpha,
-                    beta,
-                    width,
-                    max_speed,
-                    elevation: ELEVATION,
-                },
-                label:         ground::SegmentLabel::Taxiway { name: name.into() },
-                aerodrome:     Entity::PLACEHOLDER,
+                segment: ground::Segment { alpha, beta, width, max_speed, elevation: ELEVATION },
+                label: ground::SegmentLabel::Taxiway { name: name.into() },
+                aerodrome,
                 display_label: false,
             })
             .id();

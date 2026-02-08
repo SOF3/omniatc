@@ -20,7 +20,7 @@ pub struct ScenarioAsset {
     file:      store::File,
 }
 
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct ScenarioAssetLoader;
 
 impl AssetLoader for ScenarioAssetLoader {

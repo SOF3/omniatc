@@ -1,60 +1,10 @@
 use std::time::Duration;
 
 use bevy_math::Vec2;
-use math::{Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, Length, Position, Speed};
+use math::{Accel, Angle, AngularSpeed, Heading, Length, Position, Speed};
 use store::{Score, WaypointProximity, WeightedList};
 
-pub fn a359_taxi_limits() -> store::TaxiLimits {
-    store::TaxiLimits {
-        base_braking: Accel::from_knots_per_sec(3.0),
-        accel:        Accel::from_knots_per_sec(5.0),
-        max_speed:    Speed::from_knots(100.0),
-        min_speed:    Speed::from_knots(-4.0),
-        turn_rate:    AngularSpeed::from_degrees_per_sec(8.0),
-        width:        Length::from_meters(50.0),
-        half_length:  Length::from_meters(70.0),
-    }
-}
-
-pub fn a359_nav_limits() -> store::NavLimits {
-    store::NavLimits {
-        min_horiz_speed:   Speed::from_knots(120.),
-        max_yaw_speed:     AngularSpeed::from_degrees_per_sec(3.),
-        max_vert_accel:    Accel::from_fpm_per_sec(200.),
-        exp_climb:         store::ClimbProfile {
-            vert_rate: Speed::from_fpm(3000.),
-            accel:     Accel::from_knots_per_sec(0.2),
-            decel:     Accel::from_knots_per_sec(-1.8),
-        },
-        std_climb:         store::ClimbProfile {
-            vert_rate: Speed::from_fpm(1500.),
-            accel:     Accel::from_knots_per_sec(0.6),
-            decel:     Accel::from_knots_per_sec(-1.4),
-        },
-        level:             store::ClimbProfile {
-            vert_rate: Speed::from_fpm(0.),
-            accel:     Accel::from_knots_per_sec(1.),
-            decel:     Accel::from_knots_per_sec(-1.),
-        },
-        std_descent:       store::ClimbProfile {
-            vert_rate: Speed::from_fpm(-1500.),
-            accel:     Accel::from_knots_per_sec(1.4),
-            decel:     Accel::from_knots_per_sec(-0.6),
-        },
-        exp_descent:       store::ClimbProfile {
-            vert_rate: Speed::from_fpm(-3000.),
-            accel:     Accel::from_knots_per_sec(1.8),
-            decel:     Accel::from_knots_per_sec(-0.2),
-        },
-        weight:            1e5,
-        accel_change_rate: AccelRate::from_knots_per_sec2(0.3),
-        drag_coef:         3. / 500. / 500.,
-        max_yaw_accel:     AngularAccel::from_degrees_per_sec2(1.),
-        takeoff_speed:     Speed::from_knots(150.),
-        short_final_dist:  Length::from_nm(4.),
-        short_final_speed: Speed::from_knots(150.),
-    }
-}
+use crate::common_types;
 
 fn route_retry_18r() -> Vec<store::RouteNode> {
     [
@@ -406,6 +356,7 @@ fn rapid_exit_taxiways() -> impl Iterator<Item = store::Taxiway> {
 }
 
 /// A simple map featuring different mechanisms for testing.
+#[must_use]
 pub fn file() -> store::File {
     store::File {
         meta:  store::Meta {
@@ -448,8 +399,8 @@ pub fn file() -> store::File {
                 "A359",
                 store::ObjectType {
                     full_name:   "Airbus A350-900".into(),
-                    taxi_limits: a359_taxi_limits(),
-                    class:       store::ObjectClassSpec::Plane { nav_limits: a359_nav_limits() },
+                    taxi_limits: common_types::a359_taxi_limits(),
+                    class:       store::ObjectClassSpec::Plane { nav_limits: common_types::a359_nav_limits() },
                 },
             )]
             .into_iter()
@@ -930,8 +881,8 @@ pub fn file() -> store::File {
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(280.),
@@ -964,8 +915,8 @@ pub fn file() -> store::File {
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(280.),
@@ -998,8 +949,8 @@ pub fn file() -> store::File {
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
                     horiz_speed:      Speed::from_knots(220.),
@@ -1034,12 +985,12 @@ pub fn file() -> store::File {
                 },
                 control:     store::PlaneControl {
                     heading:     Heading::EAST,
-                    yaw_speed:   a359_nav_limits().max_yaw_speed,
+                    yaw_speed:   common_types::a359_nav_limits().max_yaw_speed,
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::NORTH),
                     horiz_speed:      Speed::from_knots(250.),
@@ -1074,8 +1025,8 @@ pub fn file() -> store::File {
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Ground(store::GroundNavTarget {
                     segment: store::SegmentRef {
                         aerodrome: "MAIN".into(),
@@ -1111,8 +1062,8 @@ pub fn file() -> store::File {
                     horiz_accel: Accel::ZERO,
                 },
                 object_type: store::ObjectTypeRef("A359".into()),
-                taxi_limits: a359_taxi_limits(),
-                nav_limits:  a359_nav_limits(),
+                taxi_limits: common_types::a359_taxi_limits(),
+                nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Ground(store::GroundNavTarget {
                     segment: store::SegmentRef {
                         aerodrome: "MAIN".into(),

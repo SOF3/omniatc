@@ -211,7 +211,7 @@ fn write_route_node(
             if ui.button("Clearance for next step").clicked() {
                 params
                     .commands
-                    .send_instruction(entity, instr::RemoveStandby { preset_id: node.preset_id });
+                    .send_instruction(entity, instr::RemoveStandby { skip_id: node.skip_id });
             }
         }
         route::Node::DirectWaypoint(node) => {

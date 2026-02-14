@@ -34,6 +34,7 @@ fn update_system(conf: ReadConfig<Conf>, object_query: Query<(&mut ColorTheme, U
 
     for (mut theme, data) in object_query {
         theme.body = select_color(&conf.plane.color_scheme, &data);
+        theme.label = select_color(&conf.plane.label_color_scheme, &data);
         theme.ring = select_color(&conf.separation_ring.color_scheme, &data);
         theme.vector = select_color(&conf.vector.color_scheme, &data);
     }

@@ -598,6 +598,7 @@ pub struct AssertApproxError<Q, D> {
 
 impl<Q: fmt::Debug, D: fmt::Debug> fmt::Debug for AssertApproxError<Q, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[expect(dead_code, reason = "deliberately used for the Debug impl")]
         #[derive(Debug)]
         struct Assertion<Q, D> {
             actual:  Q,

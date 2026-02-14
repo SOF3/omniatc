@@ -43,7 +43,7 @@ fn test_barometric_isa_fl100() {
             ISA_SEA_LEVEL_TEMPERATURE,
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(264361.0),
+            pressure:          Pressure::from_pascals(69681.7),
             pressure_altitude: Position::from_amsl_feet(10000.0),
             temperature:       Temp::from_celsius(-4.8),
             tas_for_200_kias:  Speed::from_knots(232.7),
@@ -60,7 +60,7 @@ fn test_barometric_isa_fl430() {
             ISA_SEA_LEVEL_TEMPERATURE,
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(19115.0),
+            pressure:          Pressure::from_pascals(16235.7),
             pressure_altitude: Position::from_amsl_feet(43000.0),
             temperature:       Temp::from_celsius(-56.5),
             tas_for_200_kias:  Speed::from_knots(433.2),
@@ -77,9 +77,9 @@ fn test_barometric_low_pressure() {
             ISA_SEA_LEVEL_TEMPERATURE,
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(257634.0),
+            pressure:          Pressure::from_pascals(67395.0),
             // low pressure => pressure altitude is higher than true altitude
-            pressure_altitude: Position::from_amsl_feet(10876.0),
+            pressure_altitude: Position::from_amsl_feet(10857.1),
             temperature:       Temp::from_celsius(-4.8),
             tas_for_200_kias:  Speed::from_knots(236.6),
         },
@@ -95,9 +95,9 @@ fn test_barometric_high_pressure() {
             ISA_SEA_LEVEL_TEMPERATURE,
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(271089.0),
+            pressure:          Pressure::from_pascals(70833.6),
             // high pressure => pressure altitude is lower than true altitude
-            pressure_altitude: Position::from_amsl_feet(9123.0),
+            pressure_altitude: Position::from_amsl_feet(9576.8),
             temperature:       Temp::from_celsius(-4.8),
             tas_for_200_kias:  Speed::from_knots(230.8),
         },
@@ -113,8 +113,8 @@ fn test_barometric_low_temp() {
             Temp::from_celsius(5.0),
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(271089.0),
-            pressure_altitude: Position::from_amsl_feet(9123.0),
+            pressure:          Pressure::from_pascals(68715.0),
+            pressure_altitude: Position::from_amsl_feet(10359.5),
             temperature:       Temp::from_celsius(-14.8),
             // lower temperature => higher air density => lower TAS
             tas_for_200_kias:  Speed::from_knots(230.0),
@@ -131,8 +131,8 @@ fn test_barometric_high_temp() {
             Temp::from_celsius(25.0),
         ),
         AssertBarometrics {
-            pressure:          Pressure::from_pascals(271089.0),
-            pressure_altitude: Position::from_amsl_feet(9123.0),
+            pressure:          Pressure::from_pascals(70593.4),
+            pressure_altitude: Position::from_amsl_feet(9664.6),
             temperature:       Temp::from_celsius(5.2),
             // higher temperature => lower air density => higher TAS
             tas_for_200_kias:  Speed::from_knots(235.5),
@@ -148,8 +148,8 @@ struct AssertBarometrics {
 }
 
 fn assert_barometric(actual: Barometrics, expect: AssertBarometrics) {
-    actual.pressure.assert_approx(actual.pressure, Pressure::from_pascals(1.0)).unwrap();
-    actual.pressure_altitude.assert_near(actual.pressure_altitude, Length::from_feet(1.0)).unwrap();
+    actual.pressure.assert_approx(expect.pressure, Pressure::from_pascals(1.0)).unwrap();
+    actual.pressure_altitude.assert_near(expect.pressure_altitude, Length::from_feet(1.0)).unwrap();
     actual.temp.assert_approx(expect.temperature, TempDelta::from_kelvins(0.1)).unwrap();
     actual
         .true_airspeed(Speed::from_knots(200.0))

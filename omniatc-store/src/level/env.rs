@@ -129,7 +129,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
         match (major, minor) {
             (0.0..=1.0, 0.0..=1.0) => {
                 let major_index = major * f32::from(self.major_length - 1);
-                #[allow(
+                #[expect(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
                     reason = "major_index is positive"
@@ -140,7 +140,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
                     (major_index_floor + 1).min(usize::from(self.major_length - 1));
 
                 let minor_index = minor * f32::from(self.minor_length_u16() - 1);
-                #[allow(
+                #[expect(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
                     reason = "major_index is positive"
@@ -162,7 +162,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
             }
             (0.0..=1.0, _) => {
                 let major_index = major * f32::from(self.major_length - 1);
-                #[allow(
+                #[expect(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
                     reason = "major_index is positive"
@@ -180,7 +180,7 @@ impl<Datum> AlignedHeatMap2<Datum> {
             }
             (_, 0.0..=1.0) => {
                 let minor_index = minor * f32::from(self.minor_length_u16() - 1);
-                #[allow(
+                #[expect(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
                     reason = "major_index is positive"

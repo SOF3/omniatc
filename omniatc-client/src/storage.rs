@@ -41,10 +41,12 @@ pub struct LevelMeta {
 pub trait Storage: Default + 'static {
     type Error: fmt::Debug + Send + Sync + 'static;
 
+    #[expect(dead_code, reason = "TODO implement save management")]
     fn list_scenarios_by_tag(
         &self,
         tag_key: String,
     ) -> impl Future<Output = anyhow::Result<Vec<ScenarioMeta>>> + 'static;
+    #[expect(dead_code, reason = "TODO implement save management")]
     fn load_scenario(
         &self,
         key: String,

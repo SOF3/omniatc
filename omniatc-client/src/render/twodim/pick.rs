@@ -111,7 +111,6 @@ enum PickRouteKey {
 pub(super) struct DetermineMode<'w, 's> {
     current_cursor_camera: Res<'w, input::CursorState>,
     camera_query:          Query<'w, 's, &'static GlobalTransform, With<Camera2d>>,
-    margins:               Res<'w, EguiUsedMargins>,
     prev_pick_key:         Local<'s, PickRouteKey>,
     hotkeys:               Res<'w, input::Hotkeys>,
 }
@@ -305,13 +304,12 @@ impl SetNavTargetParams<'_, '_> {
 
 #[derive(SystemParam)]
 struct ProposeParams<'w, 's> {
-    commands:         Commands<'w, 's>,
-    margins:          Res<'w, EguiUsedMargins>,
-    buttons:          Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
-    selected_segment: Local<'s, Option<Entity>>,
-    endpoint_query:   Query<'w, 's, &'static ground::Endpoint>,
-    segment_query:    Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
-    object_query:     Query<'w, 's, &'static taxi::Limits>,
+    commands:       Commands<'w, 's>,
+    margins:        Res<'w, EguiUsedMargins>,
+    buttons:        Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
+    endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
+    segment_query:  Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
+    object_query:   Query<'w, 's, &'static taxi::Limits>,
 }
 
 impl ProposeParams<'_, '_> {

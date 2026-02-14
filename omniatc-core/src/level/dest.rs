@@ -121,7 +121,6 @@ struct CompletionParams<'w, 's> {
         's,
         (&'static ground::Segment, &'static ground::SegmentLabel, &'static ground::SegmentOf),
     >,
-    endpoint_query:  Query<'w, 's, &'static ground::Endpoint>,
     aerodrome_query: Query<'w, 's, &'static runway::AerodromeRunways>,
     runway_query:    Query<'w, 's, (&'static Waypoint, &'static Runway)>,
 }

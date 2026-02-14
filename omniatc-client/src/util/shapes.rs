@@ -37,18 +37,22 @@ impl Meshes {
         store.circle = Some(meshes.add(Circle::new(1.)));
     }
 
+    #[must_use]
     pub fn square(&self) -> &Handle<Mesh> {
         self.square.as_ref().expect("initialized during startup")
     }
 
+    #[must_use]
     pub fn circle(&self) -> &Handle<Mesh> {
         self.circle.as_ref().expect("initialized during startup")
     }
 
+    #[must_use]
     pub fn line(&self, thickness: f32, zorder: Zorder) -> impl Bundle {
         (Mesh2d(self.square().clone()), square_line_transform(zorder), MaintainThickness(thickness))
     }
 
+    #[must_use]
     pub fn line_from_to(
         &self,
         thickness: f32,

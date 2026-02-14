@@ -318,19 +318,19 @@ impl Kind for ClearRoute {
 }
 
 pub struct RemoveStandby {
-    pub preset_id: Option<NonZero<u32>>,
+    pub skip_id: Option<NonZero<u32>>,
 }
 
 impl Kind for RemoveStandby {
     fn process(&self, entity: &mut EntityCommands) {
-        entity.queue(route::RemoveStandby { preset_id: self.preset_id });
+        entity.queue(route::RemoveStandby { skip_id: self.skip_id });
     }
 
     fn format_message(&self, world: &World, object: Entity) -> String {
         let Some(route) = world.log_get::<route::Route>(object) else { return String::new() };
         for (standby, next) in route.iter().tuple_windows() {
             let route::Node::Standby(node) = standby else { continue };
-            if node.preset_id != self.preset_id {
+            if node.skip_id != self.skip_id {
                 continue;
             }
 

@@ -20,7 +20,10 @@ macro_rules! try_log {
         or $never:expr
     ) => {
         {
-            #[allow(clippy::question_mark)]
+            #[allow(
+                clippy::allow_attributes, clippy::question_mark,
+                reason = "potentially generalizes Option and Result in generated code"
+            )]
             if let Some(value) = $crate::TryLog::convert_or_log(
                 $expr,
                 format_args!($must, $($($must_args),*)?),

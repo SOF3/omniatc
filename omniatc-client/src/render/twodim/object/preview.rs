@@ -611,8 +611,8 @@ impl DrawPresets<'_, '_> {
         let Ok(presets) = self.waypoint_presets_query.get(waypoint) else { return };
         let mut viewables = self.viewable_query.iter_mut();
 
-        for preset_id in presets.iter() {
-            let Some(preset) = self.preset_query.log_get(preset_id) else { continue };
+        for preset_entity in presets.iter() {
+            let Some(preset) = self.preset_query.log_get(preset_entity) else { continue };
             self.draw_once.draw_route::<PresetViewable>(
                 preset.nodes.iter(),
                 material,

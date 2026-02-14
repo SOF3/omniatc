@@ -85,7 +85,7 @@ impl Plugin for Plug {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct RemovalSystemSet;
 
-#[expect(non_snake_case)]
+#[expect(non_snake_case, reason = "generated fields in decl_counter only used for derive")]
 mod all {
     use bevy::ecs::bundle::Bundle;
     use bevy::ecs::query::{Has, QueryData};
@@ -99,7 +99,7 @@ mod all {
                 /// The result may be latent if
                 /// commands from condition completion systems have not been flushed yet.
                 #[derive(QueryData)]
-                #[expect(clippy::struct_field_names)]
+                #[expect(clippy::struct_field_names, reason = "generated fields in decl_counter only used for derive")]
                 pub struct Counter {
                     $(
                         [<has_ $presence>]: Has<super::$presence>,

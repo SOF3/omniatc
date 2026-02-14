@@ -62,29 +62,36 @@ pub enum Zorder {
 
 impl Zorder {
     #[expect(clippy::cast_precision_loss, reason = "the number of variants is small")]
+    #[must_use]
     pub fn into_z(self) -> f32 {
         f32::from(self as u16) / (<Self as strum::EnumCount>::COUNT as f32) / 1024.0
     }
 
+    #[must_use]
     pub fn local_translation(self) -> Transform {
         Transform::from_translation(Vec3::new(0., 0., self.into_z()))
     }
 
+    #[must_use]
     pub fn pos2_to_translation(self, position: Position<Vec2>) -> Vec3 {
         (position.get(), self.into_z()).into()
     }
 
+    #[must_use]
     pub fn pos3_to_translation(self, position: Position<Vec3>) -> Vec3 {
         self.pos2_to_translation(position.horizontal())
     }
 
+    #[must_use]
     pub fn dist2_to_translation(self, distance: Length<Vec2>) -> Vec3 {
         (distance.0, self.into_z()).into()
     }
 
+    #[must_use]
     pub fn dist3_to_translation(self, distance: Length<Vec3>) -> Vec3 {
         self.dist2_to_translation(distance.horizontal())
     }
 
+    #[must_use]
     pub fn base_translation(position: Position<Vec3>) -> Vec3 { position.get().with_z(0.) }
 }

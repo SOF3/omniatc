@@ -84,9 +84,6 @@ pub(super) fn fly_by_system(
             match trigger.completion_condition {
                 FlyByCompletionCondition::Heading(ref heading_config) => {
                     let next_heading = match *heading_config {
-                        HorizontalTarget::Position(next_target) => {
-                            (next_target - current_target).heading()
-                        }
                         HorizontalTarget::Waypoint(next_waypoint) => {
                             let Some(&Waypoint { position: next_target, .. }) =
                                 waypoint_query.log_get(next_waypoint)

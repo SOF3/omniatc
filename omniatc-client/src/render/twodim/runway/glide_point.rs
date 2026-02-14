@@ -54,9 +54,15 @@ impl UpdateParam<'_, '_> {
 
         let density = conf.glide_point_density;
 
-        #[expect(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "f32 -> i32 for a reasonably small value"
+        )]
         let first_multiple = (start_altitude.amsl() / density + 0.5).ceil() as i32;
-        #[expect(clippy::cast_possible_truncation)] // f32 -> i32 for a reasonably small value
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "f32 -> i32 for a reasonably small value"
+        )]
         let last_multiple = (end_altitude.amsl() / density).floor() as i32;
 
         let glide_direction = runway

@@ -24,7 +24,6 @@ pub struct LineIndex(pub usize);
 #[derive(Clone)]
 pub struct LineSweeper<F> {
     line_fn:   F,
-    num_lines: usize,
     /// Intersections within this distance from the end of line segments
     /// are considered on the lines.
     /// This is to prevent numerical issues when line segments only intersect at their ends.
@@ -74,29 +73,23 @@ where
                     (
                         StartEntry {
                             line_index,
-                            start_pos: line.alpha,
                             start_dot_minus_epsilon: alpha_dot,
                             end_dot_plus_epsilon: beta_dot,
                             start_ortho: alpha_ortho,
                             end_ortho: beta_ortho,
                         },
-                        EndEntry { line_index, end_pos: line.beta, end_dot_plus_epsilon: beta_dot },
+                        EndEntry { line_index, end_dot_plus_epsilon: beta_dot },
                     )
                 } else {
                     (
                         StartEntry {
                             line_index,
-                            start_pos: line.beta,
                             start_dot_minus_epsilon: beta_dot,
                             end_dot_plus_epsilon: alpha_dot,
                             start_ortho: beta_ortho,
                             end_ortho: alpha_ortho,
                         },
-                        EndEntry {
-                            line_index,
-                            end_pos: line.alpha,
-                            end_dot_plus_epsilon: alpha_dot,
-                        },
+                        EndEntry { line_index, end_dot_plus_epsilon: alpha_dot },
                     )
                 };
 
@@ -114,7 +107,7 @@ where
         starts.sort_by_key(|entry| entry.start_dot_minus_epsilon);
         ends.sort_by_key(|entry| entry.end_dot_plus_epsilon);
 
-        Ok(Self { line_fn, num_lines, epsilon, sweep_dir, ortho_dir, starts, ends })
+        Ok(Self { line_fn, epsilon, sweep_dir, ortho_dir, starts, ends })
     }
 
     /// Iterate over all pairs of intersecting line segments.
@@ -371,7 +364,6 @@ struct State<'a, F> {
 #[derive(Debug, Clone, Copy)]
 struct StartEntry {
     line_index:              LineIndex,
-    start_pos:               Position<Vec2>,
     start_dot_minus_epsilon: NotNan<f32>,
     end_dot_plus_epsilon:    NotNan<f32>,
     start_ortho:             NotNan<f32>,
@@ -403,7 +395,6 @@ impl StartEntry {
 #[derive(Clone, Copy)]
 struct EndEntry {
     line_index:           LineIndex,
-    end_pos:              Position<Vec2>,
     end_dot_plus_epsilon: NotNan<f32>,
 }
 

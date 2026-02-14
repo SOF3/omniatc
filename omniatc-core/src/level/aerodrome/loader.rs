@@ -688,14 +688,3 @@ struct GroundLine {
     alpha:     Position<Vec2>,
     beta:      Position<Vec2>,
 }
-
-impl GroundLine {
-    /// Returns a reference to the endpoint position
-    /// representing the intersection point of an apron with the nearest taxiway.
-    fn apron_intersect_mut(&mut self) -> &mut Position<Vec2> {
-        match APRON_FORWARD_HEADING_DIRECTION {
-            ground::SegmentDirection::AlphaToBeta => &mut self.alpha,
-            ground::SegmentDirection::BetaToAlpha => &mut self.beta,
-        }
-    }
-}

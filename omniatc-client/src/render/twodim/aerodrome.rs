@@ -432,7 +432,6 @@ struct CommitContext<'w, 's> {
     mesh_query: Query<'w, 's, &'static Mesh2d>,
     commands:   Commands<'w, 's>,
     meshes:     ResMut<'w, Assets<Mesh>>,
-    materials:  ResMut<'w, Assets<ColorMaterial>>,
 }
 
 #[derive(Component)]

@@ -161,7 +161,7 @@ pub fn convert_route<'a>(
                     stop:      TaxiStopMode::HoldShort,
                 }),
                 store::RouteNode::WaitForClearance => node_vec(route::StandbyNode {
-                    preset_id: Some({
+                    skip_id: Some({
                         let next = next_standby_id.checked_add(1).expect("too many standby nodes");
                         mem::replace(next_standby_id, next)
                     }),

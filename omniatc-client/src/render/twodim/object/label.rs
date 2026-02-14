@@ -25,12 +25,14 @@ struct Span;
 pub struct ObjectData {
     label_entity: &'static HasLabel,
     display:      &'static object::Display,
+    theme:        &'static super::ColorTheme,
 }
 
 impl ObjectDataItem<'_, '_> {
     pub fn write_label(&self, _conf: &PlaneConfRead, label_writer: &mut Writer) {
         label_writer.rewrite(self.label_entity.0, |mut s| {
-            s.write(&self.display.name);
+            s.write(&self.display.name).color(self.theme.label);
+            // TODO add additional information based on conf
         });
     }
 }
@@ -88,6 +90,7 @@ enum TextStyler<'w, 's, 'a> {
 }
 
 impl TextStyler<'_, '_, '_> {
+    /// Set the text color of the spawned span.
     fn color(mut self, color: Color) -> Self {
         match self {
             Self::FromQuery(ref mut data) => &mut *data.color,
@@ -116,6 +119,8 @@ impl Drop for TextStyler<'_, '_, '_> {
 }
 
 impl<'s> WriterScope<'_, 's, '_, '_> {
+    /// Appends a text span to the writer.
+    /// Returns a [`TextStyler`] that can be used to style the written text span.
     fn write(&mut self, text: impl AsRef<str> + Into<String>) -> TextStyler<'_, 's, '_> {
         if let Some(&child) = self.children.split_off_first() {
             let mut data =

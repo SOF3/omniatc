@@ -18,6 +18,7 @@ macro_rules! new_type_id {
 }
 pub(crate) use new_type_id;
 
+#[must_use]
 pub fn heading_to_approx_name(heading: Heading) -> &'static str {
     let dirs = [
         ("north", Heading::NORTH),
@@ -44,12 +45,16 @@ pub struct ActiveCamera2d<'w, 's> {
 }
 
 impl ActiveCamera2d<'_, '_> {
+    #[must_use]
     pub fn rotation(&self) -> Quat { self.camera.rotation() }
 
+    #[must_use]
     pub fn scale(&self) -> f32 { self.camera.scale().x }
 
+    #[must_use]
     pub fn pixel_length(&self) -> Length<f32> { Length::new(self.scale()) }
 
+    #[must_use]
     pub fn affine_transform(&self, vec: Vec2) -> Vec2 {
         (self.camera.affine().matrix3 * Vec3::from((vec, 0.))).xy()
     }

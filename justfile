@@ -10,5 +10,10 @@ run:
 		cargo run -p omniatc-client -F dev
 precommit:
 	cargo +nightly fmt -- --check
-	cargo clippy --all --tests -F precommit-checks -- -D warnings
+	cargo clippy --all --tests -- \
+		-D warnings \
+		-D clippy::dbg_macro \
+		-D dead_code \
+		-D unused_variables \
+		-D unused_imports
 	cargo test --all

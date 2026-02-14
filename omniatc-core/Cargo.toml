@@ -11,6 +11,9 @@ description = "Core game logic"
 [lib]
 name = "omniatc"
 
+[lints]
+workspace = true
+
 [features]
 default = ["dev"]
 dev = []

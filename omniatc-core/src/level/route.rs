@@ -50,6 +50,7 @@ impl Plugin for Plug {
                 trigger::time_system,
                 trigger::distance_system,
                 trigger::navaid_system,
+                trigger::taxi_target_resolution_system,
             )
                 .in_set(SystemSets::Action),
         );
@@ -176,7 +177,7 @@ impl EntityCommand for PrependStandby {
             return; // already standby
         }
 
-        route.prepend(StandbyNode { preset_id: None }.into());
+        route.prepend(StandbyNode { skip_id: None }.into());
 
         let entity_id = entity.id();
         entity.world_scope(|world| run_current_node(world, entity_id));
@@ -184,7 +185,7 @@ impl EntityCommand for PrependStandby {
 }
 
 pub struct RemoveStandby {
-    pub preset_id: Option<NonZero<u32>>,
+    pub skip_id: Option<NonZero<u32>>,
 }
 
 impl EntityCommand for RemoveStandby {
@@ -192,7 +193,7 @@ impl EntityCommand for RemoveStandby {
         let Some(mut route) = entity.log_get_mut::<Route>() else { return };
 
         if let Some(Node::Standby(standby)) = route.current() {
-            if standby.preset_id == self.preset_id {
+            if standby.skip_id == self.skip_id {
                 route.shift();
 
                 let entity_id = entity.id();
@@ -201,7 +202,7 @@ impl EntityCommand for RemoveStandby {
         } else {
             for (index, node) in route.next_queue.iter().enumerate() {
                 if let Node::Standby(standby) = node
-                    && standby.preset_id == self.preset_id
+                    && standby.skip_id == self.skip_id
                 {
                     route.next_queue.remove(index);
                     break;
@@ -278,9 +279,9 @@ fn run_current_node(world: &mut World, entity: Entity) {
                             .expect("route should not be removed by run_current_node");
                         route.shift();
                     }
-                    RunNodeResult::ReplaceWithPreset(preset_id) => {
-                        let new_nodes = preset_id.map_or_else(Vec::new, |preset_id| {
-                            let Some(preset) = world.log_get::<Preset>(preset_id) else {
+                    RunNodeResult::ReplaceWithPreset(skip_id) => {
+                        let new_nodes = skip_id.map_or_else(Vec::new, |skip_id| {
+                            let Some(preset) = world.log_get::<Preset>(skip_id) else {
                                 return Vec::new();
                             };
                             preset.nodes.clone()
@@ -520,8 +521,6 @@ enum RunNodeResult {
 
 /// The horizontal direction to navigate towards.
 enum HorizontalTarget {
-    /// The heading after this node should point towards a position.
-    Position(Position<Vec2>),
     /// The heading after this node should point towards a waypoint.
     Waypoint(Entity),
     /// The heading after this node should be a constant.
@@ -566,10 +565,10 @@ pub struct StandbyNode {
     ///
     /// If `None`, this is used to represent the state when
     /// an object is instructed to deviate from its current route.
-    /// Thus a `preset_id == None` should only appear
+    /// Thus a `skip_id == None` should only appear
     /// in the first node of an object route,
     /// and should never exist in a preset route.
-    pub preset_id: Option<NonZero<u32>>,
+    pub skip_id: Option<NonZero<u32>>,
 }
 
 impl NodeKind for StandbyNode {

@@ -8,6 +8,9 @@ repository.workspace = true
 license.workspace = true
 description = "Schema of store files"
 
+[lints]
+workspace = true
+
 [lib]
 name = "store"
 

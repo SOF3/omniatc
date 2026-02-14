@@ -18,21 +18,25 @@ impl From<egui::Key> for KeySet {
 }
 
 impl KeySet {
+    #[must_use]
     pub fn ctrl(mut self, ctrl: bool) -> Self {
         self.command = Some(ctrl);
         self
     }
 
+    #[must_use]
     pub fn alt(mut self, alt: bool) -> Self {
         self.alt = Some(alt);
         self
     }
 
+    #[must_use]
     pub fn shift(mut self, shift: bool) -> Self {
         self.shift = Some(shift);
         self
     }
 
+    #[must_use]
     pub fn clicked(self, state: &egui::InputState) -> bool {
         self.test_modifiers(state.modifiers)
             && self.key.is_some_and(|desired| {
@@ -43,10 +47,12 @@ impl KeySet {
             })
     }
 
+    #[must_use]
     pub fn clicked_or_repeated(self, state: &egui::InputState) -> bool {
         self.test_modifiers(state.modifiers) && self.key.is_some_and(|key| state.key_pressed(key))
     }
 
+    #[must_use]
     pub fn down(self, state: &egui::InputState) -> bool {
         self.test_modifiers(state.modifiers) && self.key.is_some_and(|key| state.key_down(key))
     }

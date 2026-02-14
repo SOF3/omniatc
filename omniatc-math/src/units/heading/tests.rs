@@ -5,10 +5,6 @@ use crate::units::Angle;
 
 const EPSILON: Angle = Angle::from_radians(1e-4);
 
-fn assert_delta(left: Angle, right: Angle, message: &str) {
-    assert!((left - right).abs().0 < 1e-4, "{} != {}: {message}", left.0, right.0);
-}
-
 #[test]
 fn heading_from_vec2() {
     Heading::from_vec2(Vec2::new(1., 0.))

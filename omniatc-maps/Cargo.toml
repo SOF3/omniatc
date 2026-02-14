@@ -8,6 +8,9 @@ repository.workspace = true
 license.workspace = true
 description = "Generate map files"
 
+[lints]
+workspace = true
+
 [features]
 default = []
 

@@ -80,7 +80,12 @@ fn spawn_plane_system(
         commands.entity(plane_entity).insert((
             Transform::IDENTITY,
             Visibility::Visible,
-            ColorTheme { body: Color::WHITE, ring: Color::WHITE, vector: Color::WHITE },
+            ColorTheme {
+                body:   Color::WHITE,
+                label:  Color::WHITE,
+                ring:   Color::WHITE,
+                vector: Color::WHITE,
+            },
         ));
 
         commands.spawn((
@@ -110,6 +115,7 @@ fn spawn_plane_system(
 #[derive(Component)]
 pub struct ColorTheme {
     pub body:   Color,
+    pub label:  Color,
     pub ring:   Color,
     pub vector: Color,
 }
@@ -199,21 +205,23 @@ struct Conf {
 #[config(expose(read))]
 struct PlaneConf {
     /// Sprite for planes.
-    sprite:         SpriteType,
+    sprite:             SpriteType,
     /// Size of plane sprites.
     #[config(default = 1.0, min = 0.0, max = 5.0)]
-    sprite_size:    f32,
+    sprite_size:        f32,
+    /// Object color will be based on this scheme.
+    color_scheme:       base_color::Scheme,
     /// Size of object labels.
     #[config(default = 0.5, min = 0.0, max = 3.0)]
-    label_size:     f32,
+    label_size:         f32,
     /// Distance of object labels from the object center, in screen coordinates.
     #[config(default = 50.0, min = 0., max = 300.)]
-    label_distance: f32,
+    label_distance:     f32,
     /// Direction of the object relative to the label.
     #[config(default = Anchor::BOTTOM_LEFT)]
-    label_anchor:   AnchorConf,
-    /// Object color will be based on this scheme.
-    color_scheme:   base_color::Scheme,
+    label_anchor:       AnchorConf,
+    /// Label color will be based on this scheme.
+    label_color_scheme: base_color::Scheme,
 }
 
 #[derive(

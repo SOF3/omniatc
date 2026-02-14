@@ -223,7 +223,7 @@ fn test_instr_action_clear_lineup() {
     let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionClearLineUp)).id();
 
     // TODO: This will be better tested when we have explicit standby removal instructions
-    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { preset_id: None }));
+    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { skip_id: None }));
 
     app.update();
 
@@ -237,7 +237,7 @@ fn test_instr_action_clear_takeoff() {
     let quest_entity = app.world_mut().spawn(quest_with_condition(InstrActionClearTakeoff)).id();
 
     // TODO: This will be better tested when we have explicit standby removal instructions
-    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { preset_id: None }));
+    app.world_mut().spawn(Instruction::RemoveStandby(instr::RemoveStandby { skip_id: None }));
 
     app.update();
 

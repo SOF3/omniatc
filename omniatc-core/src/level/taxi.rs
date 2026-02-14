@@ -864,6 +864,7 @@ enum TurnResult {
     TooNarrow,
     /// Another object is blocking the intersection,
     /// within the feasible braking distance.
+    #[expect(dead_code, reason = "TODO implement")]
     Occupied,
     /// The object can turn to the next segment,
     /// but it is not yet close enough to the intersection point.

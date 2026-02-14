@@ -145,7 +145,11 @@ fn fit_layout_system(
     end_pos = end_pos.max(start_pos + Vec2::splat(1.0));
     // probably degenerate interface, but at least avoid panic by ensuring a nonzero viewport
 
-    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "only pixel-level precision is required"
+    )]
     // TODO at least validate the float sign
     for (layout, mut camera) in camera_order {
         let (my_rect, rem_rect) = match layout.direction {

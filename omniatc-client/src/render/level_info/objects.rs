@@ -3,8 +3,6 @@ use std::cmp;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
 use bevy_egui::egui;
 use egui_extras::{Column, TableBuilder};
 use math::Heading;
@@ -30,7 +28,6 @@ pub struct WriteObjectParams<'w, 's> {
     last_rows:       Local<'s, Option<usize>>,
     sort_key:        Local<'s, (usize, bool)>,
     search_str:      Local<'s, String>,
-    keys:            Res<'w, ButtonInput<KeyCode>>,
     hotkeys:         Res<'w, input::Hotkeys>,
     selected_object: ResMut<'w, object_info::CurrentObject>,
 }
@@ -49,13 +46,19 @@ impl WriteParams for WriteObjectParams<'_, '_> {
                 egui::TextEdit::singleline(&mut *self.search_str)
                     .hint_text("'/' to focus, Enter to select first match"),
             );
-            if search_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            if search_resp.lost_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            {
                 select_first = true;
             }
-            if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Slash)) {
+            if search_resp.has_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Slash))
+            {
                 self.search_str.clear();
             }
-            if search_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if search_resp.has_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            {
                 search_resp.surrender_focus();
             }
             if self.hotkeys.search {

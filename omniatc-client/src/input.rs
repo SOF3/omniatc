@@ -95,12 +95,16 @@ struct CameraData {
 }
 
 impl CursorState {
+    #[must_use]
     pub fn left_just_down(&self) -> bool { self.left.is_down && !self.left.was_down }
 
+    #[must_use]
     pub fn left_just_up(&self) -> bool { !self.left.is_down && self.left.was_down }
 
+    #[must_use]
     pub fn right_just_down(&self) -> bool { self.right.is_down && !self.right.was_down }
 
+    #[must_use]
     pub fn right_just_up(&self) -> bool { !self.right.is_down && self.right.was_down }
 
     /// Determines whether dragging is occurring,

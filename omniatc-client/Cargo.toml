@@ -8,6 +8,9 @@ repository.workspace = true
 license.workspace = true
 description = "Yet another ATC simulator"
 
+[lints]
+workspace = true
+
 [features]
 default = ["dev"]
 dev = ["bevy/dynamic_linking", "omniatc-core/dev"]

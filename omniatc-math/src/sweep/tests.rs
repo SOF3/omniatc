@@ -42,7 +42,7 @@ macro_rules! sweep_quad_complete_graph {
         paste::paste! {
             #[test]
             fn [< sweep_quad_complete_graph_ $name >]() {
-                #[allow(unused_assignments, unused_mut)]
+                #[allow(clippy::allow_attributes, unused_assignments, unused_mut, reason = "graph may be empty")]
                 let mut expect_dot = None::<fn(TestPoint) -> f32>;
                 $(
                     expect_dot = Some(|point| match point {

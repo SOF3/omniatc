@@ -11,6 +11,9 @@ description = "Common unit types and math utils"
 [lib]
 name = "math"
 
+[lints]
+workspace = true
+
 [features]
 egui = ["dep:egui", "bevy_mod_config/egui"]
 schema = ["dep:schemars", "dep:serde_json"]

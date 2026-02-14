@@ -1,5 +1,18 @@
 # Contributing guidelines
 
+## Feature request
+
+Check out the [issue tracker](https://github.com/SOF3/omniatc/issues) for existing feature requests.
+Create a new issue if it does not already exist.
+
+## Finding something to work on
+
+To get started with this project, try working on one of the issues labeled with
+[`scope: S`](https://github.com/SOF3/omniatc/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22scope%3A%20S%22),
+which involve fewer copmonents and are easier to get into without prior familiarity with the codebase.
+
+Issues labeled with `k: *` require specific domain knowledge not acquired by the average developer.
+
 ## Code style
 
 - Before committing, run the following checks:

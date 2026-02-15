@@ -18,10 +18,6 @@ workspace = true
 egui = ["dep:egui", "bevy_mod_config/egui"]
 schema = ["dep:schemars", "dep:serde_json"]
 
-# For development only
-precommit-checks = []
-rust-analyzer = []
-
 [dependencies]
 bevy_math.workspace = true
 bevy_mod_config = { workspace = true, features = ["serde_json"] }

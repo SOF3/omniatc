@@ -17,6 +17,8 @@ bevy_mod_config = {version = "0.5.0", features = ["bevy_color"]}
 omniatc-core = { version = "*", path = "omniatc-core" }
 omniatc-math = { version = "*", path = "omniatc-math" }
 omniatc-store = { version = "*", path = "omniatc-store" }
+omniatc-maps = { version = "*", path = "omniatc-maps" }
+omniatc-client = { version = "*", path = "omniatc-client" }
 serde = "1.0.228"
 
 [workspace.dependencies.bevy]

@@ -14,10 +14,6 @@ workspace = true
 [features]
 default = []
 
-# For development only
-precommit-checks = []
-rust-analyzer = []
-
 [dependencies]
 omniatc-math.workspace = true
 omniatc-store = {workspace = true, features = ["schema"]}

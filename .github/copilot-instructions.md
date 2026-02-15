@@ -20,7 +20,7 @@
 ## CI / automation
 - `.github/workflows/ci.yaml` runs:
   - `cargo +nightly fmt --all -- --check`
-  - `cargo clippy --all --tests -F precommit-checks -- -D warnings`
+  - `cargo clippy --all --tests -- -D warnings`
   - `cargo test --all`
 - `.github/workflows/build.yaml` builds web (`trunk build`), assets/schema (`omniatc-maps`), docs (`cargo doc`), and cross-compiled desktop binaries.
 
@@ -29,7 +29,7 @@
 1. `cargo +nightly fmt --all -- --check`
    - Requires `rustup component add --toolchain nightly rustfmt`.
    - `cargo fmt --all -- --check` on stable fails with: `format_code_in_doc_comments` is unstable.
-2. `cargo clippy --all --tests -F precommit-checks -- -D warnings`
+2. `cargo clippy --all --tests -- -D warnings`
    - First run downloads dependencies; completed successfully.
 3. `cargo test --all`
    - Completed successfully (took ~3 minutes on first run).

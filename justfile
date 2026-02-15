@@ -3,7 +3,7 @@ fmt:
 maps:
 	cargo run -p omniatc-maps build-assets
 fix:
-	cargo clippy --fix --allow-staged -F precommit-checks  --all --tests
+	cargo clippy --fix --allow-staged --all --tests
 run:
 	RUST_BACKTRACE=1 \
 		RUST_LOG=warn,omniatc=debug \
@@ -23,3 +23,6 @@ precommit:
 		-D unused_variables \
 		-D unused_imports
 	cargo test --all
+
+docker-test:
+	docker build -f tests/Dockerfile .

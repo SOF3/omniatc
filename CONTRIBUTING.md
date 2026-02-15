@@ -19,7 +19,7 @@ Issues labeled with `k: *` require specific domain knowledge not acquired by the
 
 ```sh
 cargo +nightly fmt -- --check
-cargo clippy --all --tests -F precommit-checks -- -D warnings
+cargo clippy --all --tests -- -D warnings
 cargo test --all
 ```
 
@@ -30,7 +30,7 @@ cargo test --all
   and included from the parent with `#[cfg(test)] mod tests;`.
 - Use `distance_cmp` and `magnitude_cmp` for comparing vector norms.
   Do not use the exact or squared methods for comparisons alone.
-- Use `Vec::from([...])` instead of `vec![...]` for Vec literals.
+- Use `Vec::from([...])` or `[...].into()` instead of `vec![...]` for Vec literals.
   Large expressions in macros tend to be unfriendly to rust-analyzer.
   - For consistency, use `Vec::new()` instead of `vec![]` for empty Vecs.
 - Use the `TryLog` extension trait for getting components from `World` or `Query`

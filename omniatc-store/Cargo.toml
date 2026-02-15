@@ -18,10 +18,6 @@ name = "store"
 default = []
 schema = ["dep:schemars", "omniatc-math/schema"]
 
-# For development only
-precommit-checks = []
-rust-analyzer = []
-
 [dependencies]
 omniatc-math.workspace = true
 

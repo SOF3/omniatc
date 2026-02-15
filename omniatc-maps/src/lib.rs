@@ -8,11 +8,12 @@ use anyhow::{Context, Result};
 
 pub mod common_types;
 
+pub mod demo;
 pub mod tutorial;
 
 pub fn builtins()
 -> impl Iterator<Item = (impl AsRef<str> + Into<String> + fmt::Display, store::File)> {
-    [("tutorial", tutorial::file())].into_iter()
+    [("tutorial", tutorial::file()), ("demo", demo::file())].into_iter()
 }
 
 pub fn build_assets(maps_dir: &Path) -> Result<()> {
@@ -23,12 +24,9 @@ pub fn build_assets(maps_dir: &Path) -> Result<()> {
     }
 
     for (name, data) in builtins() {
-        ciborium::into_writer(
-            &data,
-            fs::File::create(maps_dir.join(format!("{name}.osav")))
-                .with_context(|| format!("create {name}.osav"))?,
-        )
-        .with_context(|| format!("write {name}.osav"))?;
+        let contents = data.to_osav().with_context(|| format!("serialize {name}"))?;
+        fs::write(maps_dir.join(format!("{name}.osav")), contents)
+            .with_context(|| format!("write {name}.osav"))?;
     }
 
     Ok(())
@@ -52,17 +50,14 @@ pub fn from_json(input: &Path, output: &Path) -> Result<()> {
     let file: store::File =
         serde_json::from_reader(BufReader::new(fs::File::open(input).context("open input")?))
             .context("parse json")?;
-    ciborium::into_writer(
-        &file,
-        BufWriter::new(fs::File::create(output).context("create output")?),
-    )
-    .context("write osav")?;
+    let contents = file.to_osav().context("serialize osav")?;
+    fs::write(output, contents).context("write osav")?;
     Ok(())
 }
 
 pub fn to_json(input: &Path, output: &Path) -> Result<()> {
     let file: store::File =
-        ciborium::de::from_reader(BufReader::new(fs::File::open(input).context("open input")?))
+        store::File::from_osav(BufReader::new(fs::File::open(input).context("open input")?))
             .context("parse osav")?;
     serde_json::to_writer_pretty(
         BufWriter::new(fs::File::create(output).context("create output")?),

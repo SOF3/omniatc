@@ -2,6 +2,8 @@
 
 #![forbid(missing_docs)]
 
+use std::io;
+
 use serde::{Deserialize, Serialize};
 
 mod score;
@@ -61,4 +63,46 @@ pub struct File {
     /// Existing objects in the level.
     #[serde(default)]
     pub objects: Vec<Object>,
+}
+
+const ZSTD_COMPRESSION_LEVEL: i32 = 3;
+
+impl File {
+    /// Serializes the file to a .osav format.
+    pub fn to_osav(&self) -> Result<Vec<u8>, FileSerError> {
+        let mut bytes = Vec::new();
+        let mut zstd =
+            zstd::Encoder::new(&mut bytes, ZSTD_COMPRESSION_LEVEL).map_err(FileSerError::Io)?;
+        ciborium::into_writer(self, &mut zstd).map_err(FileSerError::Ciborium)?;
+        zstd.finish().map_err(FileSerError::Io)?;
+        Ok(bytes)
+    }
+
+    /// Decodes a .osav file.
+    pub fn from_osav(bytes: impl io::Read) -> Result<Self, FileDeError> {
+        let zstd = zstd::Decoder::new(bytes).map_err(FileDeError::Io)?;
+        ciborium::from_reader(zstd).map_err(FileDeError::Ciborium)
+    }
+}
+
+/// Error during serialization.
+#[derive(Debug, thiserror::Error)]
+pub enum FileSerError {
+    /// Error from ciborium.
+    #[error("cbor error: {0}")]
+    Ciborium(ciborium::ser::Error<io::Error>),
+    /// IO error from the writer backend during zstd header write or final flush.
+    #[error("IO error: {0}")]
+    Io(io::Error),
+}
+
+/// Error during deserialization.
+#[derive(Debug, thiserror::Error)]
+pub enum FileDeError {
+    /// Error from ciborium.
+    #[error("cbor error: {0}")]
+    Ciborium(ciborium::de::Error<io::Error>),
+    /// IO error from the reader backend during zstd header read.
+    #[error("IO error: {0}")]
+    Io(io::Error),
 }

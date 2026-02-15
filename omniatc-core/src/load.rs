@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io;
 use std::num::NonZero;
 
 use bevy::app::{App, Plugin};
@@ -53,7 +52,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     let file_owned: store::File;
     let file = match source {
         Source::Raw(bytes) => {
-            file_owned = ciborium::from_reader(bytes.as_ref()).map_err(Error::Serde)?;
+            file_owned = store::File::from_osav(bytes.as_ref()).map_err(Error::Deserialize)?;
             &file_owned
         }
         Source::Parsed(file) => file,
@@ -107,7 +106,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Deserialization error: {0}")]
-    Serde(ciborium::de::Error<io::Error>),
+    Deserialize(store::FileDeError),
     #[error("Too many aerodromes")]
     TooManyAerodromes,
     #[error("No aerodrome called {0:?}")]

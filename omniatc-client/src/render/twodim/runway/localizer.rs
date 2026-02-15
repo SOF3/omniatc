@@ -70,7 +70,10 @@ impl UpdateParam<'_, '_> {
             return;
         };
 
-        let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
+        let material = try_log_return!(
+            self.materials.get_mut(&material_handle.0),
+            expect "asset referenced by strong handle must exist"
+        );
         material.color = conf.localizer_color;
 
         let localizer_length = runway.landing_length.normalize_to_magnitude(-localizer_length);

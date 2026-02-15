@@ -25,10 +25,11 @@ fn create_test_app() -> App {
 fn quest_with_condition<C: Component>(condition: C) -> impl Bundle {
     (
         quest::Quest {
-            title:       "Test Quest".into(),
-            description: "Test Description".into(),
-            class:       store::QuestClass::Tutorial,
-            index:       0,
+            title:            "Test Quest".into(),
+            description:      "Test Description".into(),
+            class:            store::QuestClass::Tutorial,
+            index:            0,
+            completion_hooks: Vec::new(),
         },
         quest::Active,
         condition,

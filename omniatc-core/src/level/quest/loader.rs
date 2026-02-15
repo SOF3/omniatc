@@ -49,6 +49,7 @@ fn spawn_quest(quest: &store::Quest, index: usize) -> impl Bundle {
             description: quest.description.clone(),
             class: quest.class,
             index,
+            completion_hooks: quest.completion_hooks.clone(),
         },
         quest::Topology::default(),
         Name::new("Quest"),

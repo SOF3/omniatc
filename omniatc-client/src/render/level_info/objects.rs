@@ -33,7 +33,7 @@ pub struct WriteObjectParams<'w, 's> {
 }
 
 impl WriteParams for WriteObjectParams<'_, '_> {
-    fn title(&self) -> String { format!("Objects ({})", self.object_query.iter().len()) }
+    fn title(&self) -> String { format!("Vehicles ({})", self.object_query.iter().len()) }
 
     fn default_open() -> bool { true }
 

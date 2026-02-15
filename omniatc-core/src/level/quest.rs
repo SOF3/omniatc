@@ -47,6 +47,15 @@ pub struct Quest {
     pub class:       store::QuestClass,
     /// Sorting index among active quests.
     pub index:       usize,
+
+    /// Actions to perform when the quest is completed.
+    ///
+    /// We deliberately do not convert the store type into a runtime type here,
+    /// because completion hooks typically need to be re-serialized
+    /// if the quest remains incomplete,
+    /// and the execution logic typically involves invoking store conversion logic,
+    /// such as loading an object from a stored template.
+    pub completion_hooks: Vec<store::QuestCompletionHook>,
 }
 
 #[derive(Component, Default)]

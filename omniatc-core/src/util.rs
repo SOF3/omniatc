@@ -7,7 +7,7 @@ use bevy::ecs::system::Commands;
 
 mod async_task;
 pub use async_task::{
-    AsyncPollList, AsyncResult, AsyncResultTrigger, RunAsync, run_async, run_async_local,
+    AsyncManager, AsyncResult, AsyncResultTrigger, RunAsync, run_async, run_async_local,
 };
 mod eq_any;
 pub use eq_any::EqAny;

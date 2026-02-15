@@ -237,8 +237,16 @@ fn find_closest_segment(
     segment_query
         .iter()
         .filter_map(|(entity, segment)| {
-            let alpha = try_log!(endpoint_query.get(segment.alpha), expect "segment must reference valid alpha endpoint {:?}"( segment.alpha) or return None);
-            let beta = try_log!(endpoint_query.get(segment.beta), expect "segment must reference valid beta endpoint {:?}"( segment.beta) or return None);
+            let alpha = try_log!(
+                endpoint_query.get(segment.alpha),
+                expect "segment must reference valid alpha endpoint {:?}" (segment.alpha)
+                or return None
+            );
+            let beta = try_log!(
+                endpoint_query.get(segment.beta),
+                expect "segment must reference valid beta endpoint {:?}" (segment.beta)
+                or return None
+            );
             let closest = point_segment_closest(cursor_world_pos, alpha.position, beta.position);
             Some((entity, closest.distance_squared(cursor_world_pos)))
         })

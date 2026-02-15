@@ -6,6 +6,7 @@ use std::future::Future;
 use bevy::app::{self, App, Plugin};
 use bevy::asset::AssetApp;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, NonSend, Res, ResMut};
 use jiff::Timestamp;
 use omniatc::load;
@@ -89,7 +90,11 @@ impl<S: Storage> Plugin for Plug<S> {
         app.add_systems(app::Startup, scenario_loader::import_builtin_scenarios_system);
         app.add_systems(app::Startup, load_startup_level_system::<S>);
         app.add_systems(app::Update, scenario_loader::handle_loaded_scenario_system::<S>);
-        app.add_systems(app::Update, scenario_loader::warn_failed_default_scenario_system);
+        app.add_systems(
+            app::Update,
+            scenario_loader::warn_failed_default_scenario_system
+                .after(scenario_loader::handle_loaded_scenario_system::<S>),
+        );
     }
 }
 

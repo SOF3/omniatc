@@ -63,15 +63,18 @@ fn insert_condition(
     segments: &AerodromeMap,
 ) -> load::Result {
     match condition {
-        store::QuestCompletionCondition::Camera(condition) => match condition {
-            store::CameraQuestCompletionCondition::Drag => {
-                entity.insert(condition::UiActionDrag);
+        store::QuestCompletionCondition::Ui(condition) => match condition {
+            store::UiQuestCompletionCondition::CameraDrag => {
+                entity.insert(condition::UiActionCameraDrag);
             }
-            store::CameraQuestCompletionCondition::Zoom => {
-                entity.insert(condition::UiActionZoom);
+            store::UiQuestCompletionCondition::CameraZoom => {
+                entity.insert(condition::UiActionCameraZoom);
             }
-            store::CameraQuestCompletionCondition::Rotate => {
-                entity.insert(condition::UiActionRotate);
+            store::UiQuestCompletionCondition::CameraRotate => {
+                entity.insert(condition::UiActionCameraRotate);
+            }
+            store::UiQuestCompletionCondition::ObjectSelect => {
+                entity.insert(condition::UiActionObjectSelect);
             }
         },
         store::QuestCompletionCondition::ObjectControl(condition) => match condition {
@@ -133,6 +136,9 @@ fn insert_highlight(entity: &mut EntityWorldMut, highlight: &store::Highlightabl
     match highlight {
         store::HighlightableUiElement::RadarView => {
             entity.insert(quest::highlight::RadarView);
+        }
+        store::HighlightableUiElement::ObjectSelect => {
+            entity.insert(quest::highlight::ObjectSelect);
         }
         store::HighlightableUiElement::SetCameraRotation => {
             entity.insert(quest::highlight::SetCameraRotation);

@@ -49,13 +49,13 @@ fn test_ui_action<C: Component + Default>(condition: C, event: quest::UiEvent) {
 }
 
 #[test]
-fn test_ui_action_drag() { test_ui_action(UiActionDrag, quest::UiEvent::CameraDragged); }
+fn test_ui_action_drag() { test_ui_action(UiActionCameraDrag, quest::UiEvent::CameraDragged); }
 
 #[test]
-fn test_ui_action_zoom() { test_ui_action(UiActionZoom, quest::UiEvent::CameraZoomed); }
+fn test_ui_action_zoom() { test_ui_action(UiActionCameraZoom, quest::UiEvent::CameraZoomed); }
 
 #[test]
-fn test_ui_action_rotate() { test_ui_action(UiActionRotate, quest::UiEvent::CameraRotated); }
+fn test_ui_action_rotate() { test_ui_action(UiActionCameraRotate, quest::UiEvent::CameraRotated); }
 
 #[test]
 fn test_reach_altitude() {

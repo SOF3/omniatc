@@ -41,7 +41,7 @@ impl<R: Send + Sync + 'static> RunAsync<R> {
     /// Tracks the progress of the task in the background,
     /// triggering the observer in `then` when the task completes.
     ///
-    /// The task submitted to `run_async` still executes witout calling this function.
+    /// The task submitted to `run_async` still executes without calling this function.
     /// [`AsyncManager`] is only used for running an observer with world context
     /// when the task completes, but is not responsible for driving the task itself.
     pub fn then<M>(

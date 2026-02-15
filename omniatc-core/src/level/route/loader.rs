@@ -13,6 +13,7 @@ use crate::level::route::{self, TaxiStopMode};
 use crate::level::waypoint::loader::WaypointMap;
 use crate::load::{self, StoredEntity};
 
+#[derive(Default)]
 pub struct RoutePresetMap(HashMap<store::RoutePresetRef, Entity>);
 
 impl RoutePresetMap {

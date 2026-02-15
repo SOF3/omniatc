@@ -97,6 +97,8 @@ fn show_yaw_target(
     draft: &mut DraftInstructions,
     waypoint_query: &Query<&Waypoint>,
 ) {
+    const INCREMENT_DEGREES: f32 = 5.0;
+
     let target = match &draft.airborne_vector {
         None => nav_vel.yaw,
         Some(av) => match &av.directional {
@@ -145,10 +147,12 @@ fn show_yaw_target(
         slider_resp.request_focus();
     }
     if hotkeys.inc_heading {
-        slider_degrees = (slider_degrees / 5.).floor() * 5. + 5.;
+        slider_degrees =
+            (slider_degrees / INCREMENT_DEGREES).ceil() * INCREMENT_DEGREES + INCREMENT_DEGREES;
     }
     if hotkeys.dec_heading {
-        slider_degrees = (slider_degrees / 5.).ceil() * 5. - 5.;
+        slider_degrees =
+            (slider_degrees / INCREMENT_DEGREES).floor() * INCREMENT_DEGREES - INCREMENT_DEGREES;
     }
 
     #[expect(clippy::float_cmp, reason = "this is normally equal if user did not interact")]

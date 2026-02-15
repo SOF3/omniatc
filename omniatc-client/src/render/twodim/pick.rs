@@ -26,7 +26,7 @@ use ordered_float::OrderedFloat;
 use store::{TaxiLimits, YawTarget};
 
 use super::object::preview;
-use crate::render::object_info;
+use crate::render::object_info::{self, CurrentObjectSelectorSystemSet};
 use crate::{ConfigManager, EguiUsedMargins, UpdateSystemSets, input};
 
 pub struct Plug;
@@ -38,6 +38,7 @@ impl Plugin for Plug {
             app::Update,
             input_system
                 .in_set(UpdateSystemSets::Input)
+                .in_set(CurrentObjectSelectorSystemSet)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
     }
@@ -57,6 +58,9 @@ pub struct Conf {
     /// Selected objects are highlighted with this color.
     #[config(default = Color::srgb(0.5, 0.7, 1.0))]
     pub selected_color:            Color, // TODO reorganize these two fields to a better category
+    /// Flash color to highlight objects on radar when a tutorial step requires attention to them.
+    #[config(default = Color::srgb(1.0, 0.7, 0.4))]
+    pub tutorial_highlight_color:  Color,
     /// Color of the preview line when setting heading.
     #[config(default = Color::srgb(0.9, 0.7, 0.8))]
     set_heading_preview_color:     Color,
@@ -220,6 +224,7 @@ fn find_closest_waypoint(
 ) -> Option<(Entity, Squared<Length<f32>>)> {
     waypoint_query
         .iter()
+        .filter(|(_, waypoint)| !waypoint.hidden)
         .map(|(entity, waypoint)| {
             let waypoint_pos = waypoint.position.horizontal();
             (entity, waypoint_pos.distance_squared(cursor_world_pos))

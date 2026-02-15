@@ -67,13 +67,11 @@ pub fn spawn(
     waypoints: &WaypointMap,
     route_presets: &RoutePresetMap,
     next_standby_id: &mut NonZero<u32>,
-    objects: &[store::Object],
+    object: &store::Object,
 ) -> Result<(), load::Error> {
-    for object in objects {
-        match object {
-            store::Object::Plane(plane) => {
-                spawn_plane(world, aerodromes, waypoints, route_presets, next_standby_id, plane)?;
-            }
+    match object {
+        store::Object::Plane(plane) => {
+            spawn_plane(world, aerodromes, waypoints, route_presets, next_standby_id, plane)?;
         }
     }
 

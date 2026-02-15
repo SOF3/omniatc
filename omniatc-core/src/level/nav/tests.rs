@@ -142,6 +142,7 @@ fn base_world() -> (App, Entities) {
                 position:     Position::from_origin_nm(0.0, 8.0).with_altitude(AERODROME_ELEVATION),
                 name:         "MAIN36".into(),
                 display_type: waypoint::DisplayType::Runway,
+                hidden:       false,
             },
             aerodrome,
         })

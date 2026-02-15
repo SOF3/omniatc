@@ -632,6 +632,7 @@ pub fn level() -> store::Level {
                     },
                 ]
                 .into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "CLIFF".into(),
@@ -639,6 +640,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "SHADE".into(),
@@ -646,6 +648,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "DWIND".into(),
@@ -653,6 +656,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "OCEAN".into(),
@@ -660,6 +664,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "POLAR".into(),
@@ -667,6 +672,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "LONG".into(),
@@ -674,6 +680,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "SHORT".into(),
@@ -681,6 +688,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "RETRY".into(),
@@ -688,6 +696,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "REMRG".into(),
@@ -695,6 +704,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "APPNW".into(),
@@ -702,6 +712,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
             store::Waypoint {
                 name:      "APPNE".into(),
@@ -709,6 +720,7 @@ pub fn level() -> store::Level {
                 elevation: None,
                 visual:    None,
                 navaids:   [].into(),
+                hidden:    false,
             },
         ]
         .into(),

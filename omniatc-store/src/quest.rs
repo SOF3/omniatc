@@ -3,7 +3,7 @@ use std::time::Duration;
 use math::{Heading, Position, Speed};
 use serde::{Deserialize, Serialize};
 
-use crate::{Object, QuestRef, Range, Score, SegmentRef};
+use crate::{NamedWaypointRef, Object, QuestRef, Range, Score, SegmentRef};
 
 /// All quests.
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -91,23 +91,25 @@ impl QuestClass {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum QuestCompletionCondition {
     /// Simple tutorial actions for UI camera interaction.
-    Camera(CameraQuestCompletionCondition),
+    Ui(UiQuestCompletionCondition),
     /// Object control actions.
     ObjectControl(ObjectControlQuestCompletionCondition),
     /// Conditions based on statistics.
     Statistic(StatisticQuestCompletionCondition),
 }
 
-/// Simple tutorial actions for UI camera interaction.
+/// Simple tutorial actions for UI interaction.
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum CameraQuestCompletionCondition {
+pub enum UiQuestCompletionCondition {
     /// Dragging camera.
-    Drag,
+    CameraDrag,
     /// Zooming camera.
-    Zoom,
+    CameraZoom,
     /// Rotating camera.
-    Rotate,
+    CameraRotate,
+    /// Selecting an object.
+    ObjectSelect,
 }
 
 /// Object control actions for tutorial quests.
@@ -178,6 +180,8 @@ pub enum StatisticQuestCompletionCondition {
 pub enum HighlightableUiElement {
     /// Outline of the main radar view.
     RadarView,
+    /// Any object on the radar view.
+    ObjectSelect,
     /// Camera rotation controls in level info.
     SetCameraRotation,
     /// Camera zoom controls in level info.
@@ -197,6 +201,11 @@ pub enum QuestCompletionHook {
     /// Spawn an object in the world.
     SpawnObject {
         /// The object to spawn.
-        object: Object,
+        object: Box<Object>,
+    },
+    /// Reveals a waypoint on the radar.
+    RevealWaypoint {
+        /// The waypoint to reveal.
+        waypoint: NamedWaypointRef,
     },
 }

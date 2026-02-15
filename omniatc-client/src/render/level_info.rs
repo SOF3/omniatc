@@ -5,6 +5,7 @@ use bevy::time::{Time, Virtual as TimeVirtual};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use strum::IntoEnumIterator;
 
+use crate::render::object_info::CurrentObjectSelectorSystemSet;
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins};
 
@@ -21,7 +22,9 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             EguiPrimaryContextPass,
-            setup_layout_system.in_set(EguiSystemSets::LevelInfo),
+            setup_layout_system
+                .in_set(EguiSystemSets::LevelInfo)
+                .in_set(CurrentObjectSelectorSystemSet),
         );
     }
 }

@@ -31,32 +31,36 @@ fn setup_window_system(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    let Some((quest, focused)) = quest_query
+    let focused_entity = match quest_query
         .into_iter()
         .filter(|(quest, _)| quest.quest.class.display_in_popup() && quest.active)
         .min_by_key(|(quest, _)| quest.quest.index)
-    else {
-        return;
+    {
+        Some((quest, was_focused)) => {
+            if !was_focused {
+                commands.entity(quest.entity).insert(Focused);
+            }
+
+            let default_size = ctx.content_rect().size() / 2.;
+            egui::Window::new("Tutorial")
+                .default_size(default_size)
+                .default_open(true)
+                .frame(egui::Frame {
+                    fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 240),
+                    ..Default::default()
+                })
+                .show(ctx, |ui| {
+                    quest.show(ui, &mut commands);
+                });
+
+            Some(quest.entity)
+        }
+        None => None,
     };
-    if !focused {
-        commands.entity(quest.entity).insert(Focused);
-    }
 
     for other in focused_query {
-        if other != quest.entity {
+        if Some(other) != focused_entity {
             commands.entity(other).remove::<Focused>();
         }
     }
-
-    let default_size = ctx.content_rect().size() / 2.;
-    egui::Window::new("Tutorial")
-        .default_size(default_size)
-        .default_open(true)
-        .frame(egui::Frame {
-            fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200),
-            ..Default::default()
-        })
-        .show(ctx, |ui| {
-            quest.show(ui, &mut commands);
-        });
 }

@@ -1,16 +1,18 @@
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::entity::Entity;
-use bevy::ecs::message::MessageReader;
-use bevy::ecs::query::QueryData;
+use bevy::ecs::message::{MessageReader, MessageWriter};
+use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, Single, SystemParam};
+use bevy::time::Time;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::ReadConfig;
 use omniatc::QueryTryLog;
 use omniatc::level::instr::CommandsExt;
-use omniatc::level::{instr, object};
+use omniatc::level::{instr, object, quest};
 
+use crate::render::tutorial_popup;
 use crate::util::new_type_id;
 use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
 
@@ -30,12 +32,17 @@ impl Plugin for Plug {
             app::Update,
             highlight_selected_system
                 .after(UpdateSystemSets::Input)
+                .after(CurrentObjectSelectorSystemSet)
                 .in_set(super::twodim::object::SetColorThemeSystemSet::UserInteract),
         );
 
         app.add_systems(
             app::Update,
             cleanup_despawned_selected_object_system.before(CurrentObjectSelectorSystemSet),
+        );
+        app.add_systems(
+            app::Update,
+            send_selection_ui_event_system.after(CurrentObjectSelectorSystemSet),
         );
     }
 }
@@ -189,7 +196,11 @@ fn highlight_selected_system(
     conf: ReadConfig<super::twodim::pick::Conf>,
     current_hovered_object: Res<CurrentHoveredObject>,
     current_object: Res<CurrentObject>,
+    request_highlight: Option<
+        Single<(), (With<tutorial_popup::Focused>, With<quest::highlight::ObjectSelect>)>,
+    >,
     mut color_theme_query: Query<&mut super::twodim::object::ColorTheme>,
+    time: Res<Time>,
 ) {
     let conf = conf.read();
 
@@ -201,5 +212,21 @@ fn highlight_selected_system(
     if let Some(entity) = current_object.0 {
         let Some(mut theme) = color_theme_query.log_get_mut(entity) else { return };
         theme.body = conf.selected_color;
+    }
+
+    if request_highlight.is_some() && time.elapsed().as_secs().is_multiple_of(2) {
+        for mut theme in color_theme_query {
+            theme.body = conf.tutorial_highlight_color;
+            theme.ring = conf.tutorial_highlight_color;
+        }
+    }
+}
+
+fn send_selection_ui_event_system(
+    mut ui_event_writer: MessageWriter<quest::UiEvent>,
+    current_object: Res<CurrentObject>,
+) {
+    if current_object.0.is_some() {
+        ui_event_writer.write(quest::UiEvent::ObjectSelected);
     }
 }

@@ -5,11 +5,15 @@ use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 
 #[derive(Bundle)]
-pub struct All(RadarView, SetAltitude, SetSpeed, SetHeading);
+pub struct All(RadarView, ObjectSelect, SetAltitude, SetSpeed, SetHeading);
 
 /// The main radar viewport.
 #[derive(Component)]
 pub struct RadarView;
+
+/// Any object on the radar viewport.
+#[derive(Component)]
+pub struct ObjectSelect;
 
 /// Camera rotation control.
 #[derive(Component)]

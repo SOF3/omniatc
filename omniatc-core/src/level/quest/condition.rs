@@ -24,14 +24,17 @@ impl Plugin for Plug {
         app.add_systems(
             app::Update,
             (
-                make_ui_event_system::<UiActionDrag>(|event| {
+                make_ui_event_system::<UiActionCameraDrag>(|event| {
                     matches!(event, quest::UiEvent::CameraDragged)
                 }),
-                make_ui_event_system::<UiActionZoom>(|event| {
+                make_ui_event_system::<UiActionCameraZoom>(|event| {
                     matches!(event, quest::UiEvent::CameraZoomed)
                 }),
-                make_ui_event_system::<UiActionRotate>(|event| {
+                make_ui_event_system::<UiActionCameraRotate>(|event| {
                     matches!(event, quest::UiEvent::CameraRotated)
+                }),
+                make_ui_event_system::<UiActionObjectSelect>(|event| {
+                    matches!(event, quest::UiEvent::ObjectSelected)
                 }),
                 reach_altitude_system,
                 reach_speed_system,
@@ -128,9 +131,10 @@ mod all {
     }
 
     decl_counter! {
-        UiActionDrag,
-        UiActionZoom,
-        UiActionRotate,
+        UiActionCameraDrag,
+        UiActionCameraZoom,
+        UiActionCameraRotate,
+        UiActionObjectSelect,
         ReachAltitude,
         ReachSpeed,
         ReachHeading,
@@ -152,15 +156,19 @@ pub use all::{AllBundle, Counter, CounterItem};
 
 /// Completes when the client reports camera dragging.
 #[derive(Component, Default)]
-pub struct UiActionDrag;
+pub struct UiActionCameraDrag;
 
 /// Completes when the client reports camera zooming.
 #[derive(Component, Default)]
-pub struct UiActionZoom;
+pub struct UiActionCameraZoom;
 
 /// Completes when the client reports camera rotation.
 #[derive(Component, Default)]
-pub struct UiActionRotate;
+pub struct UiActionCameraRotate;
+
+/// Completes when the client reports object selection.
+#[derive(Component, Default)]
+pub struct UiActionObjectSelect;
 
 #[derive(SystemParam)]
 struct UiEventSystemParams<'w, 's, Cond: Component> {

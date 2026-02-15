@@ -9,7 +9,7 @@ Create a new issue if it does not already exist.
 
 To get started with this project, try working on one of the issues labeled with
 [`scope: S`](https://github.com/SOF3/omniatc/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22scope%3A%20S%22),
-which involve fewer copmonents and are easier to get into without prior familiarity with the codebase.
+which involve fewer components and are easier to get into without prior familiarity with the codebase.
 
 Issues labeled with `k: *` require specific domain knowledge not acquired by the average developer.
 

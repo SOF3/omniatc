@@ -95,7 +95,10 @@ impl UpdateParam<'_, '_> {
 
                 point_tf.translation = Zorder::LocalizerGlidePoint.dist2_to_translation(point_dist);
 
-                let material = try_log_return!(self.materials.get_mut(&material_handle.0), expect "asset referenced by strong handle must exist");
+                let material = try_log_return!(
+                    self.materials.get_mut(&material_handle.0),
+                    expect "asset referenced by strong handle must exist"
+                );
                 material.color = conf.glide_point_color;
 
                 size.size = conf.glide_point_size;

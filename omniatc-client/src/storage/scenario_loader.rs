@@ -1,4 +1,4 @@
-use std::{io, mem};
+use std::mem;
 
 use bevy::asset::{
     self, Asset, AssetLoader, AssetPath, AssetServer, Assets, DirectAssetAccessExt, Handle,
@@ -10,7 +10,7 @@ use bevy::reflect::TypePath;
 use bevy::tasks::ConditionalSendFuture;
 use jiff::Timestamp;
 use omniatc::load;
-use omniatc::util::{AsyncPollList, AsyncResult, run_async_local};
+use omniatc::util::{AsyncManager, AsyncResult, run_async_local};
 
 use super::{ScenarioMeta, Storage};
 
@@ -26,7 +26,7 @@ pub struct ScenarioAssetLoader;
 impl AssetLoader for ScenarioAssetLoader {
     type Asset = ScenarioAsset;
     type Settings = ();
-    type Error = ciborium::de::Error<io::Error>;
+    type Error = store::FileDeError;
 
     fn load(
         &self,
@@ -36,8 +36,8 @@ impl AssetLoader for ScenarioAssetLoader {
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async {
             let mut bytes = Vec::new();
-            reader.read_to_end(&mut bytes).await?;
-            ciborium::from_reader(&bytes[..]).map(|file| ScenarioAsset { bytes, file })
+            reader.read_to_end(&mut bytes).await.map_err(store::FileDeError::Io)?;
+            store::File::from_osav(&bytes[..]).map(|file| ScenarioAsset { bytes, file })
         }
     }
 }
@@ -58,16 +58,16 @@ pub struct CurrentImportingScenarios(Vec<Handle<ScenarioAsset>>);
 #[derive(Default, Resource)]
 pub struct CurrentLoadOnImport(pub Option<String>);
 
-pub fn handle_loaded_scenario_system<S: Storage>(
+pub(super) fn handle_loaded_scenario_system<S: Storage>(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut assets: ResMut<Assets<ScenarioAsset>>,
     mut current_importing: ResMut<CurrentImportingScenarios>,
     storage: NonSend<S>,
-    mut poll_list: ResMut<AsyncPollList>,
+    mut poll_list: ResMut<AsyncManager>,
 ) {
-    let mut still_importing = Vec::new();
-    for handle in mem::take(&mut current_importing.0) {
+    let prev_importing = mem::take(&mut current_importing.0);
+    for handle in prev_importing {
         match asset_server.get_load_state(&handle) {
             Some(asset::LoadState::Loaded) => {}
             Some(asset::LoadState::Failed(err)) => {
@@ -75,7 +75,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
                 continue;
             }
             _ => {
-                still_importing.push(handle);
+                current_importing.0.push(handle);
                 continue;
             }
         }
@@ -102,7 +102,7 @@ pub fn handle_loaded_scenario_system<S: Storage>(
                     return;
                 }
 
-                let file = file.take().unwrap();
+                let file = file.take().expect("then closure should only be called once");
 
                 if current_load_on_import.0.as_ref() == Some(&file.meta.id) {
                     current_load_on_import.0 = None;
@@ -114,14 +114,26 @@ pub fn handle_loaded_scenario_system<S: Storage>(
             }
         });
     }
-    current_importing.0 = still_importing;
 }
 
-pub const BUILTIN_SCENARIOS: &[&str] = &["maps/tutorial.osav"];
+pub const BUILTIN_SCENARIOS: &[&str] = &["maps/tutorial.osav", "maps/demo.osav"];
 pub const DEFAULT_SCENARIO: &str = "omniatc.tutorial";
 
-pub fn import_builtin_scenarios_system(mut commands: Commands) {
+pub(super) fn import_builtin_scenarios_system(mut commands: Commands) {
     for &scenario in BUILTIN_SCENARIOS {
         commands.queue(ImportScenario(scenario));
+    }
+}
+
+pub(super) fn warn_failed_default_scenario_system(
+    current_load_on_import: Res<CurrentLoadOnImport>,
+    current_importing: Res<CurrentImportingScenarios>,
+) {
+    if let Some(wanted) = &current_load_on_import.0
+        && current_importing.0.is_empty()
+    {
+        bevy::log::error_once!(
+            "Unknown default scenario \"{wanted}\" specified in startup options"
+        );
     }
 }

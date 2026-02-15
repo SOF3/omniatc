@@ -119,7 +119,11 @@ fn update_system(
 
     for (&IsSpriteOf(vortex_entity), MeshMaterial2d(handle)) in sprite_query {
         let Some(vortex) = vortex_query.log_get(vortex_entity) else { continue };
-        let material = try_log!(materials.get_mut(handle), expect "material referenced by strong handle must exist" or continue);
+        let material = try_log!(
+            materials.get_mut(handle),
+            expect "material referenced by strong handle must exist"
+            or continue
+        );
         material.color = conf.color_for_intensity(vortex.intensity);
     }
 }

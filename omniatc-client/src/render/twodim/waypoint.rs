@@ -56,7 +56,8 @@ fn spawn_system(
     for &waypoint::SpawnMessage(waypoint_entity) in spawns.read() {
         let waypoint = waypoint_query.get(waypoint_entity).expect("waypoint was just spawned");
 
-        commands.entity(waypoint_entity).insert((Transform::IDENTITY, Visibility::Visible));
+        let vis = if waypoint.hidden { Visibility::Hidden } else { Visibility::Visible };
+        commands.entity(waypoint_entity).insert((Transform::IDENTITY, vis));
 
         if let Some(sprite_path) = Conf::sprite_path(waypoint.display_type) {
             commands.spawn((
@@ -84,10 +85,11 @@ fn spawn_system(
     }
 }
 
-fn move_system(mut waypoint_query: Query<(&Waypoint, &mut Transform)>) {
-    waypoint_query.iter_mut().for_each(|(waypoint, tf)| {
+fn move_system(mut waypoint_query: Query<(&Waypoint, &mut Transform, &mut Visibility)>) {
+    waypoint_query.iter_mut().for_each(|(waypoint, tf, mut vis)| {
         Mut::map_unchanged(tf, |tf| &mut tf.translation)
             .set_if_neq(Zorder::base_translation(waypoint.position));
+        vis.set_if_neq(if waypoint.hidden { Visibility::Hidden } else { Visibility::Visible });
     });
 }
 

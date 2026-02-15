@@ -28,6 +28,7 @@ pub fn spawn(world: &mut World, waypoints: &[store::Waypoint]) -> WaypointMap {
                         position:     waypoint
                             .position
                             .with_altitude(waypoint.elevation.unwrap_or(Position::SEA_LEVEL)),
+                        hidden:       waypoint.hidden,
                     },
                 }
                 .apply(world.entity_mut(waypoint_entity));
@@ -73,6 +74,7 @@ fn spawn_waypoint_navaid(b: &mut RelatedSpawner<'_, impl Relationship>, navaid: 
     },));
 }
 
+#[derive(Debug, Default)]
 pub struct WaypointMap(HashMap<String, Entity>);
 
 impl WaypointMap {

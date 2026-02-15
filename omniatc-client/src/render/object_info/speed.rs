@@ -1,13 +1,14 @@
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::QueryData;
-use bevy::ecs::system::{Res, ResMut, SystemParam};
+use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::system::{Res, ResMut, Single, SystemParam};
 use bevy_egui::egui;
 use math::Speed;
-use omniatc::level::{instr, nav, object};
+use omniatc::level::{instr, nav, object, quest};
 
 use super::Writer;
 use crate::input;
 use crate::render::object_info::DraftInstructions;
+use crate::render::tutorial_popup;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
@@ -19,13 +20,16 @@ pub struct ObjectQuery {
 }
 
 #[derive(SystemParam)]
-pub struct WriteParams<'w> {
-    hotkeys: Res<'w, input::Hotkeys>,
-    draft:   ResMut<'w, DraftInstructions>,
+pub struct WriteParams<'w, 's> {
+    hotkeys:       Res<'w, input::Hotkeys>,
+    draft:         ResMut<'w, DraftInstructions>,
+    req_highlight: Option<
+        Single<'w, 's, (), (With<tutorial_popup::Focused>, With<quest::highlight::SetSpeed>)>,
+    >,
 }
 
 impl Writer for ObjectQuery {
-    type SystemParams<'w, 's> = WriteParams<'w>;
+    type SystemParams<'w, 's> = WriteParams<'w, 's>;
 
     fn title() -> &'static str { "Speed" }
 
@@ -57,12 +61,19 @@ impl Writer for ObjectQuery {
                     _ => target_knots,
                 };
 
-                let mut slider_knots = draft_knots;
-                let slider_resp = ui
-                    .add(egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"));
-                if params.hotkeys.set_speed {
-                    slider_resp.request_focus();
+                let mut frame = egui::Frame::NONE;
+                if params.req_highlight.is_some() {
+                    frame = frame.stroke(egui::Stroke::new(3.0, egui::Color32::RED));
                 }
+                let mut slider_knots = draft_knots;
+                frame.show(ui, |ui| {
+                    let slider_resp = ui.add(
+                        egui::Slider::new(&mut slider_knots, 0. ..=300.).step_by(1.).suffix("kt"),
+                    );
+                    if params.hotkeys.set_speed {
+                        slider_resp.request_focus();
+                    }
+                });
                 if params.hotkeys.inc_speed {
                     slider_knots = (slider_knots / 10.).floor() * 10. + 10.;
                 }

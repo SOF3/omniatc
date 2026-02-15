@@ -10,15 +10,21 @@
 //!
 //! All quests have the [`Quest`] component.
 
+use std::mem;
+use std::sync::Arc;
+
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::{Entity, EntityHashSet};
 use bevy::ecs::message::Message;
 use bevy::ecs::query::{Has, QueryData};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Query};
+use bevy::ecs::system::{Command, Commands, Query};
+use bevy::ecs::world::World;
 
-use crate::level::SystemSets;
+use crate::level::waypoint::Waypoint;
+use crate::level::{SystemSets, object};
+use crate::{WorldTryLog, load};
 
 pub mod condition;
 pub mod highlight;
@@ -47,6 +53,15 @@ pub struct Quest {
     pub class:       store::QuestClass,
     /// Sorting index among active quests.
     pub index:       usize,
+
+    /// Actions to perform when the quest is completed.
+    ///
+    /// We deliberately do not convert the store type into a runtime type here,
+    /// because completion hooks typically need to be re-serialized
+    /// if the quest remains incomplete,
+    /// and the execution logic typically involves invoking store conversion logic,
+    /// such as loading an object from a stored template.
+    pub completion_hooks: Vec<store::QuestCompletionHook>,
 }
 
 #[derive(Component, Default)]
@@ -63,19 +78,26 @@ pub struct Topology {
 pub struct Active;
 
 #[derive(QueryData)]
+#[query_data(mutable)]
 struct ActiveQuestQuery {
     entity:   Entity,
-    quest:    &'static Quest,
+    quest:    &'static mut Quest,
     topology: &'static Topology,
     active:   Has<Active>,
     counter:  condition::Counter,
 }
 
-fn manage_active_system(mut commands: Commands, query: Query<ActiveQuestQuery>) {
-    let completed_quests: EntityHashSet = query
-        .iter()
-        .filter_map(|data| (data.counter.count() == 0).then_some(data.entity))
-        .collect();
+fn manage_active_system(mut commands: Commands, mut query: Query<ActiveQuestQuery>) {
+    let mut completed_quests = EntityHashSet::new();
+    for mut data in &mut query {
+        if data.counter.count() == 0 {
+            completed_quests.insert(data.entity);
+
+            for hook in mem::take(&mut data.quest.completion_hooks) {
+                commands.queue(ExecuteCompletionHook(hook));
+            }
+        }
+    }
 
     let mut active_quests = EntityHashSet::new();
     let mut min_active_index = None;
@@ -106,9 +128,52 @@ fn manage_active_system(mut commands: Commands, query: Query<ActiveQuestQuery>) 
     }
 }
 
+struct ExecuteCompletionHook(store::QuestCompletionHook);
+
+impl Command for ExecuteCompletionHook {
+    fn apply(self, world: &mut World) {
+        match self.0 {
+            store::QuestCompletionHook::SpawnObject { object } => {
+                let contexts = world.resource::<load::SpawnContext>();
+                let aerodromes = Arc::clone(&contexts.aerodromes);
+                let waypoints = Arc::clone(&contexts.waypoints);
+                let route_presets = Arc::clone(&contexts.route_presets);
+                let mut next_standby_id = contexts.next_standby_id;
+
+                if let Err(err) = object::loader::spawn(
+                    world,
+                    &aerodromes,
+                    &waypoints,
+                    &route_presets,
+                    &mut next_standby_id,
+                    &object,
+                ) {
+                    bevy::log::error!("Failed to spawn object: {err}");
+                }
+
+                world.resource_mut::<load::SpawnContext>().next_standby_id = next_standby_id;
+            }
+            store::QuestCompletionHook::RevealWaypoint { waypoint } => {
+                let contexts = world.resource::<load::SpawnContext>();
+                let waypoint_entity = match contexts.waypoints.resolve(&waypoint) {
+                    Ok(entity) => entity,
+                    Err(err) => {
+                        bevy::log::error!("Unresolved waypoint to reveal: {err}");
+                        return;
+                    }
+                };
+                if let Some(mut waypoint) = world.log_get_mut::<Waypoint>(waypoint_entity) {
+                    waypoint.hidden = false;
+                }
+            }
+        }
+    }
+}
+
 #[derive(Message)]
 pub enum UiEvent {
     CameraDragged,
     CameraZoomed,
     CameraRotated,
+    ObjectSelected,
 }

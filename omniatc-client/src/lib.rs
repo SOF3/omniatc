@@ -29,6 +29,11 @@ pub struct Options {
     /// Path to the assets directory.
     #[clap(long, default_value = "assets")]
     pub assets_dir: String,
+
+    /// Open the specified level on startup, if any.
+    pub open_level_id:    Option<String>,
+    #[clap(long, default_value = storage::scenario_loader::DEFAULT_SCENARIO)]
+    pub default_scenario: String,
 }
 
 pub fn main_app(options: Options) -> App {
@@ -57,7 +62,10 @@ pub fn main_app(options: Options) -> App {
         omniatc::util::Plug,
         input::Plug,
         render::Plug,
-        storage::plugin(),
+        storage::plugin(storage::StartupLevelOptions {
+            open_level_id:    options.open_level_id,
+            default_scenario: options.default_scenario,
+        }),
         util::billboard::Plug,
         util::shapes::Plug,
     ));

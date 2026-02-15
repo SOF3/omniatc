@@ -111,7 +111,7 @@ pub fn spawn(
 }
 
 /// Stores the mapping from loaded aerodromes to their spawned entities.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AerodromeMap(HashMap<String, SpawnedAerodrome>);
 
 impl AerodromeMap {
@@ -293,6 +293,7 @@ fn spawn_runway(
             name:         runway.name.clone(),
             display_type: waypoint::DisplayType::Runway,
             position:     touchdown_position,
+            hidden:       false,
         },
         runway:    Runway {
             landing_length: (end_pos - start_pos).normalize_to_magnitude(
@@ -325,6 +326,7 @@ fn spawn_runway(
             position:     touchdown_position
                 + (runway.max_visual_distance * heading.opposite())
                     .projected_from_elevation_angle(runway.glide_angle),
+            hidden:       false,
         },
     }
     .apply(world.entity_mut(localizer_waypoint));

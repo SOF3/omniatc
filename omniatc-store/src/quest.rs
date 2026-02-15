@@ -3,7 +3,7 @@ use std::time::Duration;
 use math::{Heading, Position, Speed};
 use serde::{Deserialize, Serialize};
 
-use crate::{QuestRef, Range, Score, SegmentRef};
+use crate::{NamedWaypointRef, Object, QuestRef, Range, Score, SegmentRef};
 
 /// All quests.
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -21,23 +21,26 @@ pub struct QuestTree {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Quest {
     /// Unique identifier for the quest.
-    pub id:           QuestRef,
+    pub id:               QuestRef,
     /// Human-readable title of the quest.
-    pub title:        String,
+    pub title:            String,
     /// Description of the quest.
-    pub description:  String,
+    pub description:      String,
     /// Type of the quest.
-    pub class:        QuestClass,
+    pub class:            QuestClass,
     /// List of quests that must be completed before this quest is displayed.
-    pub dependencies: Vec<QuestRef>,
+    pub dependencies:     Vec<QuestRef>,
     /// Conditions for completing the quest.
     ///
     /// If a condition has been completed, it is removed from the quest.
     /// If `conditions` is empty, the quest is considered completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub conditions:   Vec<QuestCompletionCondition>,
+    pub conditions:       Vec<QuestCompletionCondition>,
     /// UI elements to highlight when the quest is focused.
-    pub ui_highlight: Vec<HighlightableUiElement>,
+    pub ui_highlight:     Vec<HighlightableUiElement>,
+    /// Actions to perform when the quest is completed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub completion_hooks: Vec<QuestCompletionHook>,
 }
 
 /// Classifies the quest type.
@@ -88,23 +91,25 @@ impl QuestClass {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum QuestCompletionCondition {
     /// Simple tutorial actions for UI camera interaction.
-    Camera(CameraQuestCompletionCondition),
+    Ui(UiQuestCompletionCondition),
     /// Object control actions.
     ObjectControl(ObjectControlQuestCompletionCondition),
     /// Conditions based on statistics.
     Statistic(StatisticQuestCompletionCondition),
 }
 
-/// Simple tutorial actions for UI camera interaction.
+/// Simple tutorial actions for UI interaction.
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum CameraQuestCompletionCondition {
+pub enum UiQuestCompletionCondition {
     /// Dragging camera.
-    Drag,
+    CameraDrag,
     /// Zooming camera.
-    Zoom,
+    CameraZoom,
     /// Rotating camera.
-    Rotate,
+    CameraRotate,
+    /// Selecting an object.
+    ObjectSelect,
 }
 
 /// Object control actions for tutorial quests.
@@ -175,6 +180,8 @@ pub enum StatisticQuestCompletionCondition {
 pub enum HighlightableUiElement {
     /// Outline of the main radar view.
     RadarView,
+    /// Any object on the radar view.
+    ObjectSelect,
     /// Camera rotation controls in level info.
     SetCameraRotation,
     /// Camera zoom controls in level info.
@@ -185,4 +192,20 @@ pub enum HighlightableUiElement {
     SetSpeed,
     /// UI for setting heading.
     SetHeading,
+}
+
+/// An action to perform when a quest is completed.
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum QuestCompletionHook {
+    /// Spawn an object in the world.
+    SpawnObject {
+        /// The object to spawn.
+        object: Box<Object>,
+    },
+    /// Reveals a waypoint on the radar.
+    RevealWaypoint {
+        /// The waypoint to reveal.
+        waypoint: NamedWaypointRef,
+    },
 }

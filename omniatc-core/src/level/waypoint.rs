@@ -25,6 +25,8 @@ pub struct Waypoint {
     ///
     /// The altitude component is only used to compute the navaid range.
     pub position:     Position<Vec3>,
+    /// Temporarily hide the waypoint from display.
+    pub hidden:       bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

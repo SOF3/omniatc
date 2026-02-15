@@ -8,6 +8,12 @@ run:
 	RUST_BACKTRACE=1 \
 		RUST_LOG=warn,omniatc=debug \
 		cargo run -p omniatc-client -F dev
+run-scenario which:
+	RUST_BACKTRACE=1 \
+		RUST_LOG=warn,omniatc=debug \
+		cargo run -p omniatc-client -F dev -- \
+		--default-scenario {{which}}
+
 precommit:
 	cargo +nightly fmt -- --check
 	cargo clippy --all --tests -- \

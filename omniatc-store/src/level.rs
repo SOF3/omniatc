@@ -44,6 +44,8 @@ pub struct Level {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Waypoint {
     /// Display name of the waypoint.
+    /// Also used as the identifier for referencing this waypoint from other places in the save
+    /// file.
     pub name:      String,
     /// Position of the waypoint.
     pub position:  Position<Vec2>,
@@ -53,6 +55,8 @@ pub struct Waypoint {
     pub navaids:   Vec<Navaid>,
     /// Whether the waypoint can be observed visually when in proximity.
     pub visual:    Option<VisualWaypoint>,
+    /// Whether the waypoint is explicitly hidden from display.
+    pub hidden:    bool,
 }
 
 /// A navigation aid provided at a waypoint.

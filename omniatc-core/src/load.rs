@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io;
 use std::num::NonZero;
+use std::sync::Arc;
 
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
@@ -17,7 +17,10 @@ use crate::level::{aerodrome, object, quest, route, score, spawn, waypoint, wind
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) { app.init_resource::<CameraAdvice>(); }
+    fn build(&self, app: &mut App) {
+        app.init_resource::<CameraAdvice>();
+        app.init_resource::<SpawnContext>();
+    }
 }
 
 /// Marks an entity as part of a loaded level,
@@ -53,7 +56,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     let file_owned: store::File;
     let file = match source {
         Source::Raw(bytes) => {
-            file_owned = ciborium::from_reader(bytes.as_ref()).map_err(Error::Serde)?;
+            file_owned = store::File::from_osav(bytes.as_ref()).map_err(Error::Deserialize)?;
             &file_owned
         }
         Source::Parsed(file) => file,
@@ -89,25 +92,57 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
     )?;
     spawn::loader::spawn_trigger(world, &file.level.spawn_trigger);
     score::loader::spawn(world, &file.stats);
-    object::loader::spawn(
-        world,
-        &aerodromes,
-        &waypoints,
-        &route_presets,
-        &mut next_standby_id,
-        &file.objects,
-    )?;
+    for object in &file.objects {
+        object::loader::spawn(
+            world,
+            &aerodromes,
+            &waypoints,
+            &route_presets,
+            &mut next_standby_id,
+            object,
+        )?;
+    }
     quest::loader::spawn(world, &file.quests, &aerodromes)?;
 
     world.resource_mut::<CameraAdvice>().0 = Some(file.ui.camera.clone());
+    *world.resource_mut::<SpawnContext>() = SpawnContext {
+        aerodromes: Arc::new(aerodromes),
+        waypoints: Arc::new(waypoints),
+        route_presets: Arc::new(route_presets),
+        next_standby_id,
+    };
 
     Ok(())
+}
+
+/// Stores the level loading state such as spawned entity maps.
+///
+/// This resource must not be used in the loader modules
+/// since the resource is only updated after loading is complete;
+/// it is available as a resource for executing completion hooks.
+#[derive(Resource)]
+pub struct SpawnContext {
+    pub aerodromes:      Arc<aerodrome::loader::AerodromeMap>,
+    pub waypoints:       Arc<waypoint::loader::WaypointMap>,
+    pub route_presets:   Arc<route::loader::RoutePresetMap>,
+    pub next_standby_id: NonZero<u32>,
+}
+
+impl Default for SpawnContext {
+    fn default() -> Self {
+        Self {
+            aerodromes:      Arc::default(),
+            waypoints:       Arc::default(),
+            route_presets:   Arc::default(),
+            next_standby_id: const { NonZero::new(1).unwrap() },
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Deserialization error: {0}")]
-    Serde(ciborium::de::Error<io::Error>),
+    Deserialize(store::FileDeError),
     #[error("Too many aerodromes")]
     TooManyAerodromes,
     #[error("No aerodrome called {0:?}")]

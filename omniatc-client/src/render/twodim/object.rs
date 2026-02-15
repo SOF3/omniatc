@@ -59,11 +59,16 @@ impl Plugin for Plug {
 
 #[derive(Component)]
 #[relationship(relationship_target = HasSprite)]
-struct IsSpriteOf(Entity);
+pub struct IsSpriteOf(Entity);
 
 #[derive(Component)]
 #[relationship_target(relationship = IsSpriteOf, linked_spawn)]
-struct HasSprite(Entity);
+pub struct HasSprite(Entity);
+
+impl HasSprite {
+    #[must_use]
+    pub fn entity(&self) -> Entity { self.0 }
+}
 
 fn spawn_plane_system(
     mut spawn_events: MessageReader<plane::SpawnMessage>,

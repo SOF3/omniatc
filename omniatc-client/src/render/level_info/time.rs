@@ -22,13 +22,15 @@ impl WriteParams for WriteTimeParams<'_, '_> {
         // NOTE: do not allow values that are too high to avoid significant simulation instability.
         const FAST_FORWARD_SPEED: f32 = 25.0;
 
-        let elapsed = self.time.elapsed().as_secs();
+        let elapsed = self.time.elapsed();
+        let elapsed_secs = elapsed.as_secs();
 
         ui.label(format!(
-            "Time: {hours}:{minutes:02}:{seconds:02}",
-            hours = elapsed / 3600,
-            minutes = (elapsed / 60) % 60,
-            seconds = elapsed % 60
+            "Time: {hours}:{minutes:02}:{seconds:02}.{millis:03}",
+            hours = elapsed_secs / 3600,
+            minutes = (elapsed_secs / 60) % 60,
+            seconds = elapsed_secs % 60,
+            millis = elapsed.subsec_millis(),
         ));
 
         if self.hotkeys.toggle_pause {

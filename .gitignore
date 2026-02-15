@@ -2,3 +2,5 @@
 /dist
 /assets/maps
 /assets/schema.json.gz
+/tests/client/screenshots/*.png
+!/tests/client/screenshots/*.baseline.png

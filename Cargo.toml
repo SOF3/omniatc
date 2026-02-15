@@ -5,6 +5,8 @@ members = [
 	"omniatc-maps",
 	"omniatc-core",
 	"omniatc-client",
+	"tests/client",
+	"tests/diff-image",
 ]
 resolver = "2"
 
@@ -19,6 +21,8 @@ omniatc-math = { version = "*", path = "omniatc-math" }
 omniatc-store = { version = "*", path = "omniatc-store" }
 omniatc-maps = { version = "*", path = "omniatc-maps" }
 omniatc-client = { version = "*", path = "omniatc-client" }
+omniatc-client-test = { version = "*", path = "tests/client" }
+omniatc-diff-image = { version = "*", path = "tests/diff-image" }
 serde = "1.0.228"
 
 [workspace.dependencies.bevy]
@@ -59,3 +63,7 @@ implicit_hasher = "allow"
 
 allow_attributes = "deny"
 allow_attributes_without_reason = "warn"
+
+# Significantly improves screenshot diff performance during snapshot testing.
+[profile.dev.package.omniatc-diff-image]
+opt-level = 3

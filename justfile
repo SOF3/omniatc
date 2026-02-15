@@ -14,6 +14,21 @@ run-scenario which:
 		cargo run -p omniatc-client -F dev -- \
 		--default-scenario {{which}}
 
+client-tests-clean-baseline:
+	if [ -d tests/client/screenshots ]; then \
+		find tests/client/screenshots -type f -delete; \
+	fi
+client-tests:
+	docker build --build-arg OMNIATC_UID=${UID} -t omniatc-client-tests -f tests/Dockerfile .
+	docker rm -f omniatc-client-tests || true
+	[ -d tests/client/screenshots ] || mkdir tests/client/screenshots
+	docker run \
+		--name omniatc-client-tests \
+		-v ./tests/client/screenshots:/var/screenshots \
+		-e SCREENSHOTS_DIR=/var/screenshots \
+		-e RUST_LOG=error,omniatc=debug \
+		omniatc-client-tests
+
 precommit:
 	cargo +nightly fmt -- --check
 	cargo clippy --all --tests -- \

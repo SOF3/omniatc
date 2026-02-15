@@ -1,0 +1,17 @@
+[package]
+name = "omniatc-diff-image"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Library for image diffing, extracted to enable optimizations even in dev profile"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.101"
+bevy_math.workspace = true
+image = { version = "0.25.9", default-features = false }

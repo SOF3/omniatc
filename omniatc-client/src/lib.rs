@@ -8,8 +8,9 @@ use bevy::ecs::schedule::{self, IntoScheduleConfigs, ScheduleBuildSettings, Syst
 use bevy::ecs::system::ResMut;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{RenderCreation, WgpuLimits, WgpuSettings};
+use bevy::time::TimeUpdateStrategy;
 use bevy::window::{Window, WindowPlugin};
-use bevy::winit::WinitSettings;
+use bevy::winit::{WinitPlugin, WinitSettings};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::manager;
 use itertools::Itertools;
@@ -30,6 +31,11 @@ pub struct Options {
     #[clap(long, default_value = "assets")]
     pub assets_dir: String,
 
+    /// Disable the default winit and time plugins,
+    /// for headless testing with synthetic window handles.
+    #[clap(skip = false)]
+    pub headless_test: bool,
+
     /// Open the specified level on startup, if any.
     pub open_level_id:    Option<String>,
     #[clap(long, default_value = storage::scenario_loader::DEFAULT_SCENARIO)]
@@ -38,8 +44,9 @@ pub struct Options {
 
 pub fn main_app(options: Options) -> App {
     let mut app = App::new();
-    app.add_plugins((
-        bevy::DefaultPlugins
+
+    app.add_plugins({
+        let mut default_plugins = bevy::DefaultPlugins
             .set(AssetPlugin { file_path: options.assets_dir, ..Default::default() })
             .set(WindowPlugin {
                 primary_window: Some(Window { fit_canvas_to_parent: true, ..Default::default() }),
@@ -51,12 +58,28 @@ pub fn main_app(options: Options) -> App {
                     ..Default::default()
                 }),
                 ..Default::default()
-            }),
+            });
+        if options.headless_test {
+            // When running headless integration tests we override winit setup with a synthetic window,
+            // so we disable the default plugin here to avoid event loop conflicts.
+            default_plugins = default_plugins.disable::<WinitPlugin>();
+        }
+        default_plugins
+    });
+
+    if options.headless_test {
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(50)));
+    }
+
+    app.add_plugins((
         EntityCountDiagnosticsPlugin::default(),
         FrameTimeDiagnosticsPlugin::default(),
         bevy_egui::EguiPlugin::default(),
         #[cfg(feature = "debug")]
         bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
+    ));
+
+    app.add_plugins((
         level::Plug::<ConfigManager>::default(),
         omniatc::load::Plug,
         omniatc::util::Plug,

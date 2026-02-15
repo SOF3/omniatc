@@ -1,0 +1,33 @@
+name: "Client tests"
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+    branches:
+      - "master"
+jobs:
+  client-tests:
+    name: "Run client tests in Docker"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "actions/checkout@v4"
+        with:
+          lfs: true
+      - name: "Build client test image"
+        run: "docker build --build-arg OMNIATC_UID=${UID} -t omniatc-client-tests -f tests/Dockerfile ."
+      - run: "[ -d tests/client/screenshots ] || mkdir tests/client/screenshots"
+      - name: "Run client tests"
+        run: |
+          docker run \
+            --name omniatc-client-tests \
+            -v ./tests/client/screenshots:/var/screenshots \
+            -e SCREENSHOTS_DIR=/var/screenshots \
+            -e RUST_LOG=warn,omniatc=debug \
+            omniatc-client-tests || touch ../.ci-failed
+      - name: "Upload screenshots on failure"
+        uses: actions/upload-artifact@v6
+        with:
+          name: "screenshots"
+          path: tests/client/screenshots
+      - run: "[ ! -f ../.ci-failed ]"

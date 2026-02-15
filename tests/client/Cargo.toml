@@ -1,0 +1,23 @@
+[package]
+name = "omniatc-client-test"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Headless integration test harness for omniatc-client"
+
+[lints]
+workspace = true
+
+[dependencies]
+omniatc-core.workspace = true
+omniatc-client.workspace = true
+omniatc-diff-image.workspace = true
+
+bevy = { workspace = true, features = ["bevy_asset", "bevy_image", "bevy_render", "png"] }
+winit = "0.30.12"
+anyhow = "1.0.101"
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+jiff = "0.2.20"

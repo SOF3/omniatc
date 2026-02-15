@@ -1,1 +1,8 @@
 /target
+/justfile
+/tests/Dockerfile
+/dist
+/assets/maps
+/assets/schema.json.gz
+/tests/client/screenshots
+/rust-toolchain.toml

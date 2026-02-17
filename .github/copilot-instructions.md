@@ -38,6 +38,15 @@
 - `cargo run -p omniatc-maps build-assets`
   - Creates `assets/maps/*.osav` (gitignored).
 
+**Client tests (headless):**
+- System deps (Debian/Ubuntu): `libasound2-dev`, `libx11-dev`, `libxrandr-dev`, `libxinerama-dev`,
+  `libxcursor-dev`, `libxi-dev`, `libxkbcommon-dev`, `libxkbcommon-x11-0`, `libwayland-dev`,
+  `libgl1-mesa-dri`, `mesa-vulkan-drivers`, `xauth`, `xvfb`, `pkg-config`.
+- Generate maps first: `cargo run -p omniatc-maps build-assets`.
+- Run a test locally: `xvfb-run -a cargo run -p omniatc-client-test --bin ${test_name}`.
+  - List of test names: `find tests/client/src/bin/ -name "*.rs" -exec basename {} .rs \;`.
+- Docker: `docker build -t omniatc-client-tests -f tests/Dockerfile .` then `docker run --rm omniatc-client-tests`.
+
 **Desktop client run:**
 - `cargo run -p omniatc-client`
   - Starts a windowed app; in headless CI a quick validation was done via `timeout 5s cargo run -p omniatc-client` which exits with code 124 after compiling.

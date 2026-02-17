@@ -39,20 +39,27 @@ trait WriteParams {
     fn write(&mut self, ui: &mut egui::Ui);
 
     fn display(&mut self, ui: &mut egui::Ui) {
-        let resp = egui::CollapsingHeader::new(self.title())
-            .default_open(Self::default_open())
-            .show(ui, |ui| self.write(ui));
-        if let Some(hl_params) = self.request_highlight()
-            && resp.body_response.is_none()
-        {
+        let mut highlight = false;
+        if let Some(hl_params) = self.request_highlight() {
             let elapsed = hl_params.time.elapsed();
             if elapsed.subsec_millis() < 500 {
-                resp.header_response.show_tooltip_ui(|ui| {
-                    egui::Frame::new().fill(egui::Color32::DARK_RED).show(ui, |ui| {
-                        ui.label("Click to open");
-                    });
-                });
+                highlight = true;
             }
+        }
+
+        let mut title = egui::RichText::new(self.title());
+        if highlight {
+            title = title.color(egui::Color32::LIGHT_RED);
+        }
+        let resp = egui::CollapsingHeader::new(title)
+            .default_open(Self::default_open())
+            .show(ui, |ui| self.write(ui));
+        if highlight && resp.body_response.is_none() {
+            resp.header_response.show_tooltip_ui(|ui| {
+                egui::Frame::new().fill(egui::Color32::DARK_RED).show(ui, |ui| {
+                    ui.label("Click to open");
+                });
+            });
         }
     }
 }

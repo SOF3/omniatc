@@ -195,10 +195,17 @@ impl EntityCommand for SetAirborneCommand {
             locator.get(world).locate(position)
         });
 
-        let airspeed = ground_speed - wind.horizontally();
+        let true_airspeed = ground_speed - wind.horizontally();
+
+        // TODO load actual weather
+        let sea_level_temp = ISA_SEA_LEVEL_TEMPERATURE;
+        let sea_level_pressure = ISA_SEA_LEVEL_PRESSURE;
+
+        let baro = compute_barometric(position.altitude(), sea_level_pressure, sea_level_temp);
+
         entity.insert(Airborne {
-            airspeed,
-            true_airspeed: airspeed,
+            airspeed: true_airspeed / baro.tas_ias_ratio,
+            true_airspeed,
             oat: ISA_SEA_LEVEL_TEMPERATURE,
             pressure: ISA_SEA_LEVEL_PRESSURE,
             pressure_alt: position.altitude(),

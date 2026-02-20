@@ -38,7 +38,7 @@ impl Writer for ObjectQuery {
     fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, params: &mut Self::SystemParams<'_, '_>) {
         ui.label(format!(
             "Current ground: {:.0} kt",
-            this.object.ground_speed.magnitude_exact().into_knots()
+            this.object.ground_speed.horizontal().magnitude_exact().into_knots()
         ));
         if let Some(airborne) = this.airborne {
             ui.label(format!(

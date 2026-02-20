@@ -117,14 +117,14 @@ pub enum NavTarget {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AirborneNavTarget {
     /// Target yaw change.
-    pub yaw:         YawTarget,
+    pub yaw:       YawTarget,
     /// Target horizontal indicated airspeed.
-    pub horiz_speed: Speed<f32>,
+    pub horiz_ias: Option<Speed<f32>>,
     /// Target vertical rate.
-    pub vert_rate:   Speed<f32>,
+    pub vert_rate: Speed<f32>,
     /// Whether vertical rate should be expedited.
     /// If false, `vert_rate` is clamped by normal rate instead of the expedition rate.
-    pub expedite:    bool,
+    pub expedite:  bool,
 
     /// Configured to maintain an altitude.
     pub target_altitude:  Option<TargetAltitude>,

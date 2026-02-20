@@ -125,7 +125,7 @@ fn spawn_plane(
 
             let dt_target = nav::VelocityTarget {
                 yaw:         YawTarget::Heading(airspeed.horizontal().heading()),
-                horiz_speed: airspeed.horizontal().magnitude_exact(),
+                horiz_speed: target.horiz_ias.unwrap_or(airspeed.horizontal().magnitude_exact()),
                 vert_rate:   Speed::ZERO,
                 expedite:    false,
             };

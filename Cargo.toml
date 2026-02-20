@@ -64,6 +64,15 @@ implicit_hasher = "allow"
 allow_attributes = "deny"
 allow_attributes_without_reason = "warn"
 
+# Allowed during dev, checked during precommit
+dbg_macro = "allow"
+
+[workspace.lints.rust]
+# Allowed during dev, checked during precommit
+unused_imports = "allow"
+dead_code = "allow"
+unused_variables = "allow"
+
 # Significantly improves screenshot diff performance during snapshot testing.
 [profile.dev.package.omniatc-diff-image]
 opt-level = 3

@@ -859,7 +859,7 @@ pub fn file() -> store::File {
                 nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
-                    horiz_speed:      Speed::from_knots(280.),
+                    horiz_ias:        None,
                     vert_rate:        Speed::from_fpm(0.),
                     expedite:         false,
                     target_altitude:  None,
@@ -893,7 +893,7 @@ pub fn file() -> store::File {
                 nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
-                    horiz_speed:      Speed::from_knots(280.),
+                    horiz_ias:        None,
                     vert_rate:        Speed::from_fpm(0.),
                     expedite:         false,
                     target_altitude:  None,
@@ -927,7 +927,7 @@ pub fn file() -> store::File {
                 nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::from_degrees(80.)),
-                    horiz_speed:      Speed::from_knots(220.),
+                    horiz_ias:        None,
                     vert_rate:        Speed::from_fpm(0.),
                     expedite:         false,
                     target_altitude:  None,
@@ -967,7 +967,7 @@ pub fn file() -> store::File {
                 nav_limits:  common_types::a359_nav_limits(),
                 nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                     yaw:              store::YawTarget::Heading(Heading::NORTH),
-                    horiz_speed:      Speed::from_knots(250.),
+                    horiz_ias:        None,
                     vert_rate:        Speed::from_fpm(1000.),
                     expedite:         false,
                     target_altitude:  Some(store::TargetAltitude {

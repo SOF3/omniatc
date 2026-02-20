@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::{env, fs, thread};
+use std::time::Duration;
+use std::{env, fs, mem, thread};
 
 use anyhow::{Context, Result, anyhow};
 use bevy::app::App;
@@ -12,10 +13,12 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::ResMut;
 use bevy::ecs::world::World;
 use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
-use bevy::input::ButtonInput;
+use bevy::input::keyboard::{self, KeyboardInput};
 use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
+use bevy::input::{ButtonInput, ButtonState};
 use bevy::math::Vec2;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
+use bevy::time::{self, Time, TimeUpdateStrategy};
 use bevy::window::{
     PrimaryWindow, RawHandleWrapper, RawHandleWrapperHolder, Window, WindowWrapper,
 };
@@ -123,6 +126,34 @@ impl ClientTest {
         self.screenshot_test(name)?;
         bevy::log::info!("Finished step: {name} ({:#})", start.duration_until(Timestamp::now()));
         Ok(())
+    }
+
+    pub fn with_time_scale<R>(&mut self, speed: f32, then: impl FnOnce(&mut Self) -> R) -> R {
+        let mut time = self.app.world_mut().resource_mut::<Time<time::Virtual>>();
+        let old_speed = time.relative_speed();
+        time.set_relative_speed(speed);
+
+        *self.app.world_mut().resource_mut::<TimeUpdateStrategy>() =
+            TimeUpdateStrategy::ManualDuration(Duration::from_millis(50).mul_f32(speed));
+
+        let result = then(self);
+
+        self.app.world_mut().resource_mut::<Time<time::Virtual>>().set_relative_speed(old_speed);
+        *self.app.world_mut().resource_mut::<TimeUpdateStrategy>() =
+            TimeUpdateStrategy::ManualDuration(Duration::from_millis(50));
+
+        result
+    }
+
+    pub fn with_max_frames<R>(
+        &mut self,
+        max_frames: usize,
+        then: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let old_max_frames = mem::replace(&mut self.max_frames, max_frames);
+        let result = then(self);
+        self.max_frames = old_max_frames;
+        result
     }
 
     pub fn drive_until<F>(&mut self, condition: F) -> Result<()>
@@ -288,6 +319,35 @@ impl ClientTest {
 
             self.drive_frames(1);
         }
+        Ok(())
+    }
+
+    pub fn press_key(
+        &mut self,
+        key_code: keyboard::KeyCode,
+        logical_key: keyboard::Key,
+    ) -> Result<()> {
+        let window = self.primary_window_entity()?;
+        self.world().write_message(KeyboardInput {
+            key_code,
+            logical_key: logical_key.clone(),
+            state: ButtonState::Pressed,
+            text: None,
+            repeat: false,
+            window,
+        });
+        self.drive_frames(2);
+
+        self.world().write_message(KeyboardInput {
+            key_code,
+            logical_key,
+            state: ButtonState::Released,
+            text: None,
+            repeat: false,
+            window,
+        });
+        self.drive_frames(2);
+
         Ok(())
     }
 }

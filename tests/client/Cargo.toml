@@ -15,6 +15,7 @@ workspace = true
 omniatc-core.workspace = true
 omniatc-client.workspace = true
 omniatc-diff-image.workspace = true
+omniatc-math.workspace = true
 
 bevy = { workspace = true, features = ["bevy_asset", "bevy_image", "bevy_render", "png"] }
 winit = "0.30.12"

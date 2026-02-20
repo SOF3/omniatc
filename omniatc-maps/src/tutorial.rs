@@ -53,7 +53,7 @@ fn quests(waypoints: Vec<store::NamedWaypointRef>) -> impl Into<Vec<store::Quest
                         completion_score: Score(10),
                         position:         Position::from_origin_nm(-5.0, -5.0),
                         altitude:         Position::from_amsl_feet(8000.0),
-                        ground_speed:     Speed::from_knots(300.0),
+                        ground_speed:     Speed::from_knots(289.0),
                         ground_dir:       Heading::EAST,
                         vert_rate:        Speed::ZERO,
                     },
@@ -67,7 +67,7 @@ fn quests(waypoints: Vec<store::NamedWaypointRef>) -> impl Into<Vec<store::Quest
                     nav_limits:  common_types::a359_nav_limits(),
                     nav_target:  store::NavTarget::Airborne(Box::new(store::AirborneNavTarget {
                         yaw:              store::YawTarget::Heading(Heading::EAST),
-                        horiz_speed:      Speed::from_knots(300.0),
+                        horiz_ias:        Some(Speed::from_knots(280.0)),
                         vert_rate:        Speed::from_fpm(0.0),
                         expedite:         false,
                         target_altitude:  None,

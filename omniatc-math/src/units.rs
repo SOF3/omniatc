@@ -623,6 +623,8 @@ impl<Q: fmt::Debug, D: fmt::Debug> fmt::Display for AssertApproxError<Q, D> {
     }
 }
 
+impl<Q: fmt::Debug, D: fmt::Debug> std::error::Error for AssertApproxError<Q, D> {}
+
 impl<Dt, Pow> Quantity<f32, LengthBase, Dt, Pow> {
     #[must_use]
     pub fn atan2(self, x: Self) -> Angle { Angle::from_raw(self.0.atan2(x.0)) }

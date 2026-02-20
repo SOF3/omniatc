@@ -21,7 +21,7 @@ schema = ["dep:schemars", "omniatc-math/schema"]
 [dependencies]
 omniatc-math.workspace = true
 
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 bevy_math = {workspace = true, features = ["serialize"]}
 ciborium = "0.2.2"
 serde = { workspace = true, features = ["derive"] }

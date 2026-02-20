@@ -12,6 +12,6 @@ description = "Library for image diffing, extracted to enable optimizations even
 workspace = true
 
 [dependencies]
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 bevy_math.workspace = true
 image = { version = "0.25.9", default-features = false }

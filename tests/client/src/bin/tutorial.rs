@@ -4,15 +4,18 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use bevy::camera::{Camera, Camera2d};
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{ReadOnlyQueryData, With};
 use bevy::ecs::world::World;
+use bevy::input::keyboard;
 use bevy::input::mouse::MouseButton;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
-use omniatc::level::object::Display;
+use math::{Length, Position};
+use omniatc::level::nav;
+use omniatc::level::object::{Display, Object};
 use omniatc::level::quest::{Active, Quest};
 use omniatc::load::StoredEntity;
-use omniatc_client::render::twodim::object::HasSprite;
+use omniatc_client::render::twodim;
 use omniatc_client_test::{ClientTest, start_test};
 
 fn main() -> Result<()> {
@@ -56,13 +59,56 @@ fn main() -> Result<()> {
     })?;
 
     test.with_screenshot("object-pick", |test| {
-        test.drive_until(|world| find_object_entity(world, "ABC123").is_some())?;
-        let plane_screen_pos = plane_screen_pos(test.world(), "ABC123")?;
+        test.drive_until(|world| {
+            query_object_by_name::<(), _>(world, "ABC123", |()| ()).is_some()
+        })?;
+        let plane_screen_pos = object_screen_pos(test.world(), "ABC123")?;
         test.click_at(MouseButton::Left, plane_screen_pos)?;
         test.drive_frames(2);
         assert_quest_inactive(test, "Tutorial: Aircraft control (1/5)")?;
         Ok(())
     })?;
+
+    {
+        const QUEST_ALTITUDE: Position<f32> = Position::from_amsl_feet(6000.0);
+
+        test.with_screenshot("object-altitude-setpoint", |test| {
+            for _ in 0..2 {
+                test.press_key(keyboard::KeyCode::ArrowDown, keyboard::Key::ArrowDown)?;
+            }
+
+            test.press_key(keyboard::KeyCode::Enter, keyboard::Key::Enter)?;
+
+            query_object_by_name::<&nav::TargetAltitude, _>(
+                test.world(),
+                "ABC123",
+                |target_altitude| {
+                    target_altitude
+                        .altitude
+                        .assert_near(QUEST_ALTITUDE, Length::from_feet(1.0))
+                        .context("Expected target altitude to be 6000 ft")
+                },
+            )
+            .context("Expect object to exist")??;
+
+            Ok(())
+        })?;
+
+        test.with_screenshot("object-altitude-complete", |test| {
+            test.with_time_scale(10.0, |test| {
+                test.drive_until(|world| {
+                    query_object_by_name::<&Object, _>(world, "ABC123", |object| {
+                        object.position.altitude().distance_cmp(QUEST_ALTITUDE)
+                            < Length::from_feet(10.0)
+                    }) == Some(true)
+                })
+            })?;
+
+            test.drive_frames(2);
+            assert_quest_inactive(test, "Tutorial: Aircraft control (2/5)")?;
+            Ok(())
+        })?;
+    }
 
     Ok(())
 }
@@ -78,13 +124,17 @@ fn assert_quest_inactive(test: &mut ClientTest, title: &str) -> Result<()> {
     Ok(())
 }
 
-fn find_object_entity(world: &mut World, name: &str) -> Option<Entity> {
-    let mut query = world.query::<(Entity, &Display)>();
-    query.iter(world).find(|(_, display)| display.name == name).map(|(entity, _)| entity)
+fn query_object_by_name<D: ReadOnlyQueryData + 'static, R>(
+    world: &mut World,
+    name: &str,
+    then: impl for<'w, 's> FnOnce(D::Item<'w, 's>) -> R,
+) -> Option<R> {
+    let mut query = world.query::<(D, &Display)>();
+    query.iter(world).find(|(_, display)| display.name == name).map(|(data, _)| then(data))
 }
 
-fn plane_screen_pos(world: &mut World, name: &str) -> Result<Vec2> {
-    let mut object_query = world.query::<(&Display, &HasSprite)>();
+fn object_screen_pos(world: &mut World, name: &str) -> Result<Vec2> {
+    let mut object_query = world.query::<(&Display, &twodim::object::HasSprite)>();
     let (_, sprite) = object_query
         .iter(world)
         .find(|(display, _)| display.name == name)

@@ -4052,6 +4052,7 @@ dependencies = [
  "omniatc-client",
  "omniatc-core",
  "omniatc-diff-image",
+ "omniatc-math",
  "winit",
 ]
 

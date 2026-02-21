@@ -20,7 +20,7 @@ use omniatc::try_log_return;
 use omniatc::util::EqAny;
 
 use crate::render::{threedim, twodim};
-use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins};
+use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
 
 pub mod key_field;
 pub use key_field::KeySet;
@@ -31,9 +31,12 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_config::<ConfigManager, Conf>("input");
         app.init_resource::<CursorState>();
+        app.init_resource::<CursorDragState>();
         app.add_systems(
             app::Update,
-            CursorState::update_system.before(ReadCurrentCursorCameraSystemSet),
+            CursorState::update_system
+                .in_set(UpdateSystemSets::Input)
+                .before(ReadCurrentCursorCameraSystemSet),
         );
         app.init_resource::<Hotkeys>();
         app.add_systems(
@@ -53,7 +56,6 @@ pub struct CursorState {
     pub right: ButtonState,
 
     pub capture: Capture,
-    drag_state:  Option<Box<dyn EqAny + Send + Sync>>,
 }
 
 #[derive(Default)]
@@ -106,50 +108,6 @@ impl CursorState {
 
     #[must_use]
     pub fn right_just_up(&self) -> bool { !self.right.is_down && self.right.was_down }
-
-    /// Determines whether dragging is occurring,
-    /// selectively disabling dragging based on the current capture state.
-    ///
-    /// This function should be called every frame to ensure correct renewal,
-    /// not just during button state changes.
-    pub fn is_dragging(
-        &mut self,
-        id: impl EqAny + Send + Sync,
-        getter: impl FnOnce(&Self) -> bool,
-    ) -> bool {
-        match self.capture {
-            Capture::Game => {
-                // When within game area,
-                // all dragging overrides are allowed.
-                let dragging = getter(self);
-                if dragging {
-                    self.drag_state = Some(Box::new(id));
-                    true
-                } else {
-                    self.drag_state = None;
-                    false
-                }
-            }
-            Capture::Egui => {
-                // When within egui area,
-                // only renewal of the same dragging override is allowed.
-                if id.eq_any(&self.drag_state) {
-                    let dragging = getter(self);
-                    if dragging {
-                        // renew dragging state
-                        true
-                    } else {
-                        // no more dragging until egui releases the cursor.
-                        self.drag_state = None;
-                        false
-                    }
-                } else {
-                    // New dragging overrides are not allowed.
-                    false
-                }
-            }
-        }
-    }
 
     fn update_system(
         mut target: ResMut<Self>,
@@ -228,6 +186,56 @@ impl CursorState {
                     viewport_pos,
                     world_pos,
                 });
+            }
+        }
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct CursorDragState {
+    drag_state: Option<Box<dyn EqAny + Send + Sync>>,
+}
+
+impl CursorDragState {
+    /// Determines whether dragging is occurring,
+    /// selectively disabling dragging based on the current capture state.
+    ///
+    /// This function should be called every frame to ensure correct renewal,
+    /// not just during button state changes.
+    pub fn is_dragging(
+        &mut self,
+        cursor_state: &CursorState,
+        id: impl EqAny + Send + Sync,
+        dragging_by_cursor: bool,
+    ) -> bool {
+        match cursor_state.capture {
+            Capture::Game => {
+                // When within game area,
+                // all dragging overrides are allowed.
+                if dragging_by_cursor {
+                    self.drag_state = Some(Box::new(id));
+                    true
+                } else {
+                    self.drag_state = None;
+                    false
+                }
+            }
+            Capture::Egui => {
+                // When within egui area,
+                // only renewal of the same dragging override is allowed.
+                if id.eq_any(&self.drag_state) {
+                    if dragging_by_cursor {
+                        // renew dragging state
+                        true
+                    } else {
+                        // no more dragging until egui releases the cursor.
+                        self.drag_state = None;
+                        false
+                    }
+                } else {
+                    // New dragging overrides are not allowed.
+                    false
+                }
             }
         }
     }

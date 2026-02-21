@@ -11,7 +11,7 @@ use store::Score;
 use crate::level::object::Object;
 use crate::level::runway::Runway;
 use crate::level::waypoint::Waypoint;
-use crate::level::{ground, object, runway, score, taxi};
+use crate::level::{SystemSets, ground, object, runway, score, taxi};
 use crate::{QueryTryLog, try_log};
 
 /// Speed below which an object is considered to be stationary.
@@ -21,7 +21,10 @@ pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
-        app.add_systems(app::Update, completion_system.in_set(score::Writer));
+        app.add_systems(
+            app::Update,
+            completion_system.in_set(SystemSets::Statistics).in_set(score::Writer),
+        );
     }
 }
 

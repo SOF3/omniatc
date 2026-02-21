@@ -12,6 +12,7 @@ pub struct Plug;
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_resource::<Stats>();
+        app.allow_ambiguous_resource::<Stats>(); // Stats are not very frame-sensitive
         app.configure_sets(app::Update, Writer.ambiguous_with(Writer));
     }
 }

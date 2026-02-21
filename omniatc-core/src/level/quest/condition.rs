@@ -189,6 +189,7 @@ fn make_ui_event_system<Cond: Component>(
         }
     })
     .into_configs()
+    .after(quest::UiEventWriterSystemSet)
 }
 
 /// Completes when any object is within the altitude range.

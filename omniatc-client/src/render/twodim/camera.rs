@@ -41,6 +41,7 @@ impl Plugin for Plug {
             app::Update,
             drag_camera_system
                 .in_set(UpdateSystemSets::Input)
+                .in_set(quest::UiEventWriterSystemSet)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
         app.add_systems(
@@ -207,7 +208,8 @@ struct DraggingState {
 fn drag_camera_system(
     mut motion_events: MessageReader<MouseMotion>,
     mut dragging_camera: Local<Option<DraggingState>>,
-    mut cursor_state: ResMut<input::CursorState>,
+    cursor_state: Res<input::CursorState>,
+    mut drag_state: ResMut<input::CursorDragState>,
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
     conf: ReadConfig<Conf>,
@@ -222,7 +224,7 @@ fn drag_camera_system(
         return;
     }
 
-    match (&mut *dragging_camera, cursor_state.is_dragging(util::new_type_id!(DragCamera), |state| state.right.is_down)) {
+    match (&mut *dragging_camera, drag_state.is_dragging(&cursor_state, util::new_type_id!(DragCamera), cursor_state.right.is_down)) {
         (option @ Some(_), false) => {
             // stop dragging
             *option = None;

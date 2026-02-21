@@ -18,7 +18,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::{Entity, EntityHashSet};
 use bevy::ecs::message::Message;
 use bevy::ecs::query::{Has, QueryData};
-use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Command, Commands, Query};
 use bevy::ecs::world::World;
 
@@ -177,3 +177,6 @@ pub enum UiEvent {
     CameraRotated,
     ObjectSelected,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+pub struct UiEventWriterSystemSet;

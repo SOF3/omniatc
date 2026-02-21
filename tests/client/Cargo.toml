@@ -19,6 +19,6 @@ omniatc-math.workspace = true
 
 bevy = { workspace = true, features = ["bevy_asset", "bevy_image", "bevy_render", "png"] }
 winit = "0.30.12"
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 jiff = "0.2.20"

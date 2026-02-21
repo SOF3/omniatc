@@ -63,7 +63,9 @@ impl Heading {
 
     /// Creates a heading from an absolute bearing.
     #[must_use]
-    pub fn from_degrees(degrees: f32) -> Self { Self::from_radians(Angle::from_degrees(degrees)) }
+    pub const fn from_degrees(degrees: f32) -> Self {
+        Self::from_radians(Angle::from_degrees(degrees))
+    }
 
     /// Returns the heading in degrees in the range 0..360.
     #[must_use]
@@ -74,9 +76,9 @@ impl Heading {
 
     /// Creates a heading from an absolute bearing in radians.
     #[must_use]
-    pub fn from_radians(mut radians: Angle) -> Self {
-        if radians > Angle::STRAIGHT {
-            radians -= Angle::FULL;
+    pub const fn from_radians(mut radians: Angle) -> Self {
+        if radians.0 > Angle::STRAIGHT.0 {
+            radians.0 -= Angle::FULL.0;
         }
         Self(radians)
     }

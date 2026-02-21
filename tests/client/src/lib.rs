@@ -133,14 +133,15 @@ impl ClientTest {
         let old_speed = time.relative_speed();
         time.set_relative_speed(speed);
 
-        *self.app.world_mut().resource_mut::<TimeUpdateStrategy>() =
-            TimeUpdateStrategy::ManualDuration(Duration::from_millis(50).mul_f32(speed));
+        let old_strategy = mem::replace(
+            &mut *self.app.world_mut().resource_mut::<TimeUpdateStrategy>(),
+            TimeUpdateStrategy::ManualDuration(Duration::from_millis(50).mul_f32(speed)),
+        );
 
         let result = then(self);
 
         self.app.world_mut().resource_mut::<Time<time::Virtual>>().set_relative_speed(old_speed);
-        *self.app.world_mut().resource_mut::<TimeUpdateStrategy>() =
-            TimeUpdateStrategy::ManualDuration(Duration::from_millis(50));
+        *self.app.world_mut().resource_mut::<TimeUpdateStrategy>() = old_strategy;
 
         result
     }
@@ -169,6 +170,7 @@ impl ClientTest {
             self.app.update();
             frames += 1;
         }
+        bevy::log::info!("Condition satisfied after {frames} frames");
         Ok(())
     }
 

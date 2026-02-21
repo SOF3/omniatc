@@ -33,7 +33,7 @@ use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use math::{Length, Position, Speed};
 use wordvec::WordVec;
 
-use super::{SystemSets, object, wind};
+use super::{SystemSets, object, weather};
 use crate::QueryTryLog;
 use crate::util::RateLimit;
 
@@ -55,12 +55,7 @@ where
         app.init_resource::<VortexIndex>();
         app.add_message::<SpawnMessage>();
         app.add_systems(app::Update, dissipate_vortex_system.in_set(SystemSets::PrepareEnviron));
-        app.add_systems(
-            app::Update,
-            wind_move_vortex_system
-                .after(dissipate_vortex_system)
-                .in_set(SystemSets::PrepareEnviron),
-        );
+        app.add_systems(app::Update, wind_move_vortex_system.in_set(SystemSets::ExecuteEnviron));
         app.add_systems(app::Update, spawn_vortex_system.in_set(SystemSets::AffectEnviron));
         app.add_systems(
             app::Update,
@@ -103,9 +98,8 @@ impl Intensity {
 
 fn wind_move_vortex_system(
     time: Res<Time<time::Virtual>>,
-    vortex_query: Query<(Entity, &mut Vortex)>,
+    vortex_query: Query<(Entity, &mut Vortex, &mut weather::Detector)>,
     conf: ReadConfig<Conf>,
-    wind_locator: wind::Locator,
     mut last_run: Local<Duration>,
     mut vortex_index: ResMut<VortexIndex>,
 ) {
@@ -114,11 +108,12 @@ fn wind_move_vortex_system(
     #[expect(clippy::unchecked_time_subtraction, reason = "time.elapsed() is always greater")]
     let delta_time = time.elapsed() - mem::replace(&mut *last_run, time.elapsed());
 
-    for (entity, mut vortex) in vortex_query {
-        let speed = wind_locator.locate(vortex.position);
+    for (entity, mut vortex, mut detector) in vortex_query {
+        let speed = detector.last_wind;
 
         let old_position = vortex.position;
         vortex.position += speed.with_vertical(conf.vert_rate) * delta_time;
+        detector.position = vortex.position;
         vortex_index.relocate(old_position, vortex.position, entity);
     }
 }
@@ -272,6 +267,7 @@ fn spawn_vortex_system(
         let vortex = commands
             .spawn((
                 Name::new("Wake vortex"),
+                weather::Detector { position: object.position, ..Default::default() },
                 #[expect(
                     clippy::cast_possible_truncation,
                     reason = "arbitrary rounding is allowed"

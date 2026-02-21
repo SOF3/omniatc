@@ -26,7 +26,6 @@ pub mod taxi;
 pub mod wake;
 pub mod waypoint;
 pub mod weather;
-pub mod wind;
 
 pub struct Plug<M>(PhantomData<M>);
 
@@ -38,7 +37,6 @@ impl<M: Manager + Default> Plugin for Plug<M>
 where
     object::Conf: ConfigFieldFor<M>,
     wake::Conf: ConfigFieldFor<M>,
-    wind::Conf: ConfigFieldFor<M>,
     weather::Conf: ConfigFieldFor<M>,
     instr::Conf: ConfigFieldFor<M>,
 {
@@ -68,7 +66,6 @@ where
         app.add_plugins(weather::Plug::<M>::default());
         app.add_plugins(dest::Plug);
         app.add_plugins(wake::Plug::<M>::default());
-        app.add_plugins(wind::Plug::<M>::default());
         app.add_plugins(spawn::Plug);
     }
 }

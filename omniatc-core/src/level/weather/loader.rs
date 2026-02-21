@@ -12,8 +12,11 @@ pub fn spawn(world: &mut World, weathers: &[store::Weather]) {
         weather::SpawnCommand {
             bundle: weather::Comps {
                 weather:       weather::Weather {
-                    sea_pressure: weather.sea_pressure,
-                    sea_temp:     weather.sea_temp,
+                    sea_pressure:         weather.sea_pressure,
+                    sea_temp:             weather.sea_temp,
+                    sea_wind:             weather.sea_wind,
+                    wind_scaling_per_nm:  weather.wind_scaling_per_nm,
+                    wind_rotation_per_nm: weather.wind_rotation_per_nm,
                 },
                 effect_region: weather::EffectRegion(Aabb2d {
                     min: weather.start.get(),

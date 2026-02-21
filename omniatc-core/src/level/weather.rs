@@ -1,5 +1,5 @@
 //! A weather entity specifies 2D environmental effects in a square,
-//! such as ground elevation, temperature and pressure.
+//! such as ground elevation, temperature, pressure and wind.
 
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -12,12 +12,15 @@ use bevy::ecs::query::With;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{EntityCommand, Query, SystemParam};
 use bevy::ecs::world::EntityWorldMut;
-use bevy::math::Vec2;
 use bevy::math::bounding::Aabb2d;
+use bevy::math::{Vec2, Vec3};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
-use math::{ISA_SEA_LEVEL_PRESSURE, ISA_SEA_LEVEL_TEMPERATURE, Position, Pressure, Temp};
+use math::{
+    Angle, ISA_SEA_LEVEL_PRESSURE, ISA_SEA_LEVEL_TEMPERATURE, Length, Position, Pressure, Speed,
+    Temp,
+};
 
-use super::{SystemSets, object};
+use super::SystemSets;
 use crate::util::RateLimit;
 
 pub mod loader;
@@ -51,14 +54,39 @@ pub struct Conf {
 #[derive(Component, Clone, Copy)]
 pub struct Weather {
     /// Pressure at (extrapolated) sea level.
-    pub sea_pressure: Pressure,
+    pub sea_pressure:         Pressure,
     /// Temperature at (extrapolated) sea level.
-    pub sea_temp:     Temp,
+    pub sea_temp:             Temp,
+    /// Wind velocity at sea level.
+    pub sea_wind:             Speed<Vec2>,
+    /// Base of the exponential magnitude scaling of wind per nautical mile of altitude.
+    ///
+    /// The wind magnitude at altitude `h` nm is `sea_wind * wind_scaling_per_nm.powf(h)`.
+    pub wind_scaling_per_nm:  f32,
+    /// Rotation of wind direction per nautical mile of altitude.
+    pub wind_rotation_per_nm: Angle,
 }
 
 impl Default for Weather {
     fn default() -> Self {
-        Self { sea_pressure: ISA_SEA_LEVEL_PRESSURE, sea_temp: ISA_SEA_LEVEL_TEMPERATURE }
+        Self {
+            sea_pressure:         ISA_SEA_LEVEL_PRESSURE,
+            sea_temp:             ISA_SEA_LEVEL_TEMPERATURE,
+            sea_wind:             Speed::ZERO,
+            wind_scaling_per_nm:  1.0,
+            wind_rotation_per_nm: Angle::ZERO,
+        }
+    }
+}
+
+impl Weather {
+    /// Computes the wind velocity at the given altitude.
+    #[must_use]
+    pub fn wind_at_altitude(&self, altitude: Position<f32>) -> Speed<Vec2> {
+        let altitude_nm = altitude.amsl() / Length::from_nm(1.0);
+        let scale = self.wind_scaling_per_nm.powf(altitude_nm);
+        let rotation = self.wind_rotation_per_nm * altitude_nm;
+        self.sea_wind.rotate_clockwise(rotation) * scale
     }
 }
 
@@ -92,7 +120,7 @@ pub struct Locator<'w, 's> {
 }
 
 impl Locator<'_, '_> {
-    /// Gets the weather component at the given position.
+    /// Gets the weather entity at the given position.
     #[must_use]
     pub fn locate(&self, object_pos: Position<Vec2>) -> Option<Entity> {
         // TODO use a quadtree.
@@ -106,6 +134,7 @@ impl Locator<'_, '_> {
         })
     }
 
+    /// Gets the weather data at the given position, or the default if no weather entity covers it.
     #[must_use]
     pub fn get(&self, object_pos: Position<Vec2>) -> Weather {
         self.locate(object_pos)
@@ -117,21 +146,36 @@ impl Locator<'_, '_> {
             })
             .unwrap_or_default()
     }
+
+    /// Computes the wind at the given 3D position.
+    #[must_use]
+    pub fn wind(&self, object_pos: Position<Vec3>) -> Speed<Vec2> {
+        self.get(object_pos.horizontal()).wind_at_altitude(object_pos.altitude())
+    }
 }
 
-/// An [object](object::Object) that detects weather.
+/// A component that detects weather at a position.
 ///
 /// The value can be read by systems in [`DetectorReaderSystemSet`].
-#[derive(Component, Default)]
+#[derive(Component)]
 pub struct Detector {
+    /// The 3D position to detect weather at, updated externally.
+    pub position:   Position<Vec3>,
     pub last_match: Option<Entity>,
+    pub last_wind:  Speed<Vec2>,
+}
+
+impl Default for Detector {
+    fn default() -> Self {
+        Self { position: Position::new(Vec3::ZERO), last_match: None, last_wind: Speed::ZERO }
+    }
 }
 
 fn detect_system(
     mut rl: RateLimit,
     conf: ReadConfig<Conf>,
     locator: Locator,
-    mut object_query: Query<(&mut Detector, &object::Object)>,
+    mut detector_query: Query<&mut Detector>,
 ) {
     let conf = conf.read();
 
@@ -139,8 +183,14 @@ fn detect_system(
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut detector, object)| {
-        detector.last_match = locator.locate(object.position.horizontal());
+    detector_query.par_iter_mut().for_each(|mut detector| {
+        detector.last_match = locator.locate(detector.position.horizontal());
+        let weather = detector
+            .last_match
+            .and_then(|entity| locator.weather_query.get(entity).ok())
+            .copied()
+            .unwrap_or_default();
+        detector.last_wind = weather.wind_at_altitude(detector.position.altitude());
     });
 }
 

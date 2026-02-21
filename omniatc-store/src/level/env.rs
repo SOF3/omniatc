@@ -1,5 +1,5 @@
 use bevy_math::{Vec2, VectorSpace};
-use math::{Length, Position, Pressure, Speed, Temp};
+use math::{Angle, Length, Position, Pressure, Speed, Temp};
 use serde::{Deserialize, Serialize};
 
 use crate::{AxisDirection, Shape2d};
@@ -17,9 +17,6 @@ pub struct Environment {
     /// An object at position `P` can see an object at position `Q`
     /// if and only if both `P` and `Q` have visibility not less than `dist(P, Q)`.
     pub visibility: HeatMap2<Length<f32>>,
-
-    /// Winds at different areas.
-    pub winds: Vec<Wind>,
 
     /// Weather at different areas.
     pub weather: Vec<Weather>,
@@ -224,34 +221,26 @@ pub struct SparseFunction2<Datum> {
     pub emergency_exception: bool,
 }
 
-/// Wind in a cuboid region, interpolated linearly between the bottom and top faces.
-#[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct Wind {
-    /// Minimum horizontal corner of the wind region.
-    pub start:        Position<Vec2>,
-    /// Maximum horizontal corner of the wind region.
-    pub end:          Position<Vec2>,
-    /// Bottom altitude of the wind region.
-    pub bottom:       Position<f32>,
-    /// Top altitude of the wind region.
-    pub top:          Position<f32>,
-    /// Wind speed at the bottom face of the region.
-    pub bottom_speed: Speed<Vec2>,
-    /// Wind speed at the top face of the region.
-    pub top_speed:    Speed<Vec2>,
-}
-
 /// Weather in a rectangular region.
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Weather {
     /// Minimum corner of the weather region.
-    pub start:        Position<Vec2>,
+    pub start:                Position<Vec2>,
     /// Maximum corner of the weather region.
-    pub end:          Position<Vec2>,
+    pub end:                  Position<Vec2>,
     /// Pressure at the sea level, extrapolated if necessary.
-    pub sea_pressure: Pressure,
+    pub sea_pressure:         Pressure,
     /// Temperature at the sea level, extrapolated if necessary.
-    pub sea_temp:     Temp,
+    pub sea_temp:             Temp,
+    /// Wind velocity at sea level.
+    pub sea_wind:             Speed<Vec2>,
+    /// Base of the exponential magnitude scaling of wind per nautical mile of altitude.
+    ///
+    /// The wind magnitude at altitude `h` nm is `sea_wind * wind_scaling_per_nm.powf(h)`.
+    /// For example, a value of `1.2` means the wind magnitude is multiplied by 1.2
+    /// each nautical mile vertically (20% increase per nm).
+    pub wind_scaling_per_nm:  f32,
+    /// Rotation of wind direction per nautical mile of altitude.
+    pub wind_rotation_per_nm: Angle,
 }

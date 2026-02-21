@@ -70,6 +70,19 @@
 - Use the `QueryExt`/`WorldExt` traits (re-exported as `QueryTryLog`/`WorldTryLog`) and the `try_log!`/`try_log_return!` macros from `omniatc-core/src/try_log.rs` for `World`/`Query` component access when missing components would be a bug. The `None` branch should abort processing for the current entity unless aggregating results.
 - When updating a pull request branch, prefer amending commits if the previous commit is also authored by Copilot and not in the base branch.
 
+## Working with the Quantity type system (`omniatc-math`)
+The `Quantity<T, Base, Dt, Pow>` struct in `omniatc-math/src/units.rs` is the core dimensional type.
+If unsure about available operator overloads, run: `grep 'impl.*(Add|Sub|Mul|Div)' -A1 omniatc-math/src/units.rs`
+
+Key rules:
+- **Never extract raw floats** from Quantity types when typed operations exist. Prefer `Length / Length` (yields `f32`) over `.get()` or `.0` field access.
+- For `Position<f32>` (altitude), use `.amsl()` to get `Length<f32>`, then divide: `position.amsl() / Length::from_nm(1.0)` to get altitude in nm as `f32`.
+- `Quantity<f32,...> / Quantity<f32,...>` (same type) yields `f32` (dimensionless ratio). Use this for magnitude ratios.
+- `Angle / f32` yields `Angle`. `Angle * f32` yields `Angle`. Use these for per-unit-altitude angle computations.
+- All angles use **clockwise compass bearing** convention. Use `Quantity<Vec2,...>::rotate_clockwise(angle)` for 2D vector rotation.
+- Common type aliases: `Length<T>` (nm), `Speed<T>` (nm/s), `Accel<T>` (nm/s²), `Angle` (radians), `Pressure` (Pa).
+- See the doc comments on `Quantity` in `units.rs` for the full type parameter reference table.
+
 ## README notes
 - The README’s “Compile from source” steps match the `omniatc-maps` assets build and `cargo run --release -p omniatc-client` for the game.
 

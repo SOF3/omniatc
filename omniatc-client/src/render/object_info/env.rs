@@ -1,14 +1,14 @@
 use bevy::ecs::query::QueryData;
 use bevy_egui::egui;
 use math::{Angle, Sign};
-use omniatc::level::{object, plane, wake, wind};
+use omniatc::level::{object, plane, wake, weather};
 
 use super::Writer;
 
 #[derive(QueryData)]
 pub struct ObjectQuery {
     wake:     Option<&'static wake::Detector>,
-    wind:     Option<&'static wind::Detector>,
+    weather:  Option<&'static weather::Detector>,
     plane:    Option<&'static plane::Control>,
     airborne: Option<&'static object::Airborne>,
 }
@@ -18,14 +18,16 @@ impl Writer for ObjectQuery {
 
     fn title() -> &'static str { "Environment" }
 
-    fn should_show(this: &Self::Item<'_, '_>) -> bool { this.wake.is_some() || this.wind.is_some() }
+    fn should_show(this: &Self::Item<'_, '_>) -> bool {
+        this.wake.is_some() || this.weather.is_some()
+    }
 
     fn show(this: &Self::Item<'_, '_>, ui: &mut egui::Ui, (): &mut Self::SystemParams<'_, '_>) {
         if let Some(wake) = this.wake {
             ui.label(format!("Wake: {:.2}", f64::from(wake.last_detected.0) / 60000.));
         }
-        if let Some(wind) = this.wind {
-            let wind = wind.last_computed;
+        if let Some(weather) = this.weather {
+            let wind = weather.last_wind;
 
             let magnitude = wind.magnitude_exact().into_knots();
             ui.label(format!(

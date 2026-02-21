@@ -1,7 +1,10 @@
 use std::time::Duration;
 
 use bevy_math::Vec2;
-use math::{Accel, Angle, AngularSpeed, Heading, Length, Position, Speed};
+use math::{
+    Accel, Angle, AngularSpeed, Heading, ISA_SEA_LEVEL_PRESSURE, ISA_SEA_LEVEL_TEMPERATURE, Length,
+    Position, Speed,
+};
 use store::{Score, WaypointProximity, WeightedList};
 
 use crate::common_types;
@@ -376,16 +379,17 @@ pub fn level() -> store::Level {
                 aligned: store::AlignedHeatMap2::constant(Length::from_nm(1000.)),
                 sparse:  store::SparseHeatMap2 { functions: [].into() },
             },
-            winds:      [store::Wind {
-                start:        Position::from_origin_nm(-1000., -1000.),
-                end:          Position::from_origin_nm(1000., 1000.),
-                top:          Position::from_amsl_feet(40000.),
-                bottom:       Position::from_amsl_feet(0.),
-                top_speed:    Speed::from_knots(85.).with_heading(Heading::from_degrees(330.)),
-                bottom_speed: Speed::from_knots(25.).with_heading(Heading::from_degrees(300.)),
+            weather:    [store::Weather {
+                start:                Position::from_origin_nm(-1000., -1000.),
+                end:                  Position::from_origin_nm(1000., 1000.),
+                sea_pressure:         ISA_SEA_LEVEL_PRESSURE,
+                sea_temp:             ISA_SEA_LEVEL_TEMPERATURE,
+                sea_wind:             Speed::from_knots(25.)
+                    .with_heading(Heading::from_degrees(300.)),
+                wind_scaling_per_nm:  1.2,
+                wind_rotation_per_nm: Angle::from_degrees(5.0),
             }]
             .into(),
-            weather:    [].into(),
         },
         object_types:  [(
             "A359",

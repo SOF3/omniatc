@@ -18,13 +18,13 @@ use bevy::time::{self, Time, Timer, TimerMode};
 use bevy_mod_config::{AppExt, Config, ConfigFieldFor, Manager, ReadConfig};
 use itertools::Itertools;
 use math::{
-    Accel, AngularSpeed, Heading, ISA_SEA_LEVEL_PRESSURE, ISA_SEA_LEVEL_TEMPERATURE, Length,
-    Position, Pressure, Speed, Temp, compute_barometric, range_steps, solve_expected_ground_speed,
+    Accel, AngularSpeed, Heading, Length, Position, Pressure, Speed, Temp, compute_barometric,
+    range_steps, solve_expected_ground_speed,
 };
 use store::Score;
 
 use super::dest::Destination;
-use super::{SystemSets, ground, message, nav, wind};
+use super::{SystemSets, ground, message, nav};
 use crate::level::weather::{self, Weather};
 use crate::level::{dest, plane, taxi};
 use crate::try_log::EntityWorldMutExt;
@@ -54,7 +54,6 @@ where
         app.add_systems(
             app::Update,
             update_airborne_system
-                .in_set(wind::DetectorReaderSystemSet)
                 .in_set(weather::DetectorReaderSystemSet)
                 .in_set(SystemSets::ExecuteEnviron),
         );
@@ -94,7 +93,6 @@ pub struct Object {
 pub struct Rotation(pub Quat);
 
 #[derive(Debug, Component)]
-#[require(wind::Detector)]
 #[require(weather::Detector)]
 pub struct Airborne {
     /// Indicated airspeed.
@@ -190,26 +188,26 @@ impl EntityCommand for SetAirborneCommand {
             (position, ground_speed)
         };
 
-        let wind = entity.world_scope(|world| {
-            let mut locator = SystemState::<wind::Locator>::new(world);
-            locator.get(world).locate(position)
+        let weather = entity.world_scope(|world| {
+            let mut locator = SystemState::<weather::Locator>::new(world);
+            locator.get(world).get(position.horizontal())
         });
 
+        let wind = weather.wind_at_altitude(position.altitude());
         let true_airspeed = ground_speed - wind.horizontally();
 
-        // TODO load actual weather
-        let sea_level_temp = ISA_SEA_LEVEL_TEMPERATURE;
-        let sea_level_pressure = ISA_SEA_LEVEL_PRESSURE;
+        let baro = compute_barometric(position.altitude(), weather.sea_pressure, weather.sea_temp);
 
-        let baro = compute_barometric(position.altitude(), sea_level_pressure, sea_level_temp);
-
-        entity.insert(Airborne {
-            airspeed: true_airspeed / baro.tas_ias_ratio,
-            true_airspeed,
-            oat: ISA_SEA_LEVEL_TEMPERATURE,
-            pressure: ISA_SEA_LEVEL_PRESSURE,
-            pressure_alt: position.altitude(),
-        });
+        entity.insert((
+            Airborne {
+                airspeed: true_airspeed / baro.tas_ias_ratio,
+                true_airspeed,
+                oat: baro.temp,
+                pressure: baro.pressure,
+                pressure_alt: baro.pressure_altitude,
+            },
+            weather::Detector { position, ..Default::default() },
+        ));
     }
 }
 
@@ -343,32 +341,38 @@ impl EntityCommand for SetOnGroundCommand {
     }
 }
 
-fn move_object_system(time: Res<Time<time::Virtual>>, mut object_query: Query<&mut Object>) {
+fn move_object_system(
+    time: Res<Time<time::Virtual>>,
+    mut object_query: Query<(&mut Object, Option<&mut weather::Detector>)>,
+) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|mut object| {
+    object_query.par_iter_mut().for_each(|(mut object, detector)| {
         let moved = object.ground_speed * time.delta();
         object.position += moved;
+        if let Some(mut detector) = detector {
+            detector.position = object.position;
+        }
     });
 }
 
 fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(&mut Object, &mut Airborne, &wind::Detector, &weather::Detector)>,
+    mut object_query: Query<(&mut Object, &mut Airborne, &weather::Detector)>,
     weather_query: Query<&Weather>,
 ) {
     if time.is_paused() {
         return;
     }
 
-    object_query.par_iter_mut().for_each(|(mut object, mut airborne, wind, weather)| {
+    object_query.par_iter_mut().for_each(|(mut object, mut airborne, weather_detector)| {
         let result = GroundSpeedCalculator::get_ground_speed_with_weather(
             object.position,
             airborne.airspeed,
-            wind.last_computed,
-            weather
+            weather_detector.last_wind,
+            weather_detector
                 .last_match
                 .and_then(|entity| weather_query.log_get(entity))
                 .copied()
@@ -385,7 +389,6 @@ fn update_airborne_system(
 #[derive(SystemParam)]
 pub struct GetAirspeed<'w, 's> {
     airborne_query: Query<'w, 's, (&'static Object, Option<&'static Airborne>)>,
-    wind:           wind::Locator<'w, 's>,
     weather:        weather::Locator<'w, 's>,
 }
 
@@ -402,8 +405,8 @@ impl GetAirspeed<'_, '_> {
         if let Some(airborne) = airborne {
             airborne.airspeed
         } else {
-            let tas = ground_speed - self.wind.locate(position).horizontally();
             let weather = self.weather.get(position.horizontal());
+            let tas = ground_speed - weather.wind_at_altitude(position.altitude()).horizontally();
             let atm =
                 compute_barometric(position.altitude(), weather.sea_pressure, weather.sea_temp);
             atm.indicated_airspeed(tas)
@@ -413,7 +416,6 @@ impl GetAirspeed<'_, '_> {
 
 #[derive(SystemParam)]
 pub struct GroundSpeedCalculator<'w, 's> {
-    wind:    wind::Locator<'w, 's>,
     weather: weather::Locator<'w, 's>,
 }
 
@@ -444,11 +446,12 @@ impl GroundSpeedCalculator<'_, '_> {
         position: Position<Vec3>,
         ias: Speed<Vec3>,
     ) -> GroundSpeedResult {
+        let weather = self.weather.get(position.horizontal());
         Self::get_ground_speed_with_weather(
             position,
             ias,
-            self.wind.locate(position),
-            self.weather.get(position.horizontal()),
+            weather.wind_at_altitude(position.altitude()),
+            weather,
         )
     }
 
@@ -488,7 +491,7 @@ impl GroundSpeedCalculator<'_, '_> {
             let true_airspeed = atm.true_airspeed(ias);
             let ground_speed = solve_expected_ground_speed(
                 true_airspeed,
-                self.wind.locate(earlier_pos.with_altitude(altitude)),
+                weather.wind_at_altitude(altitude),
                 ground_dir,
             );
             let segment_duration = (earlier_distance - later_distance).abs() / ground_speed;

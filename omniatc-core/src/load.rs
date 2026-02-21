@@ -12,7 +12,7 @@ use bevy::ecs::system::Command as BevyCommand;
 use bevy::ecs::world::World;
 use math::sweep;
 
-use crate::level::{aerodrome, object, quest, route, score, spawn, waypoint, wind};
+use crate::level::{aerodrome, object, quest, route, score, spawn, waypoint, weather};
 
 pub struct Plug;
 
@@ -71,7 +71,7 @@ fn do_load(world: &mut World, source: &Source) -> Result<(), Error> {
 
     let mut next_standby_id = const { NonZero::new(1).unwrap() };
 
-    wind::loader::spawn(world, &file.level.environment.winds);
+    weather::loader::spawn(world, &file.level.environment.weather);
     let object_types = object::loader::spawn_types(world, &file.level.object_types);
     let aerodromes = aerodrome::loader::spawn(world, &file.level.aerodromes)?;
     let waypoints = waypoint::loader::spawn(world, &file.level.waypoints);

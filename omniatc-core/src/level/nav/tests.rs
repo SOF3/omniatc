@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
-use bevy::math::bounding::Aabb3d;
-use bevy::math::{Quat, Vec3A};
+use bevy::math::bounding::Aabb2d;
+use bevy::math::{Quat, Vec2};
 use bevy::time::{self, Time};
 use math::{
     Accel, AccelRate, Angle, AngularAccel, AngularSpeed, Heading, ISA_TROPOPAUSE_PRESSURE,
@@ -15,7 +15,7 @@ use store::{NavLimits, YawTarget};
 use crate::level::object::{self, Object};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
-use crate::level::{aerodrome, nav, plane, runway, wind};
+use crate::level::{aerodrome, nav, plane, runway, weather};
 
 const NAV_LIMITS: NavLimits = NavLimits {
     min_horiz_speed:   Speed::from_knots(120.),
@@ -68,22 +68,22 @@ fn base_world() -> (App, Entities) {
     let mut app = App::new();
     app.add_plugins((
         object::Plug::<()>::default(),
-        wind::Plug::<()>::default(),
+        weather::Plug::<()>::default(),
         plane::Plug,
         super::Plug,
     ));
 
     app.init_resource::<Time<time::Virtual>>();
 
-    app.world_mut().commands().spawn_empty().queue(wind::SpawnCommand {
-        bundle: wind::Comps {
-            vector:        wind::Vector {
-                bottom: Speed::from_knots(30.0) * Heading::SOUTHWEST,
-                top:    Speed::from_knots(30.0) * Heading::SOUTHWEST,
+    app.world_mut().commands().spawn_empty().queue(weather::SpawnCommand {
+        bundle: weather::Comps {
+            weather:       weather::Weather {
+                sea_wind: Speed::from_knots(30.0) * Heading::SOUTHWEST,
+                ..Default::default()
             },
-            effect_region: wind::EffectRegion(Aabb3d {
-                min: Vec3A::splat(-1000.0),
-                max: Vec3A::splat(1000.0),
+            effect_region: weather::EffectRegion(Aabb2d {
+                min: Vec2::splat(-1000.0),
+                max: Vec2::splat(1000.0),
             }),
         },
     });

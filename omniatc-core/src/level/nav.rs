@@ -21,7 +21,7 @@ use super::object::Object;
 use super::waypoint::Waypoint;
 use super::{SystemSets, navaid, object};
 use crate::QueryTryLog;
-use crate::level::wind;
+use crate::level::weather;
 
 #[cfg(test)]
 mod tests;
@@ -265,15 +265,15 @@ impl Default for TargetGroundDirection {
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct GroundDirectionSystemQueryData {
-    objective:      &'static mut TargetGroundDirection,
-    current_object: &'static Object,
-    current_air:    &'static object::Airborne,
-    signal:         &'static mut VelocityTarget,
+    objective:        &'static mut TargetGroundDirection,
+    current_object:   &'static Object,
+    current_air:      &'static object::Airborne,
+    signal:           &'static mut VelocityTarget,
+    weather_detector: &'static weather::Detector,
 }
 
 fn ground_heading_control_system(
     time: Res<Time<time::Virtual>>,
-    wind: wind::Locator,
     mut query: Query<GroundDirectionSystemQueryData>,
 ) {
     if time.is_paused() {
@@ -288,7 +288,7 @@ fn ground_heading_control_system(
             return;
         }
 
-        let wind = wind.locate(data.current_object.position);
+        let wind = data.weather_detector.last_wind;
 
         // Let gs = magnitude of desired ground speed,
         // then desired_tas + wind = gs * objective.target.

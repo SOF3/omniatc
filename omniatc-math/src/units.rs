@@ -36,12 +36,53 @@ pub const SECONDS_PER_HOUR: f32 = 3600.;
 /// Converts pascals to inches of mercury.
 pub const INHG_PER_PASCAL: f32 = 0.000295299830714;
 
+/// A dimensional quantity with a raw value type `T` and phantom type parameters
+/// encoding the physical dimension.
+///
+/// ## Type parameters
+///
+/// - `T`: The raw value type (e.g. `f32` for scalar, `Vec2` for 2D vector, `Vec3` for 3D vector).
+/// - `Base`: The base dimension marker (e.g. [`LengthBase`] for distance/speed/acceleration,
+///   [`AngleBase`] for angles/angular speed, [`PressureBase`] for pressure).
+/// - `Dt`: The time derivative order. [`Dt0`] means no time derivative (position/distance),
+///   [`Ddt<Dt0>`] (aliased as [`Dt1`]) means first derivative (speed/velocity),
+///   [`Ddt<Dt1>`] (aliased as [`Dt2`]) means second derivative (acceleration), etc.
+/// - `Pow`: The power/exponent of the base unit. [`Pow0`] is dimensionless,
+///   [`PowP1<Pow0>`] (aliased as [`Pow1`]) is linear (e.g. meters),
+///   [`PowP1<Pow1>`] (aliased as [`Pow2`]) is squared (e.g. square meters).
+///
+/// ## Common type aliases
+///
+/// | Alias | Base | Dt | Pow | Description |
+/// |-------|------|----|-----|-------------|
+/// | `Length<T>` | `LengthBase` | `Dt0` | `Pow1` | Distance (internal unit: nm) |
+/// | `Speed<T>` | `LengthBase` | `Dt1` | `Pow1` | Velocity (internal unit: nm/s) |
+/// | `Accel<T>` | `LengthBase` | `Dt2` | `Pow1` | Acceleration (internal unit: nm/s²) |
+/// | `Angle` | `AngleBase` | `Dt0` | `Pow1` | Angle (internal unit: radians) |
+/// | `AngularSpeed` | `AngleBase` | `Dt1` | `Pow1` | Angular velocity (internal unit: rad/s) |
+/// | `Pressure` | `PressureBase` | `Dt0` | `Pow1` | Pressure (internal unit: Pa) |
+///
+/// ## Accessing the raw value
+///
+/// The raw value field is `pub`, so `quantity.0` gives the raw `T` value directly.
+/// For [`Position<T>`], use [`Position::get()`](Position::get) which unwraps both
+/// the Position and Length wrappers.
+///
+/// ## Arithmetic
+///
+/// Quantities of the same type support `+`, `-`, `*` (by scalar), `/` (by scalar).
+/// Multiplying a rate (`Dt1`) by [`Duration`] yields the base quantity (`Dt0`).
+/// Dividing a base quantity by its rate yields [`Duration`].
 pub struct Quantity<T, Base, Dt, Pow>(pub T, pub PhantomData<(Base, Dt, Pow)>);
 
 impl<T, Base, Dt, Pow> Quantity<T, Base, Dt, Pow> {
+    /// Creates a new quantity from a raw value in the internal unit system.
     pub const fn new(value: T) -> Self { Self(value, PhantomData) }
 }
 
+/// Trait for working with quantities generically.
+///
+/// Provides methods to convert between a quantity and its raw value type.
 pub trait QuantityTrait: Sized {
     /// The type of the raw value of this unit.
     type Raw;
@@ -235,8 +276,12 @@ impl<T, Base, Dt, Pow> From<T> for Quantity<T, Base, Dt, Pow> {
 }
 
 /// Used as `Dt` in `Quantity` to indicate that the unit is not a rate of change.
+/// Time derivative order zero: the base quantity (e.g. length, angle).
 pub struct Dt0;
 /// Used as `Dt` in `Quantity` to indicate that the unit is the rate of change of `Quantity<Dt=Dt>`.
+///
+/// For example, `Ddt<Dt0>` (aliased as `Dt1`) represents the first time derivative (speed),
+/// and `Ddt<Dt1>` (aliased as `Dt2`) represents the second time derivative (acceleration).
 pub struct Ddt<Dt>(Dt);
 
 pub type Dt1 = Ddt<Dt0>;
@@ -338,9 +383,10 @@ where
     }
 }
 
-/// Used as `Pow` in `Quantity` to indicate that the unit is linear (not squared).
+/// Power/exponent zero: dimensionless ratio.
 pub struct Pow0;
-
+/// Increments the power by one. `PowP1<Pow0>` (aliased as `Pow1`) is linear,
+/// `PowP1<Pow1>` (aliased as `Pow2`) is squared, etc.
 pub struct PowP1<Pow>(Pow);
 
 pub trait PowTrait {
@@ -798,6 +844,17 @@ where
     #[must_use]
     pub fn rotate_right_angle_clockwise(self) -> Self {
         Self(Vec2::new(self.0.y, -self.0.x), PhantomData)
+    }
+
+    /// Rotates the vector clockwise by the given angle (compass bearing convention).
+    #[must_use]
+    pub fn rotate_clockwise(self, angle: Angle) -> Self {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        Self(
+            Vec2::new(self.0.x * cos + self.0.y * sin, -self.0.x * sin + self.0.y * cos),
+            PhantomData,
+        )
     }
 
     #[must_use]

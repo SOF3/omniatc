@@ -3,6 +3,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Local, ParamSet, Res, ResMut, SystemParam};
 use bevy::time::{Time, Virtual as TimeVirtual};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
+use omniatc::level::quest;
 use strum::IntoEnumIterator;
 
 use crate::render::object_info::CurrentObjectSelectorSystemSet;
@@ -24,6 +25,7 @@ impl Plugin for Plug {
             EguiPrimaryContextPass,
             setup_layout_system
                 .in_set(EguiSystemSets::LevelInfo)
+                .in_set(quest::UiEventWriterSystemSet)
                 .in_set(CurrentObjectSelectorSystemSet),
         );
     }

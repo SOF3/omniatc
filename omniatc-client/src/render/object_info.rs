@@ -42,7 +42,9 @@ impl Plugin for Plug {
         );
         app.add_systems(
             app::Update,
-            send_selection_ui_event_system.after(CurrentObjectSelectorSystemSet),
+            send_selection_ui_event_system
+                .in_set(quest::UiEventWriterSystemSet)
+                .after(CurrentObjectSelectorSystemSet),
         );
     }
 }

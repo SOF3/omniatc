@@ -10,14 +10,15 @@ use bevy::input::keyboard;
 use bevy::input::mouse::MouseButton;
 use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
-use math::{Length, Position};
-use omniatc::level::nav;
+use math::{Angle, Heading, Length, Position, Speed};
 use omniatc::level::object::{Display, Object};
 use omniatc::level::quest::{Active, Quest};
+use omniatc::level::{nav, object};
 use omniatc::load::StoredEntity;
 use omniatc_client::render::twodim;
 use omniatc_client_test::{ClientTest, start_test};
 
+#[expect(clippy::too_many_lines, reason = "choreography is inherently verbose")]
 fn main() -> Result<()> {
     let mut test = start_test("tutorial")?;
 
@@ -95,7 +96,7 @@ fn main() -> Result<()> {
         })?;
 
         test.with_screenshot("object-altitude-complete", |test| {
-            test.with_time_scale(10.0, |test| {
+            test.with_time_scale(30.0, |test| {
                 test.drive_until(|world| {
                     query_object_by_name::<&Object, _>(world, "ABC123", |object| {
                         object.position.altitude().distance_cmp(QUEST_ALTITUDE)
@@ -106,6 +107,107 @@ fn main() -> Result<()> {
 
             test.drive_frames(2);
             assert_quest_inactive(test, "Tutorial: Aircraft control (2/5)")?;
+            Ok(())
+        })?;
+    }
+
+    {
+        const QUEST_SPEED: Speed<f32> = Speed::from_knots(230.0);
+
+        test.with_screenshot("object-speed-setpoint", |test| {
+            for _ in 0..5 {
+                test.press_key(keyboard::KeyCode::Comma, keyboard::Key::Character(",".into()))?;
+            }
+
+            test.press_key(keyboard::KeyCode::Enter, keyboard::Key::Enter)?;
+
+            query_object_by_name::<&nav::VelocityTarget, _>(
+                test.world(),
+                "ABC123",
+                |target_speed| {
+                    target_speed
+                        .horiz_speed
+                        .assert_near(QUEST_SPEED, Speed::from_knots(1.0))
+                        .context("Expected target speed to be 230 knots")
+                },
+            )
+            .context("Expect object to exist")??;
+
+            Ok(())
+        })?;
+
+        test.with_screenshot("object-speed-complete", |test| {
+            test.with_time_scale(10.0, |test| {
+                test.drive_until(|world| {
+                    query_object_by_name::<&object::Airborne, _>(world, "ABC123", |object| {
+                        object
+                            .airspeed
+                            .horizontal()
+                            .magnitude_exact()
+                            .assert_approx(QUEST_SPEED, Speed::from_knots(1.0))
+                            .is_ok()
+                    }) == Some(true)
+                })
+            })?;
+
+            test.drive_frames(2);
+            assert_quest_inactive(test, "Tutorial: Aircraft control (3/5)")?;
+            Ok(())
+        })?;
+    }
+
+    {
+        test.with_screenshot("object-heading-setpoint", |test| {
+            let click_pos = {
+                let world_pos =
+                    query_object_by_name::<&Object, _>(test.world(), "ABC123", |object| {
+                        object.position.horizontal() + Length::from_nm(8.0) * Heading::NORTH
+                    })
+                    .context("Expect object to exist")?;
+                let (camera, global_tf) = test
+                    .world()
+                    .query_filtered::<(&Camera, &GlobalTransform), With<Camera2d>>()
+                    .single(test.world())
+                    .context("Expected Camera2d")?;
+                camera
+                    .world_to_viewport(
+                        global_tf,
+                        world_pos.with_altitude(Position::SEA_LEVEL).get(),
+                    )
+                    .context("Convert world pos to screen pos")?
+            };
+            test.set_cursor_position(click_pos)?;
+            test.press_key(keyboard::KeyCode::KeyV, keyboard::Key::Character("v".into()))?;
+
+            test.drive_until(|world| {
+                query_object_by_name::<&nav::VelocityTarget, _>(world, "ABC123", |target| {
+                    target
+                        .yaw
+                        .heading()
+                        .assert_approx(Heading::NORTH, Angle::from_degrees(5.0))
+                        .is_ok()
+                }) == Some(true)
+            })?;
+
+            Ok(())
+        })?;
+
+        test.with_screenshot("object-heading-complete", |test| {
+            test.with_time_scale(10.0, |test| {
+                test.drive_until(|world| {
+                    query_object_by_name::<&object::Airborne, _>(world, "ABC123", |object| {
+                        object
+                            .airspeed
+                            .horizontal()
+                            .heading()
+                            .assert_approx(Heading::NORTH, Angle::from_degrees(5.0))
+                            .is_ok()
+                    }) == Some(true)
+                })
+            })?;
+
+            test.drive_frames(2);
+            assert_quest_inactive(test, "Tutorial: Aircraft control (4/5)")?;
             Ok(())
         })?;
     }

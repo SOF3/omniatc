@@ -32,7 +32,7 @@ ordered-float = "5.1.0"
 portrait = "0.3.1"
 serde = { workspace = true, features = ["derive"] }
 smallvec = "1.15.1"
-strum = { version = "0.27.2", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.18"
 pathfinding = "4.14.0"
 rand = { version = "0.9.2", features = ["small_rng", "thread_rng"], default-features = false }

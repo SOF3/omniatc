@@ -39,6 +39,7 @@ clap = { version = "4.5.60", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["into"] }
 egui_material_icons = "0.5.0"
 jiff = { version = "0.2.21", features = ["js", "logging", "serde"] }
+egui_dock = "0.18"
 
 [dependencies.bevy]
 workspace = true

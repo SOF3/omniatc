@@ -1,16 +1,14 @@
 use std::mem;
 
 use bevy::app::{self, App, Plugin};
-use bevy::camera::Camera2d;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::query::QueryData;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::math::Vec2;
-use bevy::transform::components::GlobalTransform;
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length, Position, Squared, point_segment_closest};
 use omniatc::level::instr::CommandsExt;
@@ -27,7 +25,7 @@ use store::{TaxiLimits, YawTarget};
 
 use super::object::preview;
 use crate::render::object_info::{self, CurrentObjectSelectorSystemSet};
-use crate::{ConfigManager, EguiUsedMargins, UpdateSystemSets, input};
+use crate::{ConfigManager, EguiState, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -73,7 +71,6 @@ pub struct Conf {
 }
 
 pub(super) fn input_system(
-    margins: Res<EguiUsedMargins>,
     mut params: ParamSet<(
         DetermineMode,
         SelectObjectParams,
@@ -81,20 +78,16 @@ pub(super) fn input_system(
         CleanupPreviewParams,
     )>,
 ) {
-    if margins.pointer_acquired {
-        return;
-    }
-
     let mut determine_mode = params.p0();
     let mut is_preview = false;
-    if let Some(cursor_camera_value) = determine_mode.current_cursor_camera.value
-        && let Ok(&camera_tf) = determine_mode.camera_query.get(cursor_camera_value.camera_entity)
-    {
+
+    if let Some(hover) = determine_mode.current_cursor_camera.hovered {
         let mode = determine_mode.determine();
+        let clicked = determine_mode.current_cursor_camera.left.clicked.is_some();
         match mode {
-            Mode::SelectObject => params.p1().run(cursor_camera_value.world_pos, camera_tf),
+            Mode::SelectObject => params.p1().run(hover, clicked),
             Mode::SetRoute(set_route) => {
-                params.p2().run(cursor_camera_value.world_pos, camera_tf, set_route);
+                params.p2().run(hover, set_route);
                 is_preview = !set_route.commit;
             }
         }
@@ -114,7 +107,6 @@ enum PickRouteKey {
 #[derive(SystemParam)]
 pub(super) struct DetermineMode<'w, 's> {
     current_cursor_camera: Res<'w, input::CursorState>,
-    camera_query:          Query<'w, 's, &'static GlobalTransform, With<Camera2d>>,
     prev_pick_key:         Local<'s, PickRouteKey>,
     hotkeys:               Res<'w, input::Hotkeys>,
 }
@@ -162,7 +154,6 @@ struct SetRoute {
 
 #[derive(SystemParam)]
 pub(super) struct SelectObjectParams<'w, 's> {
-    cursor_state:           Res<'w, input::CursorState>,
     current_hovered_object: ResMut<'w, object_info::CurrentHoveredObject>,
     current_object:         ResMut<'w, object_info::CurrentObject>,
     object_query:           Query<'w, 's, (Entity, &'static object::Object)>,
@@ -170,26 +161,29 @@ pub(super) struct SelectObjectParams<'w, 's> {
 }
 
 impl SelectObjectParams<'_, '_> {
-    fn run(&mut self, cursor_world_pos: Position<Vec2>, camera_tf: GlobalTransform) {
+    fn run(&mut self, hover: input::CursorTarget, clicked: bool) {
+        let (Some(hover_position), Some(precision)) =
+            (hover.ground_position(), hover.ground_precision())
+        else {
+            return;
+        };
+
         let conf = self.conf.read();
 
-        self.current_hovered_object.0 = None;
-        // TODO we need to reconcile this value with 3D systems when supported
-
-        let click_tolerance = Length::new(camera_tf.scale().x) * conf.object_select_tolerance;
+        let click_tolerance = precision * conf.object_select_tolerance;
 
         let closest_object = self
             .object_query
             .iter()
             .map(|(entity, object)| {
-                (entity, object.position.horizontal().distance_squared(cursor_world_pos))
+                (entity, object.position.horizontal().distance_squared(hover_position))
             })
             .filter(|(_, dist_sq)| *dist_sq < click_tolerance.squared())
             .min_by_key(|(_, dist_sq)| OrderedFloat(dist_sq.0))
             .map(|(object, _)| object);
 
         self.current_hovered_object.0 = closest_object;
-        if self.cursor_state.left_just_down() {
+        if clicked {
             self.current_object.0 = closest_object;
         }
     }
@@ -260,15 +254,16 @@ fn find_closest_segment(
 }
 
 impl SetNavTargetParams<'_, '_> {
-    fn run(
-        &mut self,
-        cursor_world_pos: Position<Vec2>,
-        camera_tf: GlobalTransform,
-        set_route: SetRoute,
-    ) {
+    fn run(&mut self, hover: input::CursorTarget, set_route: SetRoute) {
         let conf = self.conf.read();
 
-        let click_tolerance = Length::new(camera_tf.scale().x) * conf.waypoint_select_tolerance;
+        let (Some(hover_position), Some(precision)) =
+            (hover.ground_position(), hover.ground_precision())
+        else {
+            return;
+        };
+
+        let click_tolerance = precision * conf.waypoint_select_tolerance;
 
         if let Some(object) = self.current_object.0 {
             let mut object_data = try_log_return!(
@@ -281,7 +276,7 @@ impl SetNavTargetParams<'_, '_> {
                 let closest_segment = find_closest_segment(
                     self.segment_query,
                     self.endpoint_query,
-                    cursor_world_pos,
+                    hover_position,
                     click_tolerance,
                 );
                 if let Some((segment, _)) = closest_segment {
@@ -297,13 +292,13 @@ impl SetNavTargetParams<'_, '_> {
             } else {
                 // Object is airborne; click target may be a waypoint or just heading
                 if let Some((waypoint, _)) =
-                    find_closest_waypoint(self.waypoint_query, cursor_world_pos, click_tolerance)
+                    find_closest_waypoint(self.waypoint_query, hover_position, click_tolerance)
                 {
                     self.propose.propose_set_waypoint(object, waypoint, object_data, set_route);
                 } else {
                     self.propose.propose_set_heading(
                         object,
-                        cursor_world_pos,
+                        hover_position,
                         object_data,
                         set_route,
                     );
@@ -318,7 +313,7 @@ impl SetNavTargetParams<'_, '_> {
 #[derive(SystemParam)]
 struct ProposeParams<'w, 's> {
     commands:       Commands<'w, 's>,
-    margins:        Res<'w, EguiUsedMargins>,
+    egui:           Res<'w, EguiState>,
     buttons:        Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
     endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
     segment_query:  Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
@@ -366,7 +361,7 @@ impl ProposeParams<'_, '_> {
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
         let mut target = YawTarget::Heading(target_heading);
-        if !self.margins.keyboard_acquired
+        if !self.egui.keyboard_acquired
             && self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
             && let Some(plane) = plane
         {

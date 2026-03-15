@@ -206,7 +206,7 @@ impl EntityCommand for SetAirborneCommand {
                 pressure: baro.pressure,
                 pressure_alt: baro.pressure_altitude,
             },
-            weather::Detector { position, ..Default::default() },
+            weather::Detector { position },
         ));
     }
 }
@@ -360,7 +360,7 @@ fn move_object_system(
 
 fn update_airborne_system(
     time: Res<Time<time::Virtual>>,
-    mut object_query: Query<(&mut Object, &mut Airborne, &weather::Detector)>,
+    mut object_query: Query<(&mut Object, &mut Airborne, &weather::DetectorStatus)>,
     weather_query: Query<&Weather>,
 ) {
     if time.is_paused() {

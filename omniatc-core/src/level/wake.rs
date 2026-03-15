@@ -98,7 +98,7 @@ impl Intensity {
 
 fn wind_move_vortex_system(
     time: Res<Time<time::Virtual>>,
-    vortex_query: Query<(Entity, &mut Vortex, &mut weather::Detector)>,
+    vortex_query: Query<(Entity, &mut Vortex, &mut weather::Detector, &weather::DetectorStatus)>,
     conf: ReadConfig<Conf>,
     mut last_run: Local<Duration>,
     mut vortex_index: ResMut<VortexIndex>,
@@ -108,8 +108,8 @@ fn wind_move_vortex_system(
     #[expect(clippy::unchecked_time_subtraction, reason = "time.elapsed() is always greater")]
     let delta_time = time.elapsed() - mem::replace(&mut *last_run, time.elapsed());
 
-    for (entity, mut vortex, mut detector) in vortex_query {
-        let speed = detector.last_wind;
+    for (entity, mut vortex, mut detector, detector_status) in vortex_query {
+        let speed = detector_status.last_wind;
 
         let old_position = vortex.position;
         vortex.position += speed.with_vertical(conf.vert_rate) * delta_time;
@@ -267,7 +267,7 @@ fn spawn_vortex_system(
         let vortex = commands
             .spawn((
                 Name::new("Wake vortex"),
-                weather::Detector { position: object.position, ..Default::default() },
+                weather::Detector { position: object.position },
                 #[expect(
                     clippy::cast_possible_truncation,
                     reason = "arbitrary rounding is allowed"

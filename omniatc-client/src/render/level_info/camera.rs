@@ -6,7 +6,7 @@ use bevy::math::{Rect, Vec3, Vec3Swizzles};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy_egui::egui;
 use egui_material_icons::icons;
-use math::{Angle, Heading};
+use math::{Angle, Heading, Position};
 use omniatc::level::quest;
 use ordered_float::{Float, OrderedFloat};
 
@@ -20,7 +20,7 @@ pub struct WriteCameraParams<'w, 's> {
         'w,
         's,
         (&'static Camera, &'static mut Transform, &'static GlobalTransform),
-        With<twodim::camera::Layout>,
+        With<twodim::camera::UiState>,
     >,
     request_rot_highlight: Option<
         Single<
@@ -121,12 +121,17 @@ impl WriteParams for WriteCameraParams<'_, '_> {
             }
         }
 
-        if let Some(cursor) = &self.cursor.value {
-            ui.label(format!(
-                "Cursor: ({:.1}, {:.1})",
-                cursor.world_pos.get().x,
-                cursor.world_pos.get().y
-            ));
+        if let Some(cursor) = self.cursor.hovered {
+            match cursor {
+                input::CursorTarget::TwoDim { world_pos, pixel_precision: _ } => {
+                    let from_origin = world_pos - Position::ORIGIN;
+                    ui.label(format!(
+                        "Cursor: ({:.1}, {:.1})",
+                        from_origin.x().into_nm(),
+                        from_origin.y().into_nm(),
+                    ));
+                }
+            }
         }
     }
 }

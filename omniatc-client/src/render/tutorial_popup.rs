@@ -15,7 +15,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             EguiPrimaryContextPass,
-            setup_window_system.in_set(EguiSystemSets::Tutorial),
+            setup_window_system.in_set(EguiSystemSets::TutorialPopup),
         );
     }
 }
@@ -41,9 +41,11 @@ fn setup_window_system(
                 commands.entity(quest.entity).insert(Focused);
             }
 
-            let default_size = ctx.content_rect().size() / 2.;
+            let default_pos = ctx.content_rect().center_top() + egui::vec2(0., 100.);
+            let default_rect = egui::Rect::from_center_size(default_pos, egui::vec2(400., 100.));
+
             egui::Window::new("Tutorial")
-                .default_size(default_size)
+                .default_rect(default_rect)
                 .default_open(true)
                 .frame(egui::Frame {
                     fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 240),

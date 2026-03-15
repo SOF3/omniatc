@@ -25,20 +25,21 @@ anyhow = "1.0.102"
 async-lock = "3.4.2"
 bevy_mod_config = { workspace = true, features = ["serde_json", "egui"] }
 ciborium = "0.2.2"
+clap = { version = "4.5.60", features = ["derive"] }
+derive_more = { version = "2.1.1", features = ["into"] }
 dirs = "6.0.0"
+egui_dock = "0.18.0"
 egui_extras.workspace = true
+egui_material_icons = "0.5.0"
 either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"
+jiff = { version = "0.2.21", features = ["js", "logging", "serde"] }
 ordered-float = "5.1.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_with = { version = "3.16.1", features = ["macros", "base64"] }
-strum = { version = "0.28.0", features = ["derive"] }
 smallvec = "1.15.1"
-clap = { version = "4.5.60", features = ["derive"] }
-derive_more = { version = "2.1.1", features = ["into"] }
-egui_material_icons = "0.5.0"
-jiff = { version = "0.2.21", features = ["js", "logging", "serde"] }
+strum = { version = "0.28.0", features = ["derive"] }
 
 [dependencies.bevy]
 workspace = true

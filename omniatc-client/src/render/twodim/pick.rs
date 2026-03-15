@@ -27,7 +27,7 @@ use store::{TaxiLimits, YawTarget};
 
 use super::object::preview;
 use crate::render::object_info::{self, CurrentObjectSelectorSystemSet};
-use crate::{ConfigManager, EguiUsedMargins, UpdateSystemSets, input};
+use crate::{ConfigManager, EguiState, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -73,7 +73,7 @@ pub struct Conf {
 }
 
 pub(super) fn input_system(
-    margins: Res<EguiUsedMargins>,
+    egui: Res<EguiState>,
     mut params: ParamSet<(
         DetermineMode,
         SelectObjectParams,
@@ -81,7 +81,7 @@ pub(super) fn input_system(
         CleanupPreviewParams,
     )>,
 ) {
-    if margins.pointer_acquired {
+    if egui.pointer_acquired {
         return;
     }
 
@@ -318,7 +318,7 @@ impl SetNavTargetParams<'_, '_> {
 #[derive(SystemParam)]
 struct ProposeParams<'w, 's> {
     commands:       Commands<'w, 's>,
-    margins:        Res<'w, EguiUsedMargins>,
+    egui:           Res<'w, EguiState>,
     buttons:        Res<'w, ButtonInput<KeyCode>>, // TODO migrate to input::Hotkeys
     endpoint_query: Query<'w, 's, &'static ground::Endpoint>,
     segment_query:  Query<'w, 's, (&'static ground::Segment, &'static ground::SegmentLabel)>,
@@ -366,7 +366,7 @@ impl ProposeParams<'_, '_> {
         let object_pos = object_pos.horizontal();
         let target_heading = (world_pos - object_pos).heading();
         let mut target = YawTarget::Heading(target_heading);
-        if !self.margins.keyboard_acquired
+        if !self.egui.keyboard_acquired
             && self.buttons.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
             && let Some(plane) = plane
         {

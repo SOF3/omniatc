@@ -15,7 +15,7 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.add_systems(
             EguiPrimaryContextPass,
-            setup_window_system.in_set(EguiSystemSets::Tutorial),
+            setup_window_system.in_set(EguiSystemSets::TutorialPopup),
         );
     }
 }

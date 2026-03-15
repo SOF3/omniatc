@@ -1,25 +1,28 @@
 use std::cmp;
 
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::QueryData;
+use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::schedule::{self, IntoScheduleConfigs, Schedulable, ScheduleConfigs};
 use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
 use bevy_egui::egui;
 use egui_extras::{Column, TableBuilder};
 use math::Heading;
-use omniatc::level::object;
+use omniatc::level::object::{self, Object};
+use omniatc::level::quest;
 use ordered_float::OrderedFloat;
 use strum::IntoEnumIterator;
 
 use super::WriteParams;
 use crate::input;
-use crate::render::object_info;
+use crate::render::dock;
+use crate::render::object_info::{self, CurrentObjectSelectorSystemSet};
 
 #[derive(QueryData)]
 pub struct ObjectTableData {
     entity:   Entity,
     display:  &'static object::Display,
     rotation: &'static object::Rotation,
-    object:   &'static object::Object,
+    object:   &'static Object,
 }
 
 #[derive(SystemParam)]
@@ -211,4 +214,27 @@ impl ObjectTableColumn {
             }),
         }
     }
+}
+
+pub struct TabType;
+
+impl dock::TabType for TabType {
+    type TitleSystemParam<'w, 's> = Query<'w, 's, (), With<Object>>;
+    fn title(&self, param: Self::TitleSystemParam<'_, '_>) -> String {
+        format!("Vehicles ({})", param.iter().len())
+    }
+
+    type UiSystemParam<'w, 's> = ();
+    fn ui(&mut self, param: Self::UiSystemParam<'_, '_>, ui: &mut egui::Ui, _order: usize) {
+        // TODO
+    }
+
+    fn schedule_configs<T>(configs: ScheduleConfigs<T>) -> ScheduleConfigs<T>
+    where
+        T: Schedulable<Metadata = schedule::GraphInfo, GroupMetadata = schedule::Chain>,
+    {
+        configs.in_set(quest::UiEventWriterSystemSet).in_set(CurrentObjectSelectorSystemSet)
+    }
+
+    type OnCloseSystemParam<'w, 's> = ();
 }

@@ -20,7 +20,7 @@ use omniatc::try_log_return;
 use omniatc::util::EqAny;
 
 use crate::render::{threedim, twodim};
-use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{ConfigManager, EguiState, EguiSystemSets, UpdateSystemSets};
 
 pub mod key_field;
 pub use key_field::KeySet;
@@ -43,7 +43,7 @@ impl Plugin for Plug {
             EguiPrimaryContextPass,
             Hotkeys::update_system
                 .in_set(EguiSystemSets::Init)
-                .ambiguous_with(EguiUsedMargins::reset_system),
+                .ambiguous_with(EguiState::reset_frame_system),
         );
     }
 }
@@ -92,7 +92,7 @@ struct CameraData {
     camera_entity: Entity,
     camera:        &'static Camera,
     global_tf:     &'static GlobalTransform,
-    is_twodim:     Has<twodim::camera::Layout>,
+    is_twodim:     Has<twodim::camera::Marker>,
     is_threedim:   Has<threedim::CameraLayout>,
 }
 
@@ -114,7 +114,7 @@ impl CursorState {
         window: Option<Single<&Window>>,
         camera_query: Query<
             CameraData,
-            Or<(With<twodim::camera::Layout>, With<threedim::CameraLayout>)>,
+            Or<(With<twodim::camera::Marker>, With<threedim::CameraLayout>)>,
         >,
         buttons: Res<ButtonInput<MouseButton>>,
         mut contexts: EguiContexts,

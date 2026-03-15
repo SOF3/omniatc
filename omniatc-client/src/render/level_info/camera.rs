@@ -20,7 +20,7 @@ pub struct WriteCameraParams<'w, 's> {
         'w,
         's,
         (&'static Camera, &'static mut Transform, &'static GlobalTransform),
-        With<twodim::camera::Layout>,
+        With<twodim::camera::Marker>,
     >,
     request_rot_highlight: Option<
         Single<

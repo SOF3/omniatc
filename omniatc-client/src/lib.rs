@@ -109,10 +109,10 @@ pub fn main_app(options: Options) -> App {
         app.configure_sets(EguiPrimaryContextPass, before.before(after));
     }
 
-    app.init_resource::<EguiUsedMargins>();
+    app.init_resource::<EguiState>();
     app.add_systems(
         EguiPrimaryContextPass,
-        EguiUsedMargins::reset_system.in_set(EguiSystemSets::Init),
+        EguiState::reset_frame_system.in_set(EguiSystemSets::Init),
     );
 
     app.edit_schedule(EguiPrimaryContextPass, |schedule| {
@@ -140,28 +140,22 @@ pub enum UpdateSystemSets {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet, strum::EnumIter)]
 pub enum EguiSystemSets {
     Init,
-    LevelInfo,
-    ObjectInfo,
-    Messages,
-    Tutorial,
-    TwoDim,
+    MenuBar,
+    ManageTabs,
+    Dock,
+    TutorialPopup,
 }
 
 #[derive(Debug, Resource, Default)]
-pub struct EguiUsedMargins {
-    pub left:   f32,
-    pub right:  f32,
-    pub top:    f32,
-    pub bottom: f32,
-
+pub struct EguiState {
     /// Whether pointer is used by some egui component.
     pub pointer_acquired:  bool,
     /// Whether keyboard input is used by some egui component.
     pub keyboard_acquired: bool,
 }
 
-impl EguiUsedMargins {
-    fn reset_system(mut margins: ResMut<Self>, mut contexts: EguiContexts) {
+impl EguiState {
+    fn reset_frame_system(mut margins: ResMut<Self>, mut contexts: EguiContexts) {
         *margins = Self::default();
 
         if let Ok(ctx) = contexts.ctx_mut() {

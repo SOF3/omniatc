@@ -3,37 +3,47 @@ use std::f32::consts::PI;
 use std::time::Duration;
 
 use bevy::app::{self, App, Plugin};
-use bevy::camera::{Camera, Camera2d, ClearColor, Viewport};
+use bevy::asset::{self, Assets};
+use bevy::camera::{
+    Camera, Camera2d, ClearColor, ClearColorConfig, ImageRenderTarget, RenderTarget, Viewport,
+};
 use bevy::color::{Color, Mix};
+use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single};
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Single, SystemParam};
+use bevy::image::Image;
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{FloatExt, UVec2, Vec2, Vec3};
+use bevy::render::render_resource::{
+    Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+};
 use bevy::time::{self, Time};
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::window::Window;
-use bevy_egui::{EguiGlobalSettings, EguiPrimaryContextPass};
+use bevy_egui::egui::WidgetText;
+use bevy_egui::egui::load::SizedTexture;
+use bevy_egui::{
+    EguiContexts, EguiGlobalSettings, EguiPrimaryContextPass, EguiTextureHandle, EguiUserTextures,
+    PrimaryEguiContext, egui,
+};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
 use math::{Angle, Length};
 use omniatc::level::quest;
 use omniatc::{QueryTryLog, load};
 use serde::{Deserialize, Serialize};
 
-use crate::render::tutorial_popup;
-use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input, util};
+use crate::render::{dock, tutorial_popup};
+use crate::{ConfigManager, EguiState, EguiSystemSets, UpdateSystemSets, input, util};
 
 pub struct Plug;
 
 impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_config::<ConfigManager, Conf>("2d:camera");
-
-        app.add_systems(app::Startup, setup_system);
-        app.add_systems(EguiPrimaryContextPass, fit_layout_system.in_set(EguiSystemSets::TwoDim));
 
         app.add_systems(app::Update, consume_camera_advice.before(UpdateSystemSets::Input));
 
@@ -51,34 +61,19 @@ impl Plugin for Plug {
                 .in_set(UpdateSystemSets::Input)
                 .in_set(input::ReadCurrentCursorCameraSystemSet),
         );
+        app.add_systems(EguiPrimaryContextPass, nullify_camera_system.before(EguiSystemSets::Dock));
     }
 }
 
-/// Window layout position of the camera panel.
+/// Marks the entity as a 2D world camera.
 #[derive(Component)]
-pub struct Layout {
-    /// Order of the panel, from inner to outer.
-    pub order:     usize,
-    /// Direction to add the panel beyond the previous ones.
-    pub direction: Direction,
-    /// Ratio of the panel relative the previous ones.
-    pub ratio:     f32,
-}
+pub struct Marker;
 
 pub enum Direction {
     Top,
     Bottom,
     Left,
     Right,
-}
-
-fn setup_system(mut commands: Commands, mut egui_global_settings: ResMut<EguiGlobalSettings>) {
-    egui_global_settings.auto_create_primary_context = true;
-
-    commands.spawn((Camera2d, Layout { order: 0, direction: Direction::Top, ratio: 1. }));
-
-    // Example
-    // commands.spawn((Camera2d, Layout { order: 1, direction: Direction::Right, ratio: 0.5 }));
 }
 
 fn consume_camera_advice(
@@ -127,9 +122,8 @@ fn consume_camera_advice(
     advice.0 = None;
 }
 
-fn fit_layout_system(
+fn clear_color_system(
     window: Option<Single<&mut Window>>,
-    mut camera_query: Query<(&Layout, &mut Camera)>,
     request_highlight: Option<
         Single<(), (With<tutorial_popup::Focused>, With<quest::highlight::RadarView>)>,
     >,
@@ -137,55 +131,6 @@ fn fit_layout_system(
     fixed_time: Res<Time<time::Real>>,
 ) {
     let Some(window) = window else { return };
-
-    let mut camera_order: Vec<_> = camera_query.iter_mut().collect();
-    camera_order.sort_by_key(|(layout, _)| cmp::Reverse(layout.order));
-
-    let mut start_pos = Vec2::ZERO;
-    #[expect(clippy::cast_precision_loss, reason = "window width is usually within f32 range")]
-    let mut end_pos = Vec2::new(window.physical_width() as f32, window.physical_height() as f32);
-
-    end_pos = end_pos.max(start_pos + Vec2::splat(1.0));
-    // probably degenerate interface, but at least avoid panic by ensuring a nonzero viewport
-
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "only pixel-level precision is required"
-    )]
-    // TODO at least validate the float sign
-    for (layout, mut camera) in camera_order {
-        let (my_rect, rem_rect) = match layout.direction {
-            Direction::Top => (
-                (start_pos, Vec2::new(end_pos.x, start_pos.y.lerp(end_pos.y, layout.ratio))),
-                (Vec2::new(start_pos.x, start_pos.y.lerp(end_pos.y, layout.ratio)), end_pos),
-            ),
-            Direction::Bottom => (
-                (Vec2::new(start_pos.x, end_pos.y.lerp(start_pos.y, layout.ratio)), end_pos),
-                (start_pos, Vec2::new(end_pos.x, end_pos.y.lerp(start_pos.y, layout.ratio))),
-            ),
-            Direction::Left => (
-                (start_pos, Vec2::new(start_pos.x.lerp(end_pos.x, layout.ratio), end_pos.y)),
-                (Vec2::new(start_pos.x.lerp(end_pos.x, layout.ratio), start_pos.y), end_pos),
-            ),
-            Direction::Right => (
-                (Vec2::new(end_pos.x.lerp(start_pos.x, layout.ratio), start_pos.y), end_pos),
-                (start_pos, Vec2::new(end_pos.x.lerp(start_pos.x, layout.ratio), end_pos.y)),
-            ),
-        };
-
-        start_pos = rem_rect.0;
-        end_pos = rem_rect.1;
-
-        let my_start = UVec2::new(my_rect.0.x as u32, my_rect.0.y as u32);
-        camera.viewport = Some(Viewport {
-            physical_position: my_start,
-            physical_size:     UVec2::new(my_rect.1.x as u32, my_rect.1.y as u32)
-                .saturating_sub(my_start),
-            depth:             0.0..1.0,
-        });
-        camera.order = layout.order.try_into().expect("layout order out of bounds");
-    }
 
     if request_highlight.is_some() {
         const PERIOD: Duration = Duration::from_secs(3);
@@ -213,14 +158,14 @@ fn drag_camera_system(
     window: Option<Single<&Window>>,
     mut camera_query: Query<(&mut Transform, &Camera, &GlobalTransform), With<Camera2d>>,
     conf: ReadConfig<Conf>,
-    margins: Res<EguiUsedMargins>,
+    egui: Res<EguiState>,
     mut quest_ui_events: MessageWriter<quest::UiEvent>,
 ) {
     let conf = conf.read();
 
     let Some(window) = window else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
-    if margins.pointer_acquired {
+    if egui.pointer_acquired {
         return;
     }
 
@@ -290,12 +235,12 @@ fn scroll_zoom_system(
     current_cursor_camera: Res<input::CursorState>,
     mut camera_query: Query<&mut Transform, With<Camera>>,
     conf: ReadConfig<Conf>,
-    margins: Res<EguiUsedMargins>,
+    egui: Res<EguiState>,
     mut ui_event_writer: MessageWriter<quest::UiEvent>,
 ) {
     let conf = conf.read();
 
-    if margins.pointer_acquired {
+    if egui.pointer_acquired {
         return;
     }
 
@@ -356,3 +301,105 @@ enum CameraDragDirection {
     /// Camera follows cursor location.
     WithCamera,
 }
+
+pub struct TabType {
+    /// The camera entity.
+    pub camera:       Entity,
+    pub image_handle: asset::Handle<Image>,
+    image_id:         Option<egui::TextureId>,
+}
+
+impl dock::TabType for TabType {
+    type TitleSystemParam<'w, 's> = ();
+    fn title(&self, (): ()) -> String { String::from("Radar") }
+
+    type UiSystemParam<'w, 's> = (Query<'w, 's, &'static mut Camera>, ResMut<'w, Assets<Image>>);
+    fn ui(
+        &mut self,
+        (mut param, mut images): Self::UiSystemParam<'_, '_>,
+        ui: &mut egui::Ui,
+        order: usize,
+    ) {
+        let Some(mut camera) = param.log_get_mut(self.camera) else { return };
+        camera.viewport = Some(Viewport {
+            physical_position: UVec2 { x: 0, y: 0 },
+            physical_size:     size_to_uvec2(ui.max_rect().size()),
+            depth:             0.0..1.0,
+        });
+        camera.order = -isize::try_from(order).expect("tab order is within isize bounds") - 1;
+
+        let image = images.get_mut(&self.image_handle).expect("strong handle");
+        #[expect(clippy::cast_sign_loss, reason = "rect dimensions should be nonnegative")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "rect dimensions should be within u32 bounds"
+        )]
+        image.resize(Extent3d {
+            width: ui.max_rect().width() as u32,
+            height: ui.max_rect().height() as u32,
+            ..Default::default()
+        });
+
+        if let Some(image_id) = self.image_id {
+            let resp = ui.image(SizedTexture::new(image_id, ui.max_rect().size()));
+        }
+    }
+
+    type OnCloseSystemParam<'w, 's> = ();
+
+    fn prepare_render(&mut self, contexts: &mut EguiContexts) {
+        self.image_id = contexts.image_id(&self.image_handle);
+    }
+}
+
+pub fn new_tab(params: &mut SpawnParams, commands: &mut Commands) -> dock::Tab {
+    let image = Image {
+        texture_descriptor: TextureDescriptor {
+            label:           None,
+            size:            Extent3d { width: 512, height: 512, ..Default::default() },
+            dimension:       TextureDimension::D2,
+            format:          TextureFormat::Bgra8UnormSrgb,
+            mip_level_count: 1,
+            sample_count:    1,
+            usage:           TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::RENDER_ATTACHMENT,
+            view_formats:    &[],
+        },
+        ..Default::default()
+    };
+    let image_handle = params.images.add(image);
+    params.textures.add_image(EguiTextureHandle::Strong(image_handle.clone()));
+    let camera = commands
+        .spawn((
+            Camera2d,
+            Marker,
+            RenderTarget::Image(ImageRenderTarget {
+                handle:       image_handle.clone(),
+                scale_factor: 1.0,
+            }),
+        ))
+        .id();
+    dock::Tab::TwoDimCamera(TabType { camera, image_handle, image_id: None })
+}
+
+#[derive(SystemParam)]
+pub struct SpawnParams<'w> {
+    images:   ResMut<'w, Assets<Image>>,
+    textures: ResMut<'w, EguiUserTextures>,
+}
+
+fn nullify_camera_system(camera_query: Query<&mut Camera, With<Marker>>) {
+    for mut camera in camera_query {
+        camera.viewport = None;
+        camera.order = isize::MIN;
+    }
+}
+
+#[expect(clippy::cast_sign_loss, reason = "all positions are positive")]
+#[expect(clippy::cast_possible_truncation, reason = "float positions are within bounds")]
+fn pos_to_uvec2(v: egui::Pos2) -> UVec2 { UVec2 { x: v.x as u32, y: v.y as u32 } }
+
+#[expect(clippy::cast_sign_loss, reason = "size should be nonnegative")]
+#[expect(clippy::cast_possible_truncation, reason = "viewport size should be within bounds")]
+fn size_to_uvec2(v: egui::Vec2) -> UVec2 { UVec2 { x: v.x as u32, y: v.y as u32 } }

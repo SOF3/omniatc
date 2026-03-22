@@ -21,4 +21,4 @@ bevy = { workspace = true, features = ["bevy_asset", "bevy_image", "bevy_render"
 winit = "0.30.13"
 anyhow = "1.0.102"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
-jiff = "0.2.21"
+jiff = "0.2.23"

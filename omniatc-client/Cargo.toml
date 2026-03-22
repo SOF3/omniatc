@@ -37,7 +37,7 @@ itertools = "0.14.0"
 jiff = { version = "0.2.21", features = ["js", "logging", "serde"] }
 ordered-float = "5.1.0"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_with = { version = "3.16.1", features = ["macros", "base64"] }
+serde_with = { version = "3.18.0", features = ["macros", "base64"] }
 smallvec = "1.15.1"
 strum = { version = "0.28.0", features = ["derive"] }
 

@@ -64,7 +64,7 @@ fn viewport_to_world_delta(
 
 pub(super) fn scroll_zoom_system(
     mut wheel_events: MessageReader<MouseWheel>,
-    camera_query: Query<&mut Transform, With<Camera>>,
+    camera_query: Query<(&super::UiState, &mut Transform), With<Camera>>,
     conf: ReadConfig<super::Conf>,
     mut ui_event_writer: MessageWriter<quest::UiEvent>,
 ) {
@@ -81,7 +81,11 @@ pub(super) fn scroll_zoom_system(
         total_rotation += rotation_step * event.x;
     }
 
-    for mut camera_tf in camera_query {
+    for (ui_state, mut camera_tf) in camera_query {
+        if ui_state.hovered.is_none() {
+            continue;
+        }
+
         #[expect(
             clippy::float_cmp,
             reason = "total_scroll would be exactly 1.0 if there were no scroll events"

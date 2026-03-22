@@ -26,7 +26,7 @@ omniatc-diff-image = { version = "*", path = "tests/diff-image" }
 serde = "1.0.228"
 
 [workspace.dependencies.bevy]
-version = "0.18.0"
+version = "0.18.1"
 default-features = false
 features = [
 	"bevy_log",

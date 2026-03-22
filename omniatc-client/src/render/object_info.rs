@@ -1,20 +1,24 @@
+use std::mem;
+
 use bevy::app::{self, App, Plugin};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, Single, SystemParam};
+use bevy::ecs::system::{Commands, Local, ParamSet, Query, Res, ResMut, Single, SystemParam};
 use bevy::time::Time;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
+use bevy_egui::{EguiPrimaryContextPass, egui};
 use bevy_mod_config::ReadConfig;
+use egui_dock::DockState;
+use egui_material_icons::icons;
 use omniatc::QueryTryLog;
 use omniatc::level::instr::CommandsExt;
 use omniatc::level::{instr, object, quest};
 
+use crate::render::dock::{self, State, Tab, TabPlacement};
 use crate::render::tutorial_popup;
-use crate::util::new_type_id;
-use crate::{EguiSystemSets, EguiUsedMargins, UpdateSystemSets, input};
+use crate::{EguiSystemSets, UpdateSystemSets, input};
 
 pub struct Plug;
 
@@ -23,10 +27,6 @@ impl Plugin for Plug {
         app.init_resource::<CurrentHoveredObject>();
         app.init_resource::<CurrentObject>();
         app.init_resource::<DraftInstructions>();
-        app.add_systems(
-            EguiPrimaryContextPass,
-            setup_layout_system.in_set(EguiSystemSets::ObjectInfo),
-        );
 
         app.add_systems(
             app::Update,
@@ -45,6 +45,10 @@ impl Plugin for Plug {
             send_selection_ui_event_system
                 .in_set(quest::UiEventWriterSystemSet)
                 .after(CurrentObjectSelectorSystemSet),
+        );
+        app.add_systems(
+            EguiPrimaryContextPass,
+            selection_to_tab_system.in_set(EguiSystemSets::ManageTabs),
         );
     }
 }
@@ -83,47 +87,6 @@ pub struct CurrentObject(pub Option<Entity>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct CurrentObjectSelectorSystemSet;
 
-fn setup_layout_system(
-    mut contexts: EguiContexts,
-    current_object: Res<CurrentObject>,
-    object_query: Query<(WriteQueryData, &object::Display)>,
-    mut margins: ResMut<EguiUsedMargins>,
-    mut param_set: ParamSet<(SendParams, WriteParams)>,
-) {
-    let Ok(ctx) = contexts.ctx_mut() else { return };
-
-    let resp = egui::SidePanel::right(new_type_id!())
-        .resizable(true)
-        .default_width(500.)
-        .show(ctx, |ui| {
-            let Some(object_entity) = current_object.0 else {
-                ui.label("Click on an aircraft to view details");
-                param_set.p0().draft.airborne_vector = None;
-                return;
-            };
-
-            let Some(object) = object_query.log_get(object_entity) else { return };
-
-            ui.heading(&object.1.name);
-
-            let mut params = param_set.p0();
-            let send_clicked = ui
-                .add_enabled(params.draft.airborne_vector.is_some(), egui::Button::new("Send"))
-                .clicked()
-                | params.hotkeys.send; // display regardless of hotkey state
-            if send_clicked && let Some(instr) = params.draft.airborne_vector.take() {
-                params.commands.send_instruction(object_entity, instr);
-            }
-
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                show_writers(ui, &object.0, &mut param_set.p1());
-            });
-            ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
-        })
-        .response;
-    margins.right += resp.rect.width();
-}
-
 #[derive(SystemParam)]
 struct SendParams<'w, 's> {
     draft:    ResMut<'w, DraftInstructions>,
@@ -153,7 +116,7 @@ macro_rules! writer_def {
         }
 
         #[derive(SystemParam)]
-        struct WriteParams<'w, 's> {
+        pub struct WriteParams<'w, 's> {
             sets: ParamSet<'w, 's, ($(<$writer as Writer>::SystemParams<'w, 's>,)*)>,
         }
 
@@ -231,4 +194,112 @@ fn send_selection_ui_event_system(
     if current_object.0.is_some() {
         ui_event_writer.write(quest::UiEvent::ObjectSelected);
     }
+}
+
+pub enum TabType {
+    /// Placeholder UI to keep the dock node when no objects are selected.
+    Placeholder,
+    /// Displays object information.
+    Object {
+        /// The object entity.
+        object: Entity,
+        /// Whether the tab should remain open even if the object is deselected.
+        pinned: bool,
+    },
+}
+
+#[derive(SystemParam)]
+pub struct UiParams<'w, 's> {
+    object_query: Query<'w, 's, (WriteQueryData, &'static object::Display)>,
+    param_set:    ParamSet<'w, 's, (SendParams<'w, 's>, WriteParams<'w, 's>)>,
+}
+
+impl dock::TabType for TabType {
+    type TitleSystemParam<'w, 's> = Query<'w, 's, &'static object::Display>;
+    fn title(&self, param: Self::TitleSystemParam<'_, '_>) -> String {
+        match *self {
+            TabType::Placeholder => "Vehicle Info".into(),
+            TabType::Object { object, pinned } => {
+                let mut string = String::new();
+                if pinned {
+                    string.push_str(icons::ICON_PUSH_PIN);
+                }
+                string.push_str(if let Some(display) = param.log_get(object) {
+                    display.name.as_str()
+                } else {
+                    "Unreachable vehicle"
+                });
+                string
+            }
+        }
+    }
+
+    type UiSystemParam<'w, 's> = UiParams<'w, 's>;
+    fn ui(&mut self, mut params: Self::UiSystemParam<'_, '_>, ui: &mut egui::Ui, _order: usize) {
+        let object_entity = match self {
+            Self::Placeholder => {
+                ui.label("Click on an aircraft to view details");
+                params.param_set.p0().draft.airborne_vector = None;
+                return;
+            }
+            Self::Object { object, .. } => *object,
+        };
+
+        let Some(object) = params.object_query.log_get(object_entity) else { return };
+
+        ui.heading(&object.1.name);
+
+        let mut send_params = params.param_set.p0();
+        let send_clicked = ui
+            .add_enabled(send_params.draft.airborne_vector.is_some(), egui::Button::new("Send"))
+            .clicked();
+        if (send_clicked || send_params.hotkeys.send)
+            && let Some(instr) = send_params.draft.airborne_vector.take()
+        {
+            send_params.commands.send_instruction(object_entity, instr);
+        }
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            show_writers(ui, &object.0, &mut params.param_set.p1());
+        });
+    }
+
+    type OnCloseSystemParam<'w, 's> = ();
+
+    type PrepareRenderSystemParam<'w, 's> = ();
+}
+
+pub(super) fn create_splits(dock: &mut DockState<dock::Tab>) {
+    dock.split(
+        (egui_dock::SurfaceIndex::main(), egui_dock::NodeIndex::root()),
+        egui_dock::Split::Right,
+        0.7,
+        egui_dock::Node::leaf(dock::Tab::ObjectInfo(TabType::Placeholder)),
+    );
+}
+
+fn selection_to_tab_system(
+    current_object: Res<CurrentObject>,
+    mut dock_state: ResMut<State>,
+    mut last_selection: Local<Option<Entity>>,
+) {
+    let Some(dock) = dock_state.state.as_mut() else { return };
+
+    let last_selection = mem::replace(&mut *last_selection, current_object.0);
+    if let Some(object) = current_object.0
+        && last_selection != Some(object)
+    {
+        focus_or_create_tab(dock, object);
+    }
+}
+
+fn focus_or_create_tab(dock: &mut DockState<dock::Tab>, object: Entity) {
+    dock::focus_or_create_tab(
+        dock,
+        || Tab::ObjectInfo(TabType::Object { object, pinned: false }),
+        dock::ReplaceTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Placeholder)))
+            .or(dock::ReplaceTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { object: tab_obj, pinned: false }) if *tab_obj == object)))
+            .or(dock::AfterTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { object: tab_obj, pinned: true }) if *tab_obj == object)))
+            .or_always(dock::SplitRoot{split:egui_dock::Split::Right, ratio:0.7}),
+    );
 }

@@ -13,16 +13,17 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::ResMut;
 use bevy::ecs::world::World;
 use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
+use bevy::input::ButtonState;
 use bevy::input::keyboard::{self, KeyboardInput};
-use bevy::input::mouse::{MouseButton, MouseMotion, MouseScrollUnit, MouseWheel};
-use bevy::input::{ButtonInput, ButtonState};
+use bevy::input::mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel};
 use bevy::math::Vec2;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 use bevy::time::{self, Time, TimeUpdateStrategy};
 use bevy::window::{
-    PrimaryWindow, RawHandleWrapper, RawHandleWrapperHolder, Window, WindowWrapper,
+    CursorMoved, PrimaryWindow, RawHandleWrapper, RawHandleWrapperHolder, Window, WindowWrapper,
 };
 use jiff::Timestamp;
+use omniatc_client::render::twodim;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -244,50 +245,62 @@ impl ClientTest {
         )]
         let delta = (end - start) / frames as f32;
         let mut position = start;
+        // Establish hover before pressing so egui registers the pointer over the widget.
         self.set_cursor_position(position)?;
-        self.set_button_state(button, true);
-        self.world().write_message(MouseMotion { delta: Vec2::ZERO });
+        self.drive_frames(1);
+
+        self.set_cursor_position(position)?;
+        self.set_button_state(button, true)?;
         self.drive_frames(1);
 
         for _ in 0..frames {
             position += delta;
             position = position.clamp(start.min(end), start.max(end));
             self.set_cursor_position(position)?;
-            self.world().write_message(MouseMotion { delta });
             self.drive_frames(1);
         }
 
         self.set_cursor_position(end)?;
-        self.set_button_state(button, false);
-        self.world().write_message(MouseMotion { delta: Vec2::ZERO });
+        self.set_button_state(button, false)?;
         self.drive_frames(1);
         Ok(())
     }
 
     pub fn set_cursor_position(&mut self, position: Vec2) -> Result<()> {
+        let window_entity = self.primary_window_entity()?;
         let mut query = self.world().query_filtered::<&mut Window, With<PrimaryWindow>>();
         let mut window = query.single_mut(self.world()).context("Expected primary window")?;
+        let old_position = window.cursor_position();
         window.set_cursor_position(Some(position));
+        self.world().write_message(CursorMoved {
+            window: window_entity,
+            position,
+            delta: old_position.map(|old| position - old),
+        });
         Ok(())
     }
 
-    pub fn set_button_state(&mut self, button: MouseButton, down: bool) {
-        let mut buttons = self.world().resource_mut::<ButtonInput<MouseButton>>();
-        if down {
-            buttons.press(button);
-        } else {
-            buttons.release(button);
-        }
+    pub fn set_button_state(&mut self, button: MouseButton, down: bool) -> Result<()> {
+        let window = self.primary_window_entity()?;
+        self.world().write_message(MouseButtonInput {
+            button,
+            state: if down { ButtonState::Pressed } else { ButtonState::Released },
+            window,
+        });
+        Ok(())
     }
 
     pub fn click_at(&mut self, button: MouseButton, cursor: Vec2) -> Result<()> {
+        // Establish hover before clicking so egui registers the pointer over the widget.
         self.set_cursor_position(cursor)?;
-        self.set_button_state(button, true);
-
         self.drive_frames(1);
 
         self.set_cursor_position(cursor)?;
-        self.set_button_state(button, false);
+        self.set_button_state(button, true)?;
+        self.drive_frames(1);
+
+        self.set_cursor_position(cursor)?;
+        self.set_button_state(button, false)?;
         self.drive_frames(1);
 
         Ok(())
@@ -306,6 +319,14 @@ impl ClientTest {
             reason = "screen coordinate precision loss is acceptable"
         )]
         Ok(Vec2::new(window.physical_width() as f32 * 0.5, window.physical_height() as f32 * 0.5))
+    }
+
+    /// Convert a camera viewport position to a window position
+    /// by adding the egui image widget offset.
+    pub fn viewport_to_window(&mut self, viewport_pos: Vec2) -> Result<Vec2> {
+        let mut query = self.world().query::<&twodim::camera::UiState>();
+        let ui_state = query.single(self.world()).context("Expected camera UiState")?;
+        Ok(viewport_pos + ui_state.viewport_offset)
     }
 
     pub fn scroll_mouse(&mut self, cursor: Vec2, delta: Vec2, frames: usize) -> Result<()> {

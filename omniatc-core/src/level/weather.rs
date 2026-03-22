@@ -41,6 +41,7 @@ where
             app::Update,
             detect_system.in_set(SystemSets::ExecuteEnviron).before(DetectorReaderSystemSet),
         );
+        app.allow_ambiguous_component::<Detector>(); // multiple setters for likely disjoint entities
     }
 }
 
@@ -158,24 +159,28 @@ impl Locator<'_, '_> {
 ///
 /// The value can be read by systems in [`DetectorReaderSystemSet`].
 #[derive(Component)]
+#[require(DetectorStatus)]
 pub struct Detector {
     /// The 3D position to detect weather at, updated externally.
-    pub position:   Position<Vec3>,
-    pub last_match: Option<Entity>,
-    pub last_wind:  Speed<Vec2>,
+    pub position: Position<Vec3>,
 }
 
 impl Default for Detector {
-    fn default() -> Self {
-        Self { position: Position::new(Vec3::ZERO), last_match: None, last_wind: Speed::ZERO }
-    }
+    // to be filled by user systems if it matters
+    fn default() -> Self { Self { position: Position::new(Vec3::ZERO) } }
+}
+
+#[derive(Component, Default)]
+pub struct DetectorStatus {
+    pub last_match: Option<Entity>,
+    pub last_wind:  Speed<Vec2>,
 }
 
 fn detect_system(
     mut rl: RateLimit,
     conf: ReadConfig<Conf>,
     locator: Locator,
-    mut detector_query: Query<&mut Detector>,
+    mut detector_query: Query<(&Detector, &mut DetectorStatus)>,
 ) {
     let conf = conf.read();
 
@@ -183,14 +188,14 @@ fn detect_system(
         return;
     }
 
-    detector_query.par_iter_mut().for_each(|mut detector| {
-        detector.last_match = locator.locate(detector.position.horizontal());
-        let weather = detector
+    detector_query.par_iter_mut().for_each(|(detector, mut detector_status)| {
+        detector_status.last_match = locator.locate(detector.position.horizontal());
+        let weather = detector_status
             .last_match
             .and_then(|entity| locator.weather_query.get(entity).ok())
             .copied()
             .unwrap_or_default();
-        detector.last_wind = weather.wind_at_altitude(detector.position.altitude());
+        detector_status.last_wind = weather.wind_at_altitude(detector.position.altitude());
     });
 }
 

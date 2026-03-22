@@ -2,7 +2,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use bevy::camera::{Camera, Camera2d};
+use bevy::camera::Camera;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{ReadOnlyQueryData, With};
 use bevy::ecs::world::World;
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     let window_center = test.window_center()?;
     test.with_screenshot("camera-drag", |test| {
-        let drag_end = Vec2::new(window_center.x * 0.8, window_center.y);
+        let drag_end = Vec2::new(window_center.x * 0.7, window_center.y);
         test.drag_mouse(MouseButton::Right, window_center, drag_end, 10)?;
         test.drive_frames(2);
         assert_quest_inactive(test, "Tutorial: Camera (1/3)")?;
@@ -63,7 +63,8 @@ fn main() -> Result<()> {
         test.drive_until(|world| {
             query_object_by_name::<(), _>(world, "ABC123", |()| ()).is_some()
         })?;
-        let plane_screen_pos = object_screen_pos(test.world(), "ABC123")?;
+        let plane_viewport_pos = object_viewport_pos(test.world(), "ABC123")?;
+        let plane_screen_pos = test.viewport_to_window(plane_viewport_pos)?;
         test.click_at(MouseButton::Left, plane_screen_pos)?;
         test.drive_frames(2);
         assert_quest_inactive(test, "Tutorial: Aircraft control (1/5)")?;
@@ -166,15 +167,16 @@ fn main() -> Result<()> {
                     .context("Expect object to exist")?;
                 let (camera, global_tf) = test
                     .world()
-                    .query_filtered::<(&Camera, &GlobalTransform), With<Camera2d>>()
+                    .query_filtered::<(&Camera, &GlobalTransform), With<twodim::camera::UiState>>()
                     .single(test.world())
-                    .context("Expected Camera2d")?;
-                camera
+                    .context("Expected 2D camera")?;
+                let viewport_pos = camera
                     .world_to_viewport(
                         global_tf,
                         world_pos.with_altitude(Position::SEA_LEVEL).get(),
                     )
-                    .context("Convert world pos to screen pos")?
+                    .context("Convert world pos to viewport pos")?;
+                test.viewport_to_window(viewport_pos)?
             };
             test.set_cursor_position(click_pos)?;
             test.press_key(keyboard::KeyCode::KeyV, keyboard::Key::Character("v".into()))?;
@@ -235,7 +237,7 @@ fn query_object_by_name<D: ReadOnlyQueryData + 'static, R>(
     query.iter(world).find(|(_, display)| display.name == name).map(|(data, _)| then(data))
 }
 
-fn object_screen_pos(world: &mut World, name: &str) -> Result<Vec2> {
+fn object_viewport_pos(world: &mut World, name: &str) -> Result<Vec2> {
     let mut object_query = world.query::<(&Display, &twodim::object::HasSprite)>();
     let (_, sprite) = object_query
         .iter(world)
@@ -246,7 +248,8 @@ fn object_screen_pos(world: &mut World, name: &str) -> Result<Vec2> {
         .get::<GlobalTransform>(sprite_entity)
         .context("Plane sprite missing GlobalTransform")?
         .translation();
-    let mut camera_query = world.query_filtered::<(&Camera, &GlobalTransform), With<Camera2d>>();
+    let mut camera_query =
+        world.query_filtered::<(&Camera, &GlobalTransform), With<twodim::camera::UiState>>();
     let (camera, camera_transform) = camera_query.single(world).context("Expected camera2d")?;
     camera
         .world_to_viewport(camera_transform, sprite_translation)

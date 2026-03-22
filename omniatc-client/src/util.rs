@@ -41,7 +41,7 @@ pub fn heading_to_approx_name(heading: Heading) -> &'static str {
 
 #[derive(SystemParam)]
 pub struct ActiveCamera2d<'w, 's> {
-    camera: Single<'w, 's, &'static GlobalTransform, With<twodim::camera::Layout>>,
+    camera: Single<'w, 's, &'static GlobalTransform, With<twodim::camera::UiState>>,
 }
 
 impl ActiveCamera2d<'_, '_> {

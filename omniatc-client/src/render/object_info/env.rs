@@ -8,7 +8,7 @@ use super::Writer;
 #[derive(QueryData)]
 pub struct ObjectQuery {
     wake:     Option<&'static wake::Detector>,
-    weather:  Option<&'static weather::Detector>,
+    weather:  Option<&'static weather::DetectorStatus>,
     plane:    Option<&'static plane::Control>,
     airborne: Option<&'static object::Airborne>,
 }

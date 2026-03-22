@@ -811,7 +811,7 @@ pub fn level() -> store::Level {
             1.0,
         )]
         .into(),
-        spawn_trigger: store::SpawnTrigger::Periodic { duration: Duration::from_secs(60) },
+        spawn_trigger: store::SpawnTrigger::Periodic { duration: Duration::from_mins(1) },
     }
 }
 

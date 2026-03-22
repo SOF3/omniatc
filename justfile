@@ -3,7 +3,7 @@ fmt:
 maps:
 	cargo run -p omniatc-maps build-assets
 fix:
-	cargo clippy --fix --allow-staged --all --tests
+	cargo clippy --fix --allow-staged --all --tests -- -D warnings -D clippy::dbg_macro -D dead_code -D unused_variables -D unused_imports
 run:
 	RUST_BACKTRACE=1 \
 		RUST_LOG=warn,omniatc=debug \

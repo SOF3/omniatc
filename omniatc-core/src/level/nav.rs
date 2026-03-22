@@ -269,7 +269,7 @@ struct GroundDirectionSystemQueryData {
     current_object:   &'static Object,
     current_air:      &'static object::Airborne,
     signal:           &'static mut VelocityTarget,
-    weather_detector: &'static weather::Detector,
+    weather_detector: &'static weather::DetectorStatus,
 }
 
 fn ground_heading_control_system(

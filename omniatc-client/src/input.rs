@@ -3,24 +3,21 @@ use std::hash::Hash;
 use bevy::app::{self, App, Plugin};
 use bevy::camera::Camera;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::{Has, Or, QueryData, With};
+use bevy::ecs::query::{AnyOf, QueryData};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Query, Res, ResMut, Single};
 use bevy::input::ButtonInput;
 use bevy::input::mouse::MouseButton;
-use bevy::math::primitives::InfinitePlane3d;
-use bevy::math::{Vec2, Vec3};
+use bevy::math::Vec2;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::Window;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use bevy_mod_config::{AppExt, Config, ReadConfig};
-use math::Position;
-use omniatc::try_log_return;
-use omniatc::util::EqAny;
+use math::{Length, Position};
 
 use crate::render::{threedim, twodim};
-use crate::{ConfigManager, EguiSystemSets, EguiUsedMargins, UpdateSystemSets};
+use crate::{ConfigManager, EguiState, EguiSystemSets, UpdateSystemSets};
 
 pub mod key_field;
 pub use key_field::KeySet;
@@ -31,7 +28,6 @@ impl Plugin for Plug {
     fn build(&self, app: &mut App) {
         app.init_config::<ConfigManager, Conf>("input");
         app.init_resource::<CursorState>();
-        app.init_resource::<CursorDragState>();
         app.add_systems(
             app::Update,
             CursorState::update_system
@@ -43,199 +39,87 @@ impl Plugin for Plug {
             EguiPrimaryContextPass,
             Hotkeys::update_system
                 .in_set(EguiSystemSets::Init)
-                .ambiguous_with(EguiUsedMargins::reset_system),
+                .ambiguous_with(EguiState::reset_frame_system),
         );
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Debug)]
 pub struct CursorState {
-    pub value: Option<CurrentCursorCameraValue>,
-
-    pub left:  ButtonState,
-    pub right: ButtonState,
-
-    pub capture: Capture,
+    pub hovered: Option<CursorTarget>,
+    pub left:    CursorButtonState,
+    pub right:   CursorButtonState,
 }
 
-#[derive(Default)]
-pub struct ButtonState {
-    pub was_down: bool,
-    pub is_down:  bool,
+#[derive(Default, Debug)]
+pub struct CursorButtonState {
+    /// Newly pressed down.
+    pub clicked: Option<CursorTarget>,
 }
 
-impl ButtonState {
-    fn rotate_and_reset(&mut self) {
-        self.was_down = self.is_down;
-        self.is_down = false;
+#[derive(Debug, Clone, Copy)]
+pub enum CursorTarget {
+    TwoDim { world_pos: Position<Vec2>, pixel_precision: Length<f32> },
+}
+
+impl CursorTarget {
+    /// Horizontal position of the intersection between ground terrain
+    /// and the ray from the camera through the cursor.
+    #[must_use]
+    pub fn ground_position(&self) -> Option<Position<Vec2>> {
+        match self {
+            CursorTarget::TwoDim { world_pos, .. } => Some(*world_pos),
+        }
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Capture {
-    /// Pointer captured by the game UI.
-    #[default]
-    Game,
-    /// Pointer captured by egui components.
-    Egui,
-}
-
-#[derive(Clone, Copy)]
-pub struct CurrentCursorCameraValue {
-    pub camera_entity: Entity,
-    pub viewport_pos:  Vec2,
-    pub world_pos:     Position<Vec2>,
+    /// Geometric mean distance moved on the ground terrain
+    /// if the cursor moves by one pixel in any direction.
+    #[must_use]
+    pub fn ground_precision(&self) -> Option<Length<f32>> {
+        match self {
+            CursorTarget::TwoDim { pixel_precision, .. } => Some(*pixel_precision),
+        }
+    }
 }
 
 #[derive(QueryData)]
-struct CameraData {
+struct UpdateCursorCameraQueryData {
     camera_entity: Entity,
     camera:        &'static Camera,
     global_tf:     &'static GlobalTransform,
-    is_twodim:     Has<twodim::camera::Layout>,
-    is_threedim:   Has<threedim::CameraLayout>,
+    marker:        AnyOf<(&'static twodim::camera::UiState, &'static threedim::UiState)>,
 }
 
 impl CursorState {
-    #[must_use]
-    pub fn left_just_down(&self) -> bool { self.left.is_down && !self.left.was_down }
-
-    #[must_use]
-    pub fn left_just_up(&self) -> bool { !self.left.is_down && self.left.was_down }
-
-    #[must_use]
-    pub fn right_just_down(&self) -> bool { self.right.is_down && !self.right.was_down }
-
-    #[must_use]
-    pub fn right_just_up(&self) -> bool { !self.right.is_down && self.right.was_down }
-
     fn update_system(
         mut target: ResMut<Self>,
-        window: Option<Single<&Window>>,
-        camera_query: Query<
-            CameraData,
-            Or<(With<twodim::camera::Layout>, With<threedim::CameraLayout>)>,
-        >,
-        buttons: Res<ButtonInput<MouseButton>>,
-        mut contexts: EguiContexts,
+        _window: Option<Single<&Window>>,
+        camera_query: Query<UpdateCursorCameraQueryData>,
+        _buttons: Res<ButtonInput<MouseButton>>,
     ) {
-        target.capture = Capture::Game;
+        let target = &mut *target;
+        *target = Self::default();
 
-        let Some(window) = window else {
-            // No possible camera capture without a window.
-            // Pointer states may still be valid.
-            target.value = None;
-            return;
-        };
+        for data in camera_query {
+            match data.marker {
+                (Some(twodim), _) => {
+                    if let Some(pos) = twodim.hovered {
+                        let cursor_target = CursorTarget::TwoDim {
+                            world_pos:       pos.world,
+                            pixel_precision: Length::new(data.global_tf.scale().x),
+                        };
 
-        target.left.rotate_and_reset();
-        target.right.rotate_and_reset();
-
-        if let Ok(ctx) = contexts.ctx_mut()
-            && ctx.wants_pointer_input()
-        {
-            // If pointer enters egui area,
-            // just assume the pointer stays at the last position in game area,
-            // and ignore all mouse button press changes.
-            target.capture = Capture::Egui;
-            return;
-        }
-
-        target.left.is_down = buttons.pressed(MouseButton::Left);
-        target.right.is_down = buttons.pressed(MouseButton::Right);
-        target.value = None;
-
-        let Some(cursor_pos) = window.cursor_position() else {
-            return;
-        };
-        let Some((data, viewport_pos)) = camera_query.iter().find_map(|data| {
-            if let Some(viewport_rect) = data.camera.logical_viewport_rect()
-                && viewport_rect.contains(cursor_pos)
-            {
-                let viewport_pos = cursor_pos - viewport_rect.min;
-                return Some((data, viewport_pos));
-            }
-            None
-        }) else {
-            return;
-        };
-        if data.is_twodim {
-            let world_pos = try_log_return!(
-                data.camera.viewport_to_world_2d(data.global_tf, cursor_pos),
-                expect "viewport should be valid"
-            );
-            target.value = Some(CurrentCursorCameraValue {
-                camera_entity: data.camera_entity,
-                viewport_pos,
-                world_pos: Position::new(world_pos),
-            });
-        } else if data.is_threedim {
-            // TODO support 3D camera
-            let ray = try_log_return!(
-                data.camera.viewport_to_world(data.global_tf, cursor_pos),
-                expect "viewport should be valid"
-            );
-            let dist = ray.intersect_plane(
-                Position::from_origin_nm(0., 0.).with_altitude(Position::SEA_LEVEL).get(),
-                InfinitePlane3d::new(Vec3::Z),
-            );
-            if let Some(dist) = dist.filter(|&dist| dist > 0.) {
-                let world_pos = Position::new(ray.get_point(dist)).horizontal();
-                target.value = Some(CurrentCursorCameraValue {
-                    camera_entity: data.camera_entity,
-                    viewport_pos,
-                    world_pos,
-                });
-            }
-        }
-    }
-}
-
-#[derive(Resource, Default)]
-pub struct CursorDragState {
-    drag_state: Option<Box<dyn EqAny + Send + Sync>>,
-}
-
-impl CursorDragState {
-    /// Determines whether dragging is occurring,
-    /// selectively disabling dragging based on the current capture state.
-    ///
-    /// This function should be called every frame to ensure correct renewal,
-    /// not just during button state changes.
-    pub fn is_dragging(
-        &mut self,
-        cursor_state: &CursorState,
-        id: impl EqAny + Send + Sync,
-        dragging_by_cursor: bool,
-    ) -> bool {
-        match cursor_state.capture {
-            Capture::Game => {
-                // When within game area,
-                // all dragging overrides are allowed.
-                if dragging_by_cursor {
-                    self.drag_state = Some(Box::new(id));
-                    true
-                } else {
-                    self.drag_state = None;
-                    false
-                }
-            }
-            Capture::Egui => {
-                // When within egui area,
-                // only renewal of the same dragging override is allowed.
-                if id.eq_any(&self.drag_state) {
-                    if dragging_by_cursor {
-                        // renew dragging state
-                        true
-                    } else {
-                        // no more dragging until egui releases the cursor.
-                        self.drag_state = None;
-                        false
+                        target.hovered = Some(cursor_target);
+                        if twodim.left_clicked {
+                            target.left.clicked = Some(cursor_target);
+                        }
+                        if twodim.right_clicked {
+                            target.right.clicked = Some(cursor_target);
+                        }
                     }
-                } else {
-                    // New dragging overrides are not allowed.
-                    false
                 }
+                (None, Some(_threedim)) => {}
+                _ => unreachable!(),
             }
         }
     }

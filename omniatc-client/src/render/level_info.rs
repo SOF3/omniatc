@@ -1,18 +1,18 @@
 use bevy::app::{App, Plugin};
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, ParamSet, Res, ResMut, SystemParam};
+use bevy::ecs::schedule::{self, IntoScheduleConfigs, Schedulable, ScheduleConfigs};
+use bevy::ecs::system::{ParamSet, Res, SystemParam};
 use bevy::time::{Time, Virtual as TimeVirtual};
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
+use bevy_egui::egui;
+use egui_dock::DockState;
 use omniatc::level::quest;
-use strum::IntoEnumIterator;
 
+use crate::render::config_editor;
+use crate::render::dock::{self, Tab};
 use crate::render::object_info::CurrentObjectSelectorSystemSet;
-use crate::util::new_type_id;
-use crate::{EguiSystemSets, EguiUsedMargins};
 
 mod camera;
 mod diagnostics;
-mod objects;
+pub(super) mod objects;
 pub(super) mod quests;
 mod score;
 mod time;
@@ -20,15 +20,7 @@ mod time;
 pub struct Plug;
 
 impl Plugin for Plug {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            EguiPrimaryContextPass,
-            setup_layout_system
-                .in_set(EguiSystemSets::LevelInfo)
-                .in_set(quest::UiEventWriterSystemSet)
-                .in_set(CurrentObjectSelectorSystemSet),
-        );
-    }
+    fn build(&self, _app: &mut App) {}
 }
 
 trait WriteParams {
@@ -72,113 +64,76 @@ struct RequestHighlightParams<'w> {
 }
 
 #[derive(SystemParam)]
-struct TabListParams<'s> {
-    select_tab: Local<'s, SelectTab>,
+pub struct LevelWriteParams<'w, 's> {
+    ps: ParamSet<
+        'w,
+        's,
+        (
+            score::WriteScoreParams<'w>,
+            time::WriteTimeParams<'w, 's>,
+            camera::WriteCameraParams<'w, 's>,
+            diagnostics::WriteDiagnosticsParams<'w>,
+            // NOTE: remember to update each_write_params upon adding an entry here
+        ),
+    >,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, strum::IntoStaticStr, strum::EnumIter)]
-enum SelectTab {
-    #[default]
-    Level,
-    Quests,
-    ConfigEditor,
-}
-
-type LevelWriteParams<'w, 's> = (
-    score::WriteScoreParams<'w>,
-    time::WriteTimeParams<'w, 's>,
-    camera::WriteCameraParams<'w, 's>,
-    objects::WriteObjectParams<'w, 's>,
-    diagnostics::WriteDiagnosticsParams<'w>,
-);
 
 macro_rules! each_write_params {
     ($set:expr, $mac:path, $state:tt) => {
         let mut set = $set;
-        $mac!(set.p0(), $state);
-        $mac!(set.p1(), $state);
-        $mac!(set.p2(), $state);
-        $mac!(set.p3(), $state);
-        $mac!(set.p4(), $state);
+        $mac!(set.ps.p0(), $state);
+        $mac!(set.ps.p1(), $state);
+        $mac!(set.ps.p2(), $state);
+        $mac!(set.ps.p3(), $state);
     };
 }
 
-fn setup_layout_system(
-    mut contexts: EguiContexts,
-    mut margins: ResMut<EguiUsedMargins>,
-    mut param_set: ParamSet<(
-        TabListParams,
-        ParamSet<LevelWriteParams>,
-        quests::WriteQuestsParams,
-        bevy_mod_config::manager::egui::Display,
-    )>,
-) {
-    let Ok(ctx) = contexts.ctx_mut() else { return };
+pub struct ScalarTabType;
 
-    let should_highlight_level = {
+impl dock::TabType for ScalarTabType {
+    type TitleSystemParam<'w, 's> = ();
+    fn title(&self, (): ()) -> String { "World".into() }
+
+    type UiSystemParam<'w, 's> = LevelWriteParams<'w, 's>;
+    fn ui(&mut self, param_set: Self::UiSystemParam<'_, '_>, ui: &mut egui::Ui, _order: usize) {
         macro_rules! each {
-            ($p:expr, $state:tt) => {
-                $state = $state || $p.request_highlight().is_some();
+            ($p:expr, $ui:tt) => {
+                $p.display($ui)
             };
         }
+        each_write_params!(param_set, each, ui);
+    }
 
-        let mut should_highlight = false;
-        each_write_params!(param_set.p1(), each, should_highlight);
-        should_highlight
-    };
+    fn schedule_configs<T>(configs: ScheduleConfigs<T>) -> ScheduleConfigs<T>
+    where
+        T: Schedulable<Metadata = schedule::GraphInfo, GroupMetadata = schedule::Chain>,
+    {
+        configs.in_set(quest::UiEventWriterSystemSet).in_set(CurrentObjectSelectorSystemSet)
+    }
 
-    let resp = egui::SidePanel::left(new_type_id!())
-        .resizable(true)
-        .show(ctx, |ui| {
-            let mut tab_params = param_set.p0();
+    type OnCloseSystemParam<'w, 's> = ();
 
-            ui.horizontal(|ui| {
-                for option in SelectTab::iter() {
-                    let button = egui::Button::selectable(
-                        option == *tab_params.select_tab,
-                        Into::<&'static str>::into(option),
-                    );
-                    let resp = if option == SelectTab::Level
-                        && option != *tab_params.select_tab
-                        && should_highlight_level
-                    {
-                        egui::Frame::new()
-                            .stroke(egui::Stroke::new(3.0, egui::Color32::RED))
-                            .show(ui, |ui| ui.add(button))
-                            .inner
-                    } else {
-                        ui.add(button)
-                    };
-                    if resp.clicked() {
-                        *tab_params.select_tab = option;
-                    }
-                }
-            });
+    type PrepareRenderSystemParam<'w, 's> = ();
+}
 
-            match *tab_params.select_tab {
-                SelectTab::Level => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        macro_rules! each {
-                            ($p:expr, $ui:tt) => {
-                                $p.display($ui)
-                            };
-                        }
-                        each_write_params!(param_set.p1(), each, ui);
-                    });
-                }
-                SelectTab::Quests => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        param_set.p2().display(ui);
-                    });
-                }
-                SelectTab::ConfigEditor => {
-                    let mut manager = param_set.p3();
-                    manager.show(ui);
-                }
-            }
-
-            ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::click());
-        })
-        .response;
-    margins.left += resp.rect.width();
+pub(super) fn create_splits(dock: &mut DockState<Tab>) {
+    let [_, left] = dock.split(
+        (egui_dock::SurfaceIndex::main(), egui_dock::NodeIndex::root()),
+        egui_dock::Split::Left,
+        0.3,
+        egui_dock::Node::leaf_with(
+            [
+                Tab::LevelInfo(ScalarTabType),
+                Tab::Quests(quests::TabType),
+                Tab::ConfigEditor(config_editor::TabType),
+            ]
+            .into(),
+        ),
+    );
+    dock.split(
+        (egui_dock::SurfaceIndex::main(), left),
+        egui_dock::Split::Below,
+        0.5,
+        egui_dock::Node::leaf(Tab::ObjectList(objects::TabType)),
+    );
 }

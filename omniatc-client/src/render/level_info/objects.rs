@@ -1,25 +1,27 @@
 use std::cmp;
 
 use bevy::ecs::entity::Entity;
-use bevy::ecs::query::QueryData;
+use bevy::ecs::query::{QueryData, With};
+use bevy::ecs::schedule::{self, IntoScheduleConfigs, Schedulable, ScheduleConfigs};
 use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
 use bevy_egui::egui;
 use egui_extras::{Column, TableBuilder};
 use math::Heading;
-use omniatc::level::object;
+use omniatc::level::object::{self, Object};
+use omniatc::level::quest;
 use ordered_float::OrderedFloat;
 use strum::IntoEnumIterator;
 
-use super::WriteParams;
 use crate::input;
-use crate::render::object_info;
+use crate::render::dock;
+use crate::render::object_info::{self, CurrentObjectSelectorSystemSet};
 
 #[derive(QueryData)]
 pub struct ObjectTableData {
     entity:   Entity,
     display:  &'static object::Display,
     rotation: &'static object::Rotation,
-    object:   &'static object::Object,
+    object:   &'static Object,
 }
 
 #[derive(SystemParam)]
@@ -30,120 +32,6 @@ pub struct WriteObjectParams<'w, 's> {
     search_str:      Local<'s, String>,
     hotkeys:         Res<'w, input::Hotkeys>,
     selected_object: ResMut<'w, object_info::CurrentObject>,
-}
-
-impl WriteParams for WriteObjectParams<'_, '_> {
-    fn title(&self) -> String { format!("Vehicles ({})", self.object_query.iter().len()) }
-
-    fn default_open() -> bool { true }
-
-    fn write(&mut self, ui: &mut egui::Ui) {
-        let mut select_first = false;
-        ui.horizontal(|ui| {
-            ui.label("Search");
-
-            let search_resp = ui.add(
-                egui::TextEdit::singleline(&mut *self.search_str)
-                    .hint_text("'/' to focus, Enter to select first match"),
-            );
-            if search_resp.lost_focus()
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
-            {
-                select_first = true;
-            }
-            if search_resp.has_focus()
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Slash))
-            {
-                self.search_str.clear();
-            }
-            if search_resp.has_focus()
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
-            {
-                search_resp.surrender_focus();
-            }
-            if self.hotkeys.search {
-                search_resp.request_focus();
-            }
-        });
-
-        if self.hotkeys.deselect {
-            self.selected_object.0 = None;
-        }
-
-        let columns: Vec<_> = ObjectTableColumn::iter().collect();
-        let mut objects: Vec<_> = self
-            .object_query
-            .iter()
-            .filter(|object| {
-                if self.search_str.is_empty() {
-                    true
-                } else {
-                    object.display.name.to_lowercase().contains(&self.search_str.to_lowercase())
-                }
-            })
-            .collect();
-        let rows_changed = self.last_rows.replace(objects.len()) != Some(objects.len());
-
-        TableBuilder::new(ui)
-            .columns(
-                Column::auto().resizable(true).auto_size_this_frame(rows_changed),
-                columns.len(),
-            )
-            .header(20., |mut header| {
-                for (column_id, column) in columns.iter().enumerate() {
-                    header.col(|ui| {
-                        let mut clicked = false;
-                        ui.horizontal(|ui| {
-                            clicked |= ui.small(column.header()).clicked();
-                            if self.sort_key.0 == column_id {
-                                clicked |=
-                                    ui.label(if self.sort_key.1 { "v" } else { "^" }).clicked();
-                            }
-                        });
-                        if clicked {
-                            if self.sort_key.0 == column_id {
-                                self.sort_key.1 = !self.sort_key.1;
-                            } else {
-                                *self.sort_key = (column_id, false);
-                            }
-                        }
-                    });
-                }
-            })
-            .body(|body| {
-                columns[self.sort_key.0].sort(&mut objects[..], self.sort_key.1);
-
-                if select_first && let Some(first) = objects.first() {
-                    self.selected_object.0 = Some(first.entity);
-                }
-
-                body.rows(20., objects.len(), |mut row| {
-                    let object = &objects[row.index()];
-                    let is_selected = self.selected_object.0 == Some(object.entity);
-                    row.set_selected(is_selected);
-
-                    let mut clicked = false;
-                    for column in &columns {
-                        row.col(|ui| {
-                            let resp = column.cell_value(ui, object);
-                            clicked |= resp.clicked();
-                        });
-                    }
-                    if clicked {
-                        self.selected_object.0 = Some(object.entity);
-                    }
-                });
-            });
-    }
-}
-
-#[derive(strum::EnumIter)]
-enum ObjectTableColumn {
-    Name,
-    Altitude,
-    GroundSpeed,
-    VerticalRate,
-    Heading,
 }
 
 #[derive(PartialEq, Eq)]
@@ -157,6 +45,15 @@ impl<T: Ord> Ord for ConditionalReverse<T> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         if self.0 { other.1.cmp(&self.1) } else { self.1.cmp(&other.1) }
     }
+}
+
+#[derive(strum::EnumIter)]
+enum ObjectTableColumn {
+    Name,
+    Altitude,
+    GroundSpeed,
+    VerticalRate,
+    Heading,
 }
 
 impl ObjectTableColumn {
@@ -211,4 +108,124 @@ impl ObjectTableColumn {
             }),
         }
     }
+}
+
+pub struct TabType;
+
+impl dock::TabType for TabType {
+    type TitleSystemParam<'w, 's> = Query<'w, 's, (), With<Object>>;
+    fn title(&self, param: Self::TitleSystemParam<'_, '_>) -> String {
+        format!("Vehicles ({})", param.iter().len())
+    }
+
+    type UiSystemParam<'w, 's> = WriteObjectParams<'w, 's>;
+    fn ui(&mut self, mut params: Self::UiSystemParam<'_, '_>, ui: &mut egui::Ui, _order: usize) {
+        let mut select_first = false;
+        ui.horizontal(|ui| {
+            ui.label("Search");
+
+            let search_resp = ui.add(
+                egui::TextEdit::singleline(&mut *params.search_str)
+                    .hint_text("'/' to focus, Enter to select first match"),
+            );
+            if search_resp.lost_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            {
+                select_first = true;
+            }
+            if search_resp.has_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Slash))
+            {
+                params.search_str.clear();
+            }
+            if search_resp.has_focus()
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            {
+                search_resp.surrender_focus();
+            }
+            if params.hotkeys.search {
+                search_resp.request_focus();
+            }
+        });
+
+        if params.hotkeys.deselect {
+            params.selected_object.0 = None;
+        }
+
+        let columns: Vec<_> = ObjectTableColumn::iter().collect();
+        let mut objects: Vec<_> = params
+            .object_query
+            .iter()
+            .filter(|object| {
+                if params.search_str.is_empty() {
+                    true
+                } else {
+                    object.display.name.to_lowercase().contains(&params.search_str.to_lowercase())
+                }
+            })
+            .collect();
+        let rows_changed = params.last_rows.replace(objects.len()) != Some(objects.len());
+
+        TableBuilder::new(ui)
+            .columns(
+                Column::auto().resizable(true).auto_size_this_frame(rows_changed),
+                columns.len(),
+            )
+            .header(20., |mut header| {
+                for (column_id, column) in columns.iter().enumerate() {
+                    header.col(|ui| {
+                        let mut clicked = false;
+                        ui.horizontal(|ui| {
+                            clicked |= ui.small(column.header()).clicked();
+                            if params.sort_key.0 == column_id {
+                                clicked |=
+                                    ui.label(if params.sort_key.1 { "v" } else { "^" }).clicked();
+                            }
+                        });
+                        if clicked {
+                            if params.sort_key.0 == column_id {
+                                params.sort_key.1 = !params.sort_key.1;
+                            } else {
+                                *params.sort_key = (column_id, false);
+                            }
+                        }
+                    });
+                }
+            })
+            .body(|body| {
+                columns[params.sort_key.0].sort(&mut objects[..], params.sort_key.1);
+
+                if select_first && let Some(first) = objects.first() {
+                    params.selected_object.0 = Some(first.entity);
+                }
+
+                body.rows(20., objects.len(), |mut row| {
+                    let object = &objects[row.index()];
+                    let is_selected = params.selected_object.0 == Some(object.entity);
+                    row.set_selected(is_selected);
+
+                    let mut clicked = false;
+                    for column in &columns {
+                        row.col(|ui| {
+                            let resp = column.cell_value(ui, object);
+                            clicked |= resp.clicked();
+                        });
+                    }
+                    if clicked {
+                        params.selected_object.0 = Some(object.entity);
+                    }
+                });
+            });
+    }
+
+    fn schedule_configs<T>(configs: ScheduleConfigs<T>) -> ScheduleConfigs<T>
+    where
+        T: Schedulable<Metadata = schedule::GraphInfo, GroupMetadata = schedule::Chain>,
+    {
+        configs.in_set(quest::UiEventWriterSystemSet).in_set(CurrentObjectSelectorSystemSet)
+    }
+
+    type OnCloseSystemParam<'w, 's> = ();
+
+    type PrepareRenderSystemParam<'w, 's> = ();
 }

@@ -94,7 +94,7 @@ fn maintain_length_system(
 
 #[derive(Config)]
 pub(super) struct Conf {
-    #[config(default = Duration::from_secs(60), min = Duration::ZERO, max = Duration::from_secs(300))]
+    #[config(default = Duration::from_mins(1), min = Duration::ZERO, max = Duration::from_mins(5))]
     lookahead_time:          Duration,
     /// Thickness of the vector line in screen coordinates.
     #[config(default = 0.5, min = 0., max = 10.)]

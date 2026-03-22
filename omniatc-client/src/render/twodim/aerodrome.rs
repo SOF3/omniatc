@@ -85,7 +85,7 @@ fn regenerate_system(mut params: ParamSet<(FindOutdatedAerodromesParam, Regenera
 struct FindOutdatedAerodromesParam<'w, 's> {
     changes:           MessageReader<'w, 's, ground::ChangedMessage>,
     conf:              ReadConfig<'w, 's, Conf>,
-    camera:            Single<'w, 's, &'static GlobalTransform, With<camera::Layout>>,
+    camera:            Single<'w, 's, &'static GlobalTransform, With<camera::UiState>>,
     aerodrome_query:   Query<'w, 's, Entity, With<Aerodrome>>,
     last_render_width: Local<'s, Option<Length<f32>>>,
 }

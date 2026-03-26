@@ -28,7 +28,7 @@ derive_more = { version = "2.1.1", features = ["from", "add", "add_assign"] }
 either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"
-ordered-float = "5.1.0"
+ordered-float = "5.2.0"
 portrait = "0.3.1"
 serde = { workspace = true, features = ["derive"] }
 smallvec = "1.15.1"

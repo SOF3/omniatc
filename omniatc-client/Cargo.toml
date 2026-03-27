@@ -30,7 +30,7 @@ derive_more = { version = "2.1.1", features = ["into"] }
 dirs = "6.0.0"
 egui_dock = "0.18.0"
 egui_extras.workspace = true
-egui_material_icons = "0.5.0"
+egui_material_icons = "0.6.0"
 either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"

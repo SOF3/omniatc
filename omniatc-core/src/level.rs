@@ -11,6 +11,7 @@ use strum::IntoEnumIterator;
 pub mod aerodrome;
 pub mod dest;
 pub mod ground;
+pub mod index;
 pub mod instr;
 pub mod message;
 pub mod nav;
@@ -41,13 +42,7 @@ where
     instr::Conf: ConfigFieldFor<M>,
 {
     fn build(&self, app: &mut App) {
-        for set in SystemSets::iter() {
-            app.configure_sets(app::Update, set.in_set(AllSystemSets));
-        }
-
-        for (before, after) in SystemSets::iter().tuple_windows() {
-            app.configure_sets(app::Update, before.before(after));
-        }
+        SystemSets::configure_ordering(app);
 
         app.add_plugins(message::Plug);
         app.add_plugins(score::Plug);
@@ -95,6 +90,25 @@ pub enum SystemSets {
     QuestCompletion,
     /// Systems for spawning new entities.
     Spawn,
+    /// Updates dynamic data structures to react to changes in the world.
+    UpdateIndex,
+}
+
+impl SystemSets {
+    /// Configures the canonical ordering of all system sets for a `bevy::app::Update` schedule.
+    ///
+    /// Call this in any test app that adds plugins belonging to individual sets
+    /// (e.g. `object::Plug`, `nav::Plug`) without using the full `level::Plug`.
+    /// Without this ordering, Bevy's tiebreaking may schedule sets in an unspecified order,
+    /// producing different simulation results than the production configuration.
+    pub fn configure_ordering(app: &mut App) {
+        for set in SystemSets::iter() {
+            app.configure_sets(app::Update, set.in_set(AllSystemSets));
+        }
+        for (before, after) in SystemSets::iter().tuple_windows() {
+            app.configure_sets(app::Update, before.before(after));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]

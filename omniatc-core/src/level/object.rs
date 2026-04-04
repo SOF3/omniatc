@@ -26,7 +26,7 @@ use store::Score;
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav};
 use crate::level::weather::{self, Weather};
-use crate::level::{dest, plane, taxi};
+use crate::level::{dest, index, plane, taxi};
 use crate::try_log::EntityWorldMutExt;
 use crate::{QueryTryLog, WorldTryLog};
 
@@ -66,6 +66,8 @@ where
             (rotate_ground_object_system, track_position_system)
                 .in_set(SystemSets::ReconcileForRead),
         );
+
+        app.add_plugins(index::Plug::<Object, (), _>::new(|object| object.position));
     }
 }
 

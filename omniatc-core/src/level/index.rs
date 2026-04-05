@@ -40,7 +40,7 @@ const INITIAL_HALF_EXTENT: f32 = 128.0;
 /// and rebuilds a typed [`OctreeIndex`] resource in [`SystemSets::UpdateIndex`] each update tick.
 pub struct Plug<C, Qf, PosFn> {
     extractor: PosFn,
-    marker:    PhantomData<fn() -> (C, Qf)>,
+    _ph:       PhantomData<fn() -> (C, Qf)>,
 }
 
 impl<C, Qf, PosFn> Plug<C, Qf, PosFn>
@@ -48,7 +48,7 @@ where
     PosFn: Fn(&C) -> Position<Vec3> + Send + Sync + 'static,
 {
     #[must_use]
-    pub fn new(extractor: PosFn) -> Self { Self { extractor, marker: PhantomData } }
+    pub fn new(extractor: PosFn) -> Self { Self { extractor, _ph: PhantomData } }
 }
 
 impl<C, Qf, PosFn> Plugin for Plug<C, Qf, PosFn>

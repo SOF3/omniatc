@@ -891,6 +891,14 @@ impl<Dt, Pow> From<(Quantity<f32, LengthBase, Dt, Pow>, Quantity<f32, LengthBase
     }
 }
 
+impl<Dt, Pow> From<[Quantity<f32, LengthBase, Dt, Pow>; 2]>
+    for Quantity<Vec2, LengthBase, Dt, Pow>
+{
+    fn from([x, y]: [Quantity<f32, LengthBase, Dt, Pow>; 2]) -> Self {
+        Self(Vec2 { x: x.0, y: y.0 }, PhantomData)
+    }
+}
+
 impl<Dt, Pow>
     From<(
         Quantity<f32, LengthBase, Dt, Pow>,

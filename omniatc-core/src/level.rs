@@ -9,6 +9,7 @@ use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 pub mod aerodrome;
+pub mod conflict;
 pub mod dest;
 pub mod ground;
 pub mod index;
@@ -37,6 +38,7 @@ impl<M> Default for Plug<M> {
 impl<M: Manager + Default> Plugin for Plug<M>
 where
     object::Conf: ConfigFieldFor<M>,
+    conflict::Conf: ConfigFieldFor<M>,
     wake::Conf: ConfigFieldFor<M>,
     weather::Conf: ConfigFieldFor<M>,
     instr::Conf: ConfigFieldFor<M>,
@@ -49,6 +51,7 @@ where
         app.add_plugins(quest::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug::<M>::default());
+        app.add_plugins(conflict::Plug::<M>::default());
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
         app.add_plugins(navaid::Plug);

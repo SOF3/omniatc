@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["dev"]
-dev = []
+dev = ["bevy/dynamic_linking"]
 
 [dependencies]
 omniatc-math.workspace = true

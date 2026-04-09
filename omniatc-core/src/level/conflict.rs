@@ -120,11 +120,14 @@ pub struct Conf {
     #[config(default = Length::from_feet(1000.0), min = Length::ZERO, max = Length::from_feet(10000.0))]
     pub vert_sep:         Length<f32>,
     /// Multiplier applied to the conflict penalty.
-    #[config(default = 100.0, min = 0.0, max = 10000.0)]
+    #[config(default = 10.0, min = 0.0, max = 10.0)]
     pub score_multiplier: f32,
 }
 
 mod detect;
+
+#[cfg(test)]
+mod tests;
 
 fn handle_despawn_system(
     mut despawn_reader: MessageReader<object::DespawnMessage>,

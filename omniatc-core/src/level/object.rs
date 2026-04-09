@@ -26,7 +26,7 @@ use store::Score;
 use super::dest::Destination;
 use super::{SystemSets, ground, message, nav};
 use crate::level::weather::{self, Weather};
-use crate::level::{dest, index, plane, taxi};
+use crate::level::{conflict, dest, index, plane, taxi};
 use crate::try_log::EntityWorldMutExt;
 use crate::{QueryTryLog, WorldTryLog};
 
@@ -96,6 +96,7 @@ pub struct Rotation(pub Quat);
 
 #[derive(Debug, Component)]
 #[require(weather::Detector)]
+#[require(conflict::Record)]
 pub struct Airborne {
     /// Indicated airspeed.
     pub airspeed: Speed<Vec3>,

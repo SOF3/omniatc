@@ -85,6 +85,8 @@ pub enum SystemSets {
     ExecuteEnviron,
     /// Reconcile aviation-related components not involved in simulation but useful for other modules to read.
     ReconcileForRead,
+    /// Updates dynamic data structures to react to changes in the world.
+    UpdateIndex,
     /// Systems simulating effects *on* the environment *from* controlled objects.
     AffectEnviron,
     /// Systems to read level data to compute statistics.
@@ -93,8 +95,6 @@ pub enum SystemSets {
     QuestCompletion,
     /// Systems for spawning new entities.
     Spawn,
-    /// Updates dynamic data structures to react to changes in the world.
-    UpdateIndex,
 }
 
 impl SystemSets {

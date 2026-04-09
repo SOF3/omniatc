@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::iter;
 use std::marker::PhantomData;
 
 use bevy::app::{self, App, Plugin};
@@ -93,12 +93,12 @@ pub struct Entry {
 }
 
 #[derive(Debug, Clone)]
-struct CellEntry {
+struct OctreeNode {
     cell:    TreeVec3<TreeUnsigned>,
     entries: Vec<Entry>,
 }
 
-impl TreePosition for CellEntry {
+impl TreePosition for OctreeNode {
     type U = TreeUnsigned;
 
     fn position(&self) -> TreeVec3<Self::U> { self.cell }
@@ -109,29 +109,30 @@ impl TreePosition for CellEntry {
 /// Current stub behavior buckets entities by quantized cells and stores full-precision world
 /// positions in each bucket.
 pub struct Octree {
-    tree: RawOctree<TreeUnsigned, CellEntry>,
+    tree:    RawOctree<TreeUnsigned, OctreeNode>,
+    mapping: Mapping,
 }
 
 impl Default for Octree {
-    fn default() -> Self { Self { tree: new_tree(0) } }
+    fn default() -> Self {
+        Self { tree: new_tree(), mapping: Mapping::from_entries(iter::empty()) }
+    }
 }
 
 impl Octree {
-    pub fn rebuild(&mut self, entries: impl IntoIterator<Item = Entry>) {
-        let entries = entries.into_iter().collect::<Vec<_>>();
-        let mapping = Mapping::from_entries(&entries);
+    pub fn rebuild(&mut self, entries: impl IntoIterator<Item = Entry> + Clone) {
+        let mapping = Mapping::from_entries(entries.clone());
 
-        let mut by_cell = HashMap::new();
+        self.tree = new_tree();
+        self.mapping = mapping;
+
         for entry in entries {
-            by_cell
-                .entry(mapping.position_to_cell(entry.position))
-                .or_insert_with(Vec::new)
+            let cell = mapping.position_to_cell(entry.position);
+            self.tree
+                .entry(cell)
+                .or_insert_with(|| OctreeNode { cell, entries: Vec::new() })
+                .entries
                 .push(entry);
-        }
-
-        self.tree = new_tree(by_cell.len());
-        for (cell, entries) in by_cell {
-            self.tree.insert(CellEntry { cell, entries }).expect("cell insert must fit in tree");
         }
     }
 
@@ -148,20 +149,21 @@ impl Octree {
     /// Returns all indexed entities with positions inside the inclusive world-space bounds.
     pub fn entities_in_bounds(
         &self,
-        min: Position<Vec3>,
-        max: Position<Vec3>,
+        [min, max]: [Position<Vec3>; 2],
     ) -> impl Iterator<Item = Entity> + '_ {
-        let min = min.get();
-        let max = max.get();
+        let min_cell = self.mapping.position_to_cell(min);
+        let max_cell = self.mapping.position_to_cell(max);
 
-        self.iter().filter_map(move |entry| {
-            let position = entry.position.get();
-            if (position.cmpge(min) & position.cmple(max)).all() {
-                Some(entry.entity)
-            } else {
-                None
-            }
-        })
+        (min_cell.x..=max_cell.x)
+            .flat_map(move |x| (min_cell.y..=max_cell.y).map(move |y| (x, y)))
+            .flat_map(move |(x, y)| (min_cell.z..=max_cell.z).map(move |z| TreeVec3::new(x, y, z)))
+            .filter_map(|cell| self.tree.get(&cell))
+            .flat_map(|node| &node.entries)
+            .filter(move |entry| {
+                entry.position.get().cmple(max.get()).all()
+                    && entry.position.get().cmpge(min.get()).all()
+            })
+            .map(|entry| entry.entity)
     }
 }
 
@@ -177,7 +179,7 @@ impl<C, Qf> Default for OctreeIndex<C, Qf> {
 }
 
 impl<C, Qf> OctreeIndex<C, Qf> {
-    pub fn rebuild(&mut self, entries: impl IntoIterator<Item = Entry>) {
+    pub fn rebuild(&mut self, entries: impl IntoIterator<Item = Entry> + Clone) {
         self.octree.rebuild(entries);
     }
 
@@ -189,10 +191,9 @@ impl<C, Qf> OctreeIndex<C, Qf> {
     /// Returns all indexed entities with positions inside the inclusive world-space bounds.
     pub fn entities_in_bounds(
         &self,
-        min: Position<Vec3>,
-        max: Position<Vec3>,
+        [min, max]: [Position<Vec3>; 2],
     ) -> impl Iterator<Item = Entity> + '_ {
-        self.octree.entities_in_bounds(min, max)
+        self.octree.entities_in_bounds([min, max])
     }
 }
 
@@ -202,17 +203,20 @@ struct IndexExtractor<C, Qf = (), PosFn = fn(&C) -> Position<Vec3>> {
     marker:    PhantomData<fn() -> (C, Qf)>,
 }
 
+/// Maps float coordinates to octree cell coordinates.
 #[derive(Debug, Clone, Copy)]
 struct Mapping {
     half_extent: f32,
 }
 
 impl Mapping {
-    fn from_entries(entries: &[Entry]) -> Self {
-        let max_abs =
-            entries.iter().map(|entry| entry.position.get()).fold(0f32, |max_abs, position| {
+    fn from_entries(entries: impl IntoIterator<Item = Entry>) -> Self {
+        let max_abs = entries.into_iter().map(|entry| entry.position.get()).fold(
+            0f32,
+            |max_abs, position| {
                 max_abs.max(position.x.abs().max(position.y.abs()).max(position.z.abs()))
-            });
+            },
+        );
 
         let mut half_extent = INITIAL_HALF_EXTENT;
         while max_abs > half_extent {
@@ -247,8 +251,8 @@ impl Mapping {
     }
 }
 
-fn new_tree(capacity: usize) -> RawOctree<TreeUnsigned, CellEntry> {
-    let max = TreeUnsigned::from(Precision::MAX);
-    let aabb = TreeAabb::from_min_max(TreeVec3::zero(), TreeVec3::splat(max));
-    RawOctree::from_aabb_with_capacity(aabb, capacity)
+fn new_tree() -> RawOctree<TreeUnsigned, OctreeNode> {
+    let max = TreeVec3::splat(TreeUnsigned::from(Precision::MAX));
+    let aabb = TreeAabb::from_min_max(TreeVec3::zero(), max);
+    RawOctree::from_aabb(aabb)
 }

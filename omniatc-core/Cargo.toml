@@ -29,7 +29,7 @@ either = "1.15.0"
 enum-map = "2.7.3"
 itertools = "0.14.0"
 ordered-float = "5.2.0"
-oktree = "0.5.0"
+oktree = { version = "0.5.0", default-features = false }
 portrait = "0.3.1"
 serde = { workspace = true, features = ["derive"] }
 smallvec = "1.15.1"

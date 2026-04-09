@@ -2,7 +2,7 @@ use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::math::Vec3;
-use math::Position;
+use math::{Length, Position};
 
 use super::{OctreeIndex, Plug};
 
@@ -21,8 +21,8 @@ fn setup_app() -> App {
 }
 
 fn bounds_around(center: Position<Vec3>) -> (Position<Vec3>, Position<Vec3>) {
-    let delta = Vec3::splat(0.5);
-    (Position::new(center.get() - delta), Position::new(center.get() + delta))
+    let delta = Length::new(Vec3::splat(0.5));
+    (center - delta, center + delta)
 }
 
 #[test]
@@ -61,10 +61,10 @@ fn plugin_rebuilds_index_every_tick() {
     let first_tick = app
         .world()
         .resource::<OctreeIndex<Indexed, With<Include>>>()
-        .entities_in_bounds(
+        .entities_in_bounds([
             Position::new(Vec3::new(-0.5, -0.5, -0.5)),
             Position::new(Vec3::new(0.5, 0.5, 0.5)),
-        )
+        ])
         .collect::<Vec<_>>();
     assert!(first_tick.contains(&entity));
 
@@ -74,16 +74,16 @@ fn plugin_rebuilds_index_every_tick() {
 
     let index = app.world().resource::<OctreeIndex<Indexed, With<Include>>>();
     let old_bounds = index
-        .entities_in_bounds(
+        .entities_in_bounds([
             Position::new(Vec3::new(-0.5, -0.5, -0.5)),
             Position::new(Vec3::new(0.5, 0.5, 0.5)),
-        )
+        ])
         .collect::<Vec<_>>();
     let new_bounds = index
-        .entities_in_bounds(
+        .entities_in_bounds([
             Position::new(Vec3::new(4.5, -0.5, -0.5)),
             Position::new(Vec3::new(5.5, 0.5, 0.5)),
-        )
+        ])
         .collect::<Vec<_>>();
 
     assert!(!old_bounds.contains(&entity));
@@ -113,10 +113,10 @@ fn plugin_tracks_entity_moving_beyond_initial_bounds_consecutively() {
 
         let index = app.world().resource::<OctreeIndex<Indexed, With<Include>>>();
         let (next_min, next_max) = bounds_around(next);
-        let in_next_bounds = index.entities_in_bounds(next_min, next_max).collect::<Vec<_>>();
+        let in_next_bounds = index.entities_in_bounds([next_min, next_max]).collect::<Vec<_>>();
 
         let (prev_min, prev_max) = bounds_around(previous);
-        let in_previous_bounds = index.entities_in_bounds(prev_min, prev_max).collect::<Vec<_>>();
+        let in_previous_bounds = index.entities_in_bounds([prev_min, prev_max]).collect::<Vec<_>>();
 
         assert!(in_next_bounds.contains(&entity));
         assert!(!in_previous_bounds.contains(&entity));

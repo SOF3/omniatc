@@ -6,7 +6,7 @@ use bevy::ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy::ecs::system::{Commands, ParamSet, Query, Res, ResMut, ScheduleSystem, SystemParam};
 use bevy::time::{self, Time};
 use bevy_mod_config::ReadConfig;
-use math::{Length, Squared};
+use math::Length;
 use store::Score;
 
 use super::{SystemSets, message, object, score};
@@ -53,10 +53,10 @@ fn collect_pairs(params: CollectPairsParams) -> Vec<CollectedPair> {
 
     let mut pairs = Vec::new();
     for (entity_a, object_a) in &params.object_query {
-        for entity_b in params.octree.entities_in_bounds(
+        for entity_b in params.octree.entities_in_bounds([
             object_a.position - aabb_half_size,
             object_a.position + aabb_half_size,
-        ) {
+        ]) {
             // Process each unordered pair exactly once.
             if entity_b <= entity_a {
                 continue;
@@ -68,11 +68,8 @@ fn collect_pairs(params: CollectPairsParams) -> Vec<CollectedPair> {
             let vert_dist_sq = distance.vertical().squared();
 
             if horiz_dist_sq < horiz_thres_sq && vert_dist_sq < vert_thres_sq {
-                pairs.push(CollectedPair {
-                    entities: [entity_a, entity_b],
-                    horiz_dist_sq,
-                    vert_dist_sq,
-                });
+                let norm_dist_sq = horiz_dist_sq / horiz_thres_sq + vert_dist_sq / vert_thres_sq;
+                pairs.push(CollectedPair { entities: [entity_a, entity_b], norm_dist_sq });
             }
         }
     }
@@ -81,9 +78,9 @@ fn collect_pairs(params: CollectPairsParams) -> Vec<CollectedPair> {
 }
 
 struct CollectedPair {
-    entities:      [Entity; 2],
-    horiz_dist_sq: Squared<Length<f32>>,
-    vert_dist_sq:  Squared<Length<f32>>,
+    entities:     [Entity; 2],
+    /// `(h/h_sep)^2 + (v/v_sep)^2`, in `[0, 2)` when both separations are violated.
+    norm_dist_sq: f32,
 }
 
 #[derive(SystemParam)]
@@ -117,7 +114,7 @@ fn update_pairs(pairs: &[CollectedPair], mut params: UpdatePairsParams) -> Entit
 
             apply_penalty(
                 &mut pair_state,
-                (pair.vert_dist_sq + pair.horiz_dist_sq).0,
+                pair.norm_dist_sq,
                 params.time.delta_secs(),
                 conf.score_multiplier,
                 &mut params.score,
@@ -237,16 +234,25 @@ fn update_active_object_markers(
 
 /// Computes the incremental conflict score penalty for one frame.
 ///
-/// `norm_dist_sq` is `(h/h_sep)^2 + (v/v_sep)^2`, in `[0, 2)` when both separations are
-/// violated.  `cumul_secs` is the total cumulative conflict time already updated for this
-/// frame.  The formula yields a cumulative penalty that grows as `t^(1/3)` over time and
-/// scales with proximity within the separation bubble.
-fn compute_penalty(norm_dist_sq: f32, cumul_secs: f32, dt_secs: f32, multiplier: f32) -> f32 {
+/// - `norm_dist_sq` is `(h/h_sep)^2 + (v/v_sep)^2`, in `0..2` when both separations are violated.
+/// - `cumul_secs` is the total cumulative conflict time already updated for this frame.
+/// - The formula yields a cumulative penalty that grows as `t^(1/3)` over time and
+///   scales with proximity within the separation bubble.
+pub(super) fn compute_penalty(
+    norm_dist_sq: f32,
+    cumul_secs: f32,
+    dt_secs: f32,
+    multiplier: f32,
+) -> f32 {
+    if cumul_secs <= 0.0 || dt_secs <= 0.0 {
+        return 0.0;
+    }
+
     (2.0 - norm_dist_sq) * cumul_secs.powf(-2.0 / 3.0) * dt_secs * multiplier
 }
 
 /// Advances `pair_state.cumul` by `dt_secs`, computes the penalty, and commits the integer
-/// floor to `stats.total` (remainder stays in `pair_state.score_acc` for future frames).
+/// floor to `stats.total` (remainder stays in `pair_state.uncommitted_score` for future frames).
 fn apply_penalty(
     pair_state: &mut PairState,
     norm_dist_sq: f32,

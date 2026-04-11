@@ -15,7 +15,7 @@ use store::{NavLimits, YawTarget};
 use crate::level::object::{self, Object};
 use crate::level::runway::Runway;
 use crate::level::waypoint::{self, Waypoint};
-use crate::level::{aerodrome, nav, plane, runway, weather};
+use crate::level::{SystemSets, aerodrome, nav, plane, runway, weather};
 
 const NAV_LIMITS: NavLimits = NavLimits {
     min_horiz_speed:   Speed::from_knots(120.),
@@ -66,6 +66,7 @@ const AERODROME_ELEVATION: Position<f32> = Position::from_amsl_feet(500.0);
 /// Runway entity at (0, 8) at 500ft.
 fn base_world() -> (App, Entities) {
     let mut app = App::new();
+    SystemSets::configure_ordering(&mut app);
     app.add_plugins((
         object::Plug::<()>::default(),
         weather::Plug::<()>::default(),

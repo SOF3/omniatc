@@ -9,8 +9,10 @@ use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 pub mod aerodrome;
+pub mod conflict;
 pub mod dest;
 pub mod ground;
+pub mod index;
 pub mod instr;
 pub mod message;
 pub mod nav;
@@ -36,24 +38,20 @@ impl<M> Default for Plug<M> {
 impl<M: Manager + Default> Plugin for Plug<M>
 where
     object::Conf: ConfigFieldFor<M>,
+    conflict::Conf: ConfigFieldFor<M>,
     wake::Conf: ConfigFieldFor<M>,
     weather::Conf: ConfigFieldFor<M>,
     instr::Conf: ConfigFieldFor<M>,
 {
     fn build(&self, app: &mut App) {
-        for set in SystemSets::iter() {
-            app.configure_sets(app::Update, set.in_set(AllSystemSets));
-        }
-
-        for (before, after) in SystemSets::iter().tuple_windows() {
-            app.configure_sets(app::Update, before.before(after));
-        }
+        SystemSets::configure_ordering(app);
 
         app.add_plugins(message::Plug);
         app.add_plugins(score::Plug);
         app.add_plugins(quest::Plug);
         app.add_plugins(aerodrome::Plug);
         app.add_plugins(object::Plug::<M>::default());
+        app.add_plugins(conflict::Plug::<M>::default());
         app.add_plugins(plane::Plug);
         app.add_plugins(nav::Plug);
         app.add_plugins(navaid::Plug);
@@ -87,6 +85,8 @@ pub enum SystemSets {
     ExecuteEnviron,
     /// Reconcile aviation-related components not involved in simulation but useful for other modules to read.
     ReconcileForRead,
+    /// Updates dynamic data structures to react to changes in the world.
+    UpdateIndex,
     /// Systems simulating effects *on* the environment *from* controlled objects.
     AffectEnviron,
     /// Systems to read level data to compute statistics.
@@ -95,6 +95,23 @@ pub enum SystemSets {
     QuestCompletion,
     /// Systems for spawning new entities.
     Spawn,
+}
+
+impl SystemSets {
+    /// Configures the canonical ordering of all system sets for a `bevy::app::Update` schedule.
+    ///
+    /// Call this in any test app that adds plugins belonging to individual sets
+    /// (e.g. `object::Plug`, `nav::Plug`) without using the full `level::Plug`.
+    /// Without this ordering, Bevy's tiebreaking may schedule sets in an unspecified order,
+    /// producing different simulation results than the production configuration.
+    pub fn configure_ordering(app: &mut App) {
+        for set in SystemSets::iter() {
+            app.configure_sets(app::Update, set.in_set(AllSystemSets));
+        }
+        for (before, after) in SystemSets::iter().tuple_windows() {
+            app.configure_sets(app::Update, before.before(after));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]

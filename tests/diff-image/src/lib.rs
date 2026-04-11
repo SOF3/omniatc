@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use bevy_math::UVec3;
 use image::RgbImage;
 
-const SMOOTHING_HALF_WIDTH_PLUS_ONE: usize = 3;
+const SMOOTHING_HALF_WIDTH_PLUS_ONE: usize = 5;
 const PER_CHANNEL_THRESHOLD: u8 = 2;
 const BYTES_THRESHOLD: usize = 10;
 

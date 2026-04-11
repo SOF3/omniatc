@@ -55,7 +55,12 @@ where
         app.init_resource::<VortexIndex>();
         app.add_message::<SpawnMessage>();
         app.add_systems(app::Update, dissipate_vortex_system.in_set(SystemSets::PrepareEnviron));
-        app.add_systems(app::Update, wind_move_vortex_system.in_set(SystemSets::ExecuteEnviron));
+        app.add_systems(
+            app::Update,
+            wind_move_vortex_system
+                .in_set(SystemSets::ExecuteEnviron)
+                .in_set(weather::DetectorReaderSystemSet),
+        );
         app.add_systems(app::Update, spawn_vortex_system.in_set(SystemSets::AffectEnviron));
         app.add_systems(
             app::Update,

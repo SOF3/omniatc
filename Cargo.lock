@@ -1058,9 +1058,9 @@ checksum = "7ef8e4b7e61dfe7719bb03c884dc270cd46a82efb40f93e9933b990c5c190c59"
 
 [[package]]
 name = "bevy_mod_config"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88fe3850b94e7b762f2e24f69258c1ae0411da949b62d06f43867440bb919cfa"
+checksum = "1f7571e38b9c88dcfe993f4ff20d2000fe2f8b753f73b0fa269db68ea92fad7c"
 dependencies = [
  "bevy_app",
  "bevy_color",
@@ -1076,11 +1076,12 @@ dependencies = [
 
 [[package]]
 name = "bevy_mod_config_macros"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb42c4b8640beb5088f731e326df3b18b7e2948c240c13ace25b4a25fb6b1701"
+checksum = "b68324e523bdf9d9bc6c0ed535b29a3981bb6502c2e555e6eb72683490200f4e"
 dependencies = [
  "either",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn",

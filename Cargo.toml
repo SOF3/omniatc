@@ -15,7 +15,7 @@ bevy_math = "0.18.1"
 bevy_egui = { version = "0.39.1", default-features = false }
 egui = "0.33.3"
 egui_extras = "0.33.3"
-bevy_mod_config = {version = "0.5.0", features = ["bevy_color"]}
+bevy_mod_config = {version = "0.6.1", features = ["bevy_color"]}
 omniatc-core = { version = "*", path = "omniatc-core" }
 omniatc-math = { version = "*", path = "omniatc-math" }
 omniatc-store = { version = "*", path = "omniatc-store" }
@@ -73,6 +73,8 @@ unused_imports = "allow"
 dead_code = "allow"
 unused_variables = "allow"
 
-# Significantly improves screenshot diff performance during snapshot testing.
-[profile.dev.package.omniatc-diff-image]
+[profile.dev]
+opt-level = 0
+
+[profile.dev.package."*"]
 opt-level = 3

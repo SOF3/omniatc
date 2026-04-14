@@ -239,7 +239,7 @@ enum SpriteType {
 }
 
 impl SpriteTypeRead {
-    fn path(&self) -> &'static str {
+    fn path(self) -> &'static str {
         match self {
             Self::Plane => "sprites/plane.png",
         }

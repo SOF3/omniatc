@@ -150,5 +150,6 @@ pub(super) struct Conf {
     #[config(default = 0.5, min = 0.0, max = 10.0)]
     thickness:               f32,
     /// Object separation ring color will be based on this scheme.
+    #[config(base.discrim.default = base_color::SchemeBaseDiscrim::Altitude)]
     pub(super) color_scheme: base_color::Scheme,
 }

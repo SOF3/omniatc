@@ -100,5 +100,6 @@ pub(super) struct Conf {
     #[config(default = 0.5, min = 0., max = 10.)]
     thickness:               f32,
     /// Object ground speed vector color will be based on this scheme.
+    #[config(base.discrim.default = base_color::SchemeBaseDiscrim::Speed)]
     pub(super) color_scheme: base_color::Scheme,
 }

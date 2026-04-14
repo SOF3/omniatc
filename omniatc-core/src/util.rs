@@ -10,6 +10,7 @@ pub use async_task::{
     AsyncManager, AsyncResult, AsyncResultTrigger, RunAsync, run_async, run_async_local,
 };
 mod eq_any;
+use bevy_mod_config::{Config, ConfigField};
 pub use eq_any::EqAny;
 mod iter;
 pub use iter::TakeLast;
@@ -19,6 +20,7 @@ mod query;
 pub use query::{MapQuery, QueryWith};
 mod schedule;
 pub use schedule::{EnumScheduleConfig, configure_ordered_system_sets};
+use serde::{Deserialize, Serialize};
 
 pub struct Plug;
 
@@ -65,5 +67,21 @@ pub fn manage_entity_vec<C, X, NB>(
 
     for entity in entities {
         commands.entity(entity).despawn();
+    }
+}
+
+#[derive(Serialize, Deserialize, Config)]
+#[config(expose(read, discrim))]
+pub enum OptionalConfigField<T: ConfigField> {
+    Enabled(T),
+    Disabled,
+}
+
+impl<'a, T: ConfigField> OptionalConfigFieldRead<'a, T> {
+    pub fn as_option(self) -> Option<T::Reader<'a>> {
+        match self {
+            OptionalConfigFieldRead::Enabled(value) => Some(value),
+            OptionalConfigFieldRead::Disabled => None,
+        }
     }
 }

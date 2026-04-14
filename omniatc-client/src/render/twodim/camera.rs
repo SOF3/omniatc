@@ -184,7 +184,7 @@ struct Conf {
     #[config(default = 1.05)]
     scroll_step_line:      f32,
     /// Zoom speed based on vertical scroll per pixel.
-    #[config(default = 1.001)]
+    #[config(default = 1.003)]
     scroll_step_pixel:     f32,
     /// Rotation speed based on horizontal scroll per line.
     #[config(default = Angle::from_degrees(4.0))]

@@ -23,13 +23,13 @@ use bevy::window::{
     CursorMoved, PrimaryWindow, RawHandleWrapper, RawHandleWrapperHolder, Window, WindowWrapper,
 };
 use jiff::Timestamp;
+use omniatc::load::StoredEntity;
 use omniatc_client::render::twodim;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window as WinitWindow, WindowId};
 
-const DEFAULT_SCENARIO: &str = "omniatc.tutorial";
 const DEFAULT_MAX_FRAMES: usize = 600;
 
 pub struct ClientTest {
@@ -39,15 +39,15 @@ pub struct ClientTest {
     max_frames:      usize,
 }
 
-pub fn start_test(test_name: impl Into<String>) -> Result<ClientTest> {
+pub fn start_test(test_name: impl Into<String>, default_scenario: String) -> Result<ClientTest> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let assets_dir = manifest_dir.join("..").join("..").join("assets");
 
     let options = omniatc_client::Options {
-        assets_dir:       assets_dir.to_string_lossy().into_owned(),
-        headless_test:    true,
-        open_level_id:    None,
-        default_scenario: DEFAULT_SCENARIO.to_string(),
+        assets_dir: assets_dir.to_string_lossy().into_owned(),
+        headless_test: true,
+        open_level_id: None,
+        default_scenario,
     };
 
     let mut app = omniatc_client::main_app(options);
@@ -156,6 +156,19 @@ impl ClientTest {
         let result = then(self);
         self.max_frames = old_max_frames;
         result
+    }
+
+    pub fn wait_for_level_load(&mut self) -> Result<()> {
+        self.drive_frames(2);
+        // Wait for async IO first to avoid virtual time depending on IO speed.
+        thread::sleep(Duration::from_millis(100));
+        self.drive_until(|world| {
+            world.query_filtered::<Entity, With<StoredEntity>>().iter(world).next().is_some()
+        })?;
+        self.drive_frames(2);
+        thread::sleep(Duration::from_millis(100));
+        self.drive_frames(2);
+        Ok(())
     }
 
     pub fn drive_until<F>(&mut self, condition: F) -> Result<()>

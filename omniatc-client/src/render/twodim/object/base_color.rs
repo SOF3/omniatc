@@ -57,6 +57,9 @@ fn select_color(scheme: &SchemeRead, time: &Time<time::Real>, data: &UpdateDataI
         && let Some(scheme) = scheme.conflict.as_option()
     {
         let flash_cycle_duration = scheme.flash_on_duration + scheme.flash_off_duration;
+        if flash_cycle_duration.is_zero() {
+            return scheme.color;
+        }
         let flash_cycle_position = time.elapsed().as_millis() % flash_cycle_duration.as_millis();
         if flash_cycle_position < scheme.flash_on_duration.as_millis() {
             return scheme.color;
@@ -111,7 +114,10 @@ where
     fn lerp(&self, value: T) -> Color {
         let top_value = T::from(self.top_value);
         let bottom_value = T::from(self.bottom_value);
-        let ratio = (value - bottom_value) / (top_value - bottom_value);
+        let mut ratio = (value - bottom_value) / (top_value - bottom_value);
+        if ratio.is_nan() {
+            ratio = 0.0;
+        }
         self.bottom_color.mix(&self.top_color, ratio.clamp(0.0, 1.0).powf(self.degree))
     }
 }
@@ -144,7 +150,7 @@ pub enum SchemeBase {
     ),
     Speed(
         #[config(
-            top_value.default = Speed::from_fpm(300.0),
+            top_value.default = Speed::from_knots(300.0),
             bottom_value.unit = SpeedUnit::Knots,
             top_value.unit = SpeedUnit::Knots,
             degree.default = 2.0,

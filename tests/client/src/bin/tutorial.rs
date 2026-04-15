@@ -1,9 +1,5 @@
-use std::thread::sleep;
-use std::time::Duration;
-
 use anyhow::{Context, Result};
 use bevy::camera::Camera;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{ReadOnlyQueryData, With};
 use bevy::ecs::world::World;
 use bevy::input::keyboard;
@@ -14,27 +10,14 @@ use math::{Angle, Heading, Length, Position, Speed};
 use omniatc::level::object::{Display, Object};
 use omniatc::level::quest::{Active, Quest};
 use omniatc::level::{nav, object};
-use omniatc::load::StoredEntity;
 use omniatc_client::render::twodim;
 use omniatc_client_test::{ClientTest, start_test};
 
 #[expect(clippy::too_many_lines, reason = "choreography is inherently verbose")]
 fn main() -> Result<()> {
-    let mut test = start_test("tutorial")?;
+    let mut test = start_test("tutorial", "omniatc.tutorial".into())?;
 
-    test.with_screenshot("level-load", |test| {
-        test.drive_frames(2);
-        // Wait for async IO first to avoid virtual time depending on IO speed.
-        sleep(Duration::from_millis(100));
-
-        test.drive_until(|world| {
-            world.query_filtered::<Entity, With<StoredEntity>>().iter(world).next().is_some()
-        })?;
-        test.drive_frames(2);
-        sleep(Duration::from_millis(100)); // also wait for fonts to load
-        test.drive_frames(2);
-        Ok(())
-    })?;
+    test.with_screenshot("level-load", ClientTest::wait_for_level_load)?;
 
     let window_center = test.window_center()?;
     test.with_screenshot("camera-drag", |test| {

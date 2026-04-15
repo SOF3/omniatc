@@ -164,7 +164,9 @@ impl Kind for SetHeading {
 
     fn format_message(&self, _world: &World, _object: Entity) -> String {
         match self.target {
-            YawTarget::Heading(heading) => format!("Fly heading {:3.0} degrees", heading.degrees()),
+            YawTarget::Heading(heading) => {
+                format!("Fly heading {:03.0} degrees", heading.degrees())
+            }
             YawTarget::TurnHeading { heading, remaining_crosses: 0, direction } => {
                 format!(
                     "Turn {} to heading {:.0} degrees",

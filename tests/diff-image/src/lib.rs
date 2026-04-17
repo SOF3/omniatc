@@ -14,7 +14,7 @@ pub fn compare_images(
     mut baseline: RgbImage,
     mut actual: RgbImage,
     diff_path: &Path,
-) -> Result<()> {
+) -> Result<Option<anyhow::Error>> {
     if baseline.dimensions() != actual.dimensions() {
         anyhow::bail!(
             "Screenshot dimensions mismatch: expected {}x{}, got {}x{}",
@@ -40,16 +40,16 @@ pub fn compare_images(
     }
 
     if diff_bytes < BYTES_THRESHOLD {
-        return Ok(());
+        return Ok(None);
     }
 
     diff_image
         .save_with_format(diff_path, image::ImageFormat::Png)
         .context("Failed to save screenshot diff image")?;
-    anyhow::bail!(
+    Ok(Some(anyhow::anyhow!(
         "Screenshot mismatch, {diff_bytes} / {} bytes differ",
         actual.width() * actual.height() * 3
-    );
+    )))
 }
 
 /// Take the averaging window of each pixel in the image.

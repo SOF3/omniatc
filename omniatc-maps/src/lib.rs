@@ -8,12 +8,13 @@ use anyhow::{Context, Result};
 
 pub mod common_types;
 
+pub mod blank;
 pub mod demo;
 pub mod tutorial;
 
 pub fn builtins()
 -> impl Iterator<Item = (impl AsRef<str> + Into<String> + fmt::Display, store::File)> {
-    [("tutorial", tutorial::file()), ("demo", demo::file())].into_iter()
+    [("blank", blank::file()), ("tutorial", tutorial::file()), ("demo", demo::file())].into_iter()
 }
 
 pub fn build_assets(maps_dir: &Path) -> Result<()> {

@@ -212,12 +212,13 @@ impl ClientTest {
             capture.image = None;
         }
 
-        let mut entity = self.app.world_mut().spawn(Screenshot::primary_window());
-        entity.observe(store_screenshot);
-        entity.observe(save_to_disk(test_path.clone()));
+        let mut screenshot_entity = self.app.world_mut().spawn(Screenshot::primary_window());
+        screenshot_entity.observe(store_screenshot);
+        screenshot_entity.observe(save_to_disk(test_path.clone()));
         if is_new_baseline {
-            entity.observe(save_to_disk(baseline_path.clone()));
+            screenshot_entity.observe(save_to_disk(baseline_path.clone()));
         }
+        let screenshot_entity = screenshot_entity.id();
 
         self.drive_until(|world| world.resource::<ScreenshotCapture>().image.is_some())?;
 
@@ -233,9 +234,13 @@ impl ClientTest {
             bevy::log::info!("Generated new screenshot baseline at {}.", baseline_path.display());
         } else {
             let expected = load_image(&baseline_path)?;
-            compare_images(expected, captured, &diff_path).with_context(|| {
+            let err = compare_images(expected, captured, &diff_path).with_context(|| {
                 format!("{} != {}", baseline_path.display(), test_path.display())
             })?;
+            if let Some(err) = err {
+                bevy::log::warn!("{err}");
+                self.app.world_mut().entity_mut(screenshot_entity).observe(save_to_disk(test_path));
+            }
         }
 
         Ok(())
@@ -411,10 +416,14 @@ fn load_image(path: &Path) -> Result<Image> {
     .with_context(|| format!("Failed to load screenshot baseline from {}", path.display()))
 }
 
-fn compare_images(baseline: Image, actual: Image, diff_path: &Path) -> Result<()> {
+fn compare_images(
+    baseline: Image,
+    actual: Image,
+    diff_path: &Path,
+) -> Result<Option<anyhow::Error>> {
     bevy::log::info!("Comparing screenshot with baseline");
 
-    omniatc_diff_image::compare_images(
+    let err = omniatc_diff_image::compare_images(
         baseline
             .try_into_dynamic()
             .context("Failed to convert baseline screenshot to dynamic image")?
@@ -424,7 +433,9 @@ fn compare_images(baseline: Image, actual: Image, diff_path: &Path) -> Result<()
             .context("Failed to convert captured screenshot to dynamic image")?
             .to_rgb8(),
         diff_path,
-    )
+    )?;
+
+    Ok(err)
 }
 
 fn sanitize_label(label: &str, kind: &str) -> Result<String> {

@@ -1414,7 +1414,7 @@ dependencies = [
  "crossbeam-queue",
  "derive_more",
  "futures-lite",
- "heapless 0.9.2",
+ "heapless",
  "pin-project",
 ]
 
@@ -3016,16 +3016,6 @@ dependencies = [
 
 [[package]]
 name = "heapless"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
-dependencies = [
- "hash32",
- "stable_deref_trait",
-]
-
-[[package]]
-name = "heapless"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af2455f757db2b292a9b1768c4b70186d443bcb3b316252d6b540aec1cd89ed"
@@ -4097,11 +4087,11 @@ dependencies = [
 
 [[package]]
 name = "oktree"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e04f14a2e7e663914995cd4ecf75a77f8c704277efda4af08c9b3045ece997"
+checksum = "7e85cec4fc6da0a58155b2e10a7a4441d17ac780b4917a7582b59531ce164ad7"
 dependencies = [
- "heapless 0.8.0",
+ "heapless",
  "num",
  "smallvec",
 ]

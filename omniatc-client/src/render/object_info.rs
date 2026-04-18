@@ -299,7 +299,8 @@ fn focus_or_create_tab(dock: &mut DockState<dock::Tab>, object: Entity) {
         || Tab::ObjectInfo(TabType::Object { object, pinned: false }),
         dock::ReplaceTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Placeholder)))
             .or(dock::ReplaceTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { object: tab_obj, pinned: false }) if *tab_obj == object)))
-            .or(dock::AfterTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { object: tab_obj, pinned: true }) if *tab_obj == object)))
+            .or(dock::ReplaceTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { pinned: false, .. }))))
+            .or(dock::AfterTab(|tab| matches!(tab, Tab::ObjectInfo(TabType::Object { pinned: true, .. }))))
             .or_always(dock::SplitRoot{split:egui_dock::Split::Right, ratio:0.7}),
     );
 }

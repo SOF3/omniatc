@@ -78,3 +78,6 @@ opt-level = 0
 
 [profile.dev.package."*"]
 opt-level = "s"
+
+[profile.dev.package."omniatc-diff-image"]
+opt-level = 3

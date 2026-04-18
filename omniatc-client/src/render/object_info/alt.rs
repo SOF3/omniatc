@@ -52,7 +52,7 @@ impl Writer for ObjectQuery {
 
         let mut frame = egui::Frame::NONE;
         if params.req_highlight.is_some() {
-            frame = frame.stroke(egui::Stroke::new(3.0, egui::Color32::RED));
+            frame = frame.stroke(egui::Stroke::new(3_f32, egui::Color32::RED));
         }
         frame.show(ui, |ui| {
             ui.horizontal(|ui| {

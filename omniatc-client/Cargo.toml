@@ -25,7 +25,7 @@ anyhow = "1.0.102"
 async-lock = "3.4.2"
 bevy_mod_config = { workspace = true, features = ["serde_json", "egui"] }
 ciborium = "0.2.2"
-clap = { version = "4.6.0", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["into"] }
 dirs = "6.0.0"
 egui_dock = "0.18.0"
